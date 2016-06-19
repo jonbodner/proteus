@@ -1,8 +1,11 @@
 package gdb
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"go/scanner"
+	"go/token"
 	"reflect"
 	"strings"
 )
@@ -59,7 +62,7 @@ func validateFunction(funcType reflect.Type, isExec bool) error {
 		return errors.New("First parameter must be of type gdb.Executor")
 	}
 	//no in parameter can be a channel
-	for i := 1;i<funcType.NumIn();i++ {
+	for i := 1; i < funcType.NumIn(); i++ {
 		if funcType.In(i).Kind() == reflect.Chan {
 			return errors.New("no input parameter can be a channel")
 		}
@@ -90,48 +93,171 @@ func validateFunction(funcType reflect.Type, isExec bool) error {
 	return nil
 }
 
-func buildQueryParamMap(query string, paramMap map[string]int) (map[int]int, error) {
-	//todo build up the map from query parameter order to input parameter order
-	//todo later: add support for slices as parameters
-	//todo later: add support for passing in a struct and walking the fields
-	//todo later: add support for passing in a map and walking the values
-	return map[int]int{},nil
+type paramInfo struct {
+	name        string
+	posInParams int
 }
 
-func convertToPositionalParameters(query string) string {
-	//todo convert the query from having named parameters to having positional parameters
+// key == position in query
+// value == name to evaluate & position in function in parameters
+type queryParams []paramInfo
+
+func buildQueryParams(posNameMap []string, paramMap map[string]int, funcType reflect.Type) (queryParams, error) {
+	out := make(queryParams, len(posNameMap))
+	for k, v := range posNameMap {
+		//get just the first part of the name, before any .
+		path := strings.SplitN(v, ".", 2)
+		if pos, ok := paramMap[path[0]]; ok {
+			//if the path has more than one part, make sure that the type of the function parameter is map or struct
+			if len(path) > 1 {
+				paramType := funcType.In(pos)
+				switch paramType.Kind() {
+				case reflect.Map, reflect.Struct:
+					//do nothing
+				default:
+					return nil, fmt.Errorf("Query Parameter %s has a path, but the incoming parameter is not a map or a struct", v)
+				}
+			}
+			out[k] = paramInfo{v, pos}
+		} else {
+			return nil, fmt.Errorf("Query Parameter %s cannot be found in the incoming parameters", v)
+		}
+	}
+
 	//todo later: add support for slices as parameters
-	//todo later: add support for passing in a struct and walking the fields
-	//todo later: add support for passing in a map and walking the values
-	return query
+	return out, nil
 }
 
-func getExecAndQArgs(args []reflect.Value, queryParamMap map[int]int) (Executor, []interface{}) {
+func validIdentifier(curVar string) (string, error) {
+	if strings.Contains(curVar, ";") {
+		return "", fmt.Errorf("; is not allowed in an identifier: %s",curVar)
+	}
+	curVarB := []byte(curVar)
+
+	var s scanner.Scanner
+	fset := token.NewFileSet()                          // positions are relative to fset
+	file := fset.AddFile("", fset.Base(), len(curVarB)) // register input "file"
+	s.Init(file, curVarB, nil, scanner.Mode(0))
+
+	lastPeriod := false
+	first := true
+	identifier := ""
+	loop: for {
+		pos, tok, lit := s.Scan()
+		fmt.Printf("%s\t%s\t%q\n", fset.Position(pos), tok, lit)
+		switch (tok) {
+		case token.EOF:
+			if first || lastPeriod {
+				return "", fmt.Errorf("identifiers cannot be empty or end with a .: %s",curVar)
+			}
+			break loop
+		case token.SEMICOLON:
+			//happens with auto-insert from scanner
+			//any explicit semicolons are illegal and handled earlier
+			continue
+		case token.IDENT:
+			if !first && !lastPeriod {
+				return "", fmt.Errorf(". missing between parts of an identifier: %s",curVar)
+			}
+			first = false
+			lastPeriod = false
+			identifier += lit
+		case token.PERIOD:
+			if first || lastPeriod {
+				return "", fmt.Errorf("identifier cannot start with . or have two . in a row: %s",curVar)
+			}
+			lastPeriod = true
+			identifier += "."
+		default:
+			return "", fmt.Errorf("Invalid character found in identifier: %s",curVar)
+		}
+	}
+	return identifier, nil
+}
+
+func convertToPositionalParameters(query string) (string, []string, error) {
+	var out bytes.Buffer
+
+	posNames := []string{}
+
+	// escapes:
+	// \ (any character), that character literally (meant for escaping : and \)
+	// ending on a single \ means the \ is ignored
+	inEscape := false
+	inVar := false
+	curVar := []rune{}
+	for k, v := range query {
+		if inEscape {
+			out.WriteRune(v)
+			inEscape = false
+			continue
+		}
+		switch v {
+		case '\\':
+			inEscape = true
+		case ':':
+			if inVar {
+				if len(curVar) == 0 {
+					//error! must have a something
+					return "", nil, fmt.Errorf("Empty variable declaration at position %d", k)
+				}
+				curVarS := string(curVar)
+				id, err := validIdentifier(curVarS)
+				if err != nil {
+					//error, identifier must be valid go identifier with . for path
+					return "", nil, err
+				}
+				posNames = append(posNames, id)
+				inVar = false
+				curVar = []rune{}
+				out.WriteRune('?')
+			} else {
+				inVar = true
+			}
+		default:
+			if inVar {
+				curVar = append(curVar, v)
+			} else {
+				out.WriteRune(v)
+			}
+		}
+	}
+	if inVar {
+		return "", nil, fmt.Errorf("Missing a closing : somewhere: %s", query)
+	}
+	//todo later: add support for slices as parameters
+	return out.String(), posNames, nil
+}
+
+func getExecAndQArgs(args []reflect.Value, qps queryParams) (Executor, []interface{}) {
 	//pull out that first input parameter as an Executor
 	exec := args[0].Interface().(Executor)
 
 	//walk through the rest of the input parameters and build a slice for args
-	qArgs := make([]interface{},len(args)-1)
-	for i := 0;i<len(qArgs);i++ {
-		qArgs[i] = args[queryParamMap[i]].Interface()
-	}
 
-	//todo later: add support for slices as parameters
-	//todo later: add support for passing in a struct and walking the fields
-	//todo later: add support for passing in a map and walking the values
+	qArgs := make([]interface{}, len(qps))
+	for k, v := range qps {
+		//todo later: add support for slices as parameters
+		//todo later: add support for passing in a struct and walking the fields
+		//todo later: add support for passing in a map and walking the values
+		qArgs[k] = args[v.posInParams].Interface()
+	}
 
 	return exec, qArgs
 }
 
 func buildExec(funcType reflect.Type, query string, paramMap map[string]int) (func(args []reflect.Value) []reflect.Value, error) {
-	queryParamMap, err := buildQueryParamMap(query, paramMap)
+	positionalQuery, posNames, err := convertToPositionalParameters(query)
 	if err != nil {
 		return nil, err
 	}
-	positionalQuery := convertToPositionalParameters(query)
+	qps, err := buildQueryParams(posNames, paramMap, funcType)
+	if err != nil {
+		return nil, err
+	}
 	numOut := funcType.NumOut()
 	return func(args []reflect.Value) []reflect.Value {
-		exec, qArgs := getExecAndQArgs(args, queryParamMap)
+		exec, qArgs := getExecAndQArgs(args, qps)
 
 		//call executor.Exec with query and parameters
 		fmt.Println("calling", positionalQuery, "with params", qArgs)
@@ -176,19 +302,22 @@ func buildExec(funcType reflect.Type, query string, paramMap map[string]int) (fu
 			}
 			return []reflect.Value{reflect.ValueOf(val), reflect.ValueOf(nil)}
 		}
-		return []reflect.Value{reflect.ValueOf(0),reflect.ValueOf(errors.New("Should never get here!"))}
+		return []reflect.Value{reflect.ValueOf(0), reflect.ValueOf(errors.New("Should never get here!"))}
 	}, nil
 }
 
 func buildQuery(funcType reflect.Type, query string, paramMap map[string]int) (func(args []reflect.Value) []reflect.Value, error) {
-	queryParamMap, err := buildQueryParamMap(query, paramMap)
+	positionalQuery, posNames, err := convertToPositionalParameters(query)
 	if err != nil {
 		return nil, err
 	}
-	positionalQuery := convertToPositionalParameters(query)
+	qps, err := buildQueryParams(posNames, paramMap, funcType)
+	if err != nil {
+		return nil, err
+	}
 	numOut := funcType.NumOut()
 	return func(args []reflect.Value) []reflect.Value {
-		exec, qArgs := getExecAndQArgs(args, queryParamMap)
+		exec, qArgs := getExecAndQArgs(args, qps)
 
 		//call executor.Query with query and parameters
 		fmt.Println("calling", positionalQuery, "with params", qArgs)
@@ -213,7 +342,7 @@ func buildQuery(funcType reflect.Type, query string, paramMap map[string]int) (f
 			//todo handle mapping
 			return []reflect.Value{reflect.Zero(funcType.Out(0)), reflect.ValueOf(nil)}
 		}
-		return []reflect.Value{reflect.Zero(funcType.Out(0)),reflect.ValueOf(errors.New("Should never get here!"))}
+		return []reflect.Value{reflect.Zero(funcType.Out(0)), reflect.ValueOf(errors.New("Should never get here!"))}
 	}, nil
 }
 
