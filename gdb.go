@@ -8,6 +8,8 @@ import (
 	"go/token"
 	"reflect"
 	"strings"
+	"github.com/jonbodner/gdb/mapper"
+	"github.com/jonbodner/gdb/api"
 )
 
 /*
@@ -57,7 +59,7 @@ func validateFunction(funcType reflect.Type, isExec bool) error {
 	if funcType.NumIn() == 0 {
 		return errors.New("Need to supply an Executor parameter")
 	}
-	exType := reflect.TypeOf((*Executor)(nil)).Elem()
+	exType := reflect.TypeOf((*api.Executor)(nil)).Elem()
 	if !funcType.In(0).Implements(exType) {
 		return errors.New("First parameter must be of type gdb.Executor")
 	}
@@ -75,7 +77,7 @@ func validateFunction(funcType reflect.Type, isExec bool) error {
 
 	//if 2 return values, second is error
 	if funcType.NumOut() == 2 {
-		errType := reflect.TypeOf(error(nil))
+		errType := reflect.TypeOf((*error)(nil)).Elem()
 		if !funcType.Out(1).Implements(errType) {
 			return errors.New("2nd output parameter must be of type error")
 		}
@@ -175,7 +177,7 @@ func validIdentifier(curVar string) (string, error) {
 	return identifier, nil
 }
 
-func convertToPositionalParameters(query string) (string, []string, error) {
+func convertToPositionalParameters(query string, pa api.ParamAdapter) (string, []string, error) {
 	var out bytes.Buffer
 
 	posNames := []string{}
@@ -186,6 +188,7 @@ func convertToPositionalParameters(query string) (string, []string, error) {
 	inEscape := false
 	inVar := false
 	curVar := []rune{}
+	pos := 1
 	for k, v := range query {
 		if inEscape {
 			out.WriteRune(v)
@@ -210,7 +213,8 @@ func convertToPositionalParameters(query string) (string, []string, error) {
 				posNames = append(posNames, id)
 				inVar = false
 				curVar = []rune{}
-				out.WriteRune('?')
+				out.WriteString(pa(pos))
+				pos++
 			} else {
 				inVar = true
 			}
@@ -229,25 +233,27 @@ func convertToPositionalParameters(query string) (string, []string, error) {
 	return out.String(), posNames, nil
 }
 
-func getExecAndQArgs(args []reflect.Value, qps queryParams) (Executor, []interface{}) {
+func getExecAndQArgs(args []reflect.Value, qps queryParams) (api.Executor, []interface{}, error) {
 	//pull out that first input parameter as an Executor
-	exec := args[0].Interface().(Executor)
+	exec := args[0].Interface().(api.Executor)
 
 	//walk through the rest of the input parameters and build a slice for args
 
 	qArgs := make([]interface{}, len(qps))
 	for k, v := range qps {
 		//todo later: add support for slices as parameters
-		//todo later: add support for passing in a struct and walking the fields
-		//todo later: add support for passing in a map and walking the values
-		qArgs[k] = args[v.posInParams].Interface()
+		val, err := mapper.Extract(args[v.posInParams].Interface(), v.name)
+		if err != nil {
+			return nil, nil, err
+		}
+		qArgs[k] = val
 	}
 
 	return exec, qArgs
 }
 
-func buildExec(funcType reflect.Type, query string, paramMap map[string]int) (func(args []reflect.Value) []reflect.Value, error) {
-	positionalQuery, posNames, err := convertToPositionalParameters(query)
+func buildExec(funcType reflect.Type, query string, paramMap map[string]int, pa api.ParamAdapter) (func(args []reflect.Value) []reflect.Value, error) {
+	positionalQuery, posNames, err := convertToPositionalParameters(query, pa)
 	if err != nil {
 		return nil, err
 	}
@@ -257,11 +263,14 @@ func buildExec(funcType reflect.Type, query string, paramMap map[string]int) (fu
 	}
 	numOut := funcType.NumOut()
 	return func(args []reflect.Value) []reflect.Value {
-		exec, qArgs := getExecAndQArgs(args, qps)
+		exec, qArgs, err := getExecAndQArgs(args, qps)
+		var result api.Result
+		if err == nil {
+			//call executor.Exec with query and parameters
+			fmt.Println("calling", positionalQuery, "with params", qArgs)
+			result, err = exec.Exec(positionalQuery, qArgs)
+		}
 
-		//call executor.Exec with query and parameters
-		fmt.Println("calling", positionalQuery, "with params", qArgs)
-		result, err := exec.Exec(positionalQuery, qArgs)
 
 		//handle the 0,1,2 out parameter cases
 		if numOut == 0 {
@@ -306,8 +315,8 @@ func buildExec(funcType reflect.Type, query string, paramMap map[string]int) (fu
 	}, nil
 }
 
-func buildQuery(funcType reflect.Type, query string, paramMap map[string]int) (func(args []reflect.Value) []reflect.Value, error) {
-	positionalQuery, posNames, err := convertToPositionalParameters(query)
+func buildQuery(funcType reflect.Type, query string, paramMap map[string]int, pa api.ParamAdapter) (func(args []reflect.Value) []reflect.Value, error) {
+	positionalQuery, posNames, err := convertToPositionalParameters(query, pa)
 	if err != nil {
 		return nil, err
 	}
@@ -317,11 +326,13 @@ func buildQuery(funcType reflect.Type, query string, paramMap map[string]int) (f
 	}
 	numOut := funcType.NumOut()
 	return func(args []reflect.Value) []reflect.Value {
-		exec, qArgs := getExecAndQArgs(args, qps)
+		exec, qArgs, err := getExecAndQArgs(args, qps)
 
 		//call executor.Query with query and parameters
-		fmt.Println("calling", positionalQuery, "with params", qArgs)
-		_, err := exec.Query(positionalQuery, qArgs)
+		if err == nil {
+			fmt.Println("calling", positionalQuery, "with params", qArgs)
+			_, err = exec.Query(positionalQuery, qArgs)
+		}
 
 		//handle the 0,1,2 out parameter cases
 		if numOut == 0 {
@@ -355,7 +366,7 @@ func buildParamMap(gdbp string) map[string]int {
 	return m
 }
 
-func Build(dao interface{}) error {
+func Build(dao interface{}, pa api.ParamAdapter) error {
 	t := reflect.TypeOf(dao)
 	//must be a pointer to struct
 	if t.Kind() != reflect.Ptr {
@@ -386,9 +397,9 @@ func Build(dao interface{}) error {
 
 			var toFunc func(args []reflect.Value) []reflect.Value
 			if gdbq != "" {
-				toFunc, err = buildQuery(curField.Type, gdbq, paramMap)
+				toFunc, err = buildQuery(curField.Type, gdbq, paramMap, pa)
 			} else {
-				toFunc, err = buildExec(curField.Type, gdbe, paramMap)
+				toFunc, err = buildExec(curField.Type, gdbe, paramMap, pa)
 			}
 			if err != nil {
 				fmt.Println("skipping function", curField.Name, "due to error:", err.Error())

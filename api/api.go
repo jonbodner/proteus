@@ -1,4 +1,4 @@
-package gdb
+package api
 
 // A Result summarizes an executed SQL command.
 type Result interface {
@@ -116,3 +116,7 @@ type Executor interface {
 	// The args are for any placeholder parameters in the query.
 	Query(query string, args ...interface{}) (Rows, error)
 }
+
+// ParamAdapter maps to valid positional parameters in a DBMS.
+// For example, MySQL uses ? for every parameter, while Postgres uses $NUM and Oracle uses :NUM
+type ParamAdapter func(pos int) string

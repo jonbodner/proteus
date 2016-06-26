@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"fmt"
 	"errors"
+	"github.com/jonbodner/gdb/adapter"
+	"github.com/jonbodner/gdb/cmp"
 )
 
 func TestValidIdentifier(t *testing.T) {
@@ -79,8 +81,8 @@ func TestConvertToPositionalParameters(t *testing.T) {
 	}
 
 	for k, v := range values {
-		q, pn, err := convertToPositionalParameters(k)
-		if q != v.query || !reflect.DeepEqual(pn, v.paramNames) ||!equalErrors(err, v.err) {
+		q, pn, err := convertToPositionalParameters(k, adapter.MySQL)
+		if q != v.query || !reflect.DeepEqual(pn, v.paramNames) ||!cmp.Errors(err, v.err) {
 			t.Errorf("failed for %s -> %v: {%v %v %v}", k, v, q, pn, err)
 		}
 	}
@@ -151,18 +153,74 @@ func TestBuildQueryParams(t *testing.T) {
 
 	for _, v := range values {
 		qp, err := buildQueryParams(v.input, paramMap, funcType)
-		if !reflect.DeepEqual(qp, v.output) || !equalErrors(err, v.err) {
+		if !reflect.DeepEqual(qp, v.output) || !cmp.Errors(err, v.err) {
 			t.Errorf("Expected %v -> %v %v, got %v %v",v.input, v.output, v.err, qp, err)
 		}
 	}
 }
 
-func equalErrors(e1, e2 error) bool {
-	if e1 == nil || e2 == nil {
-		if e1 != nil || e2 != nil {
-			return false
+func TestValidateFunction(t *testing.T) {
+	f := func(fType reflect.Type, isExec bool, msg string) {
+		err := validateFunction(fType, isExec)
+		if err == nil {
+			t.Fatalf("Expected err")
 		}
-		return true
+		eExp := errors.New(msg)
+		if !cmp.Errors(err, eExp) {
+			t.Errorf("Wrong error expected %s, got %s", eExp, err)
+		}
 	}
-	return e1.Error() == e2.Error()
+
+	fOk := func(fType reflect.Type, isExec bool) {
+		err := validateFunction(fType, isExec)
+		if err != nil {
+			t.Errorf("Unexpected err %s", err)
+		}
+	}
+
+	//invalid -- no parameters
+	var f1 func()
+	f(reflect.TypeOf(f1), true, "Need to supply an Executor parameter")
+	f(reflect.TypeOf(f1), false, "Need to supply an Executor parameter")
+
+	//invalid -- wrong first parameter type
+	var f2 func(int)
+	f(reflect.TypeOf(f2), true, "First parameter must be of type gdb.Executor")
+	f(reflect.TypeOf(f2), false, "First parameter must be of type gdb.Executor")
+
+	//invalid -- has a channel input param
+	var f3 func(Executor, chan int)
+	f(reflect.TypeOf(f3), true, "no input parameter can be a channel")
+	f(reflect.TypeOf(f3), false, "no input parameter can be a channel")
+
+	//valid -- only an Executor
+	var g1 func(Executor)
+	fOk(reflect.TypeOf(g1),true)
+	fOk(reflect.TypeOf(g1),false)
+
+	//valid -- an Executor and a primitive
+	var g2 func(Executor, int)
+	fOk(reflect.TypeOf(g2),true)
+	fOk(reflect.TypeOf(g2),false)
+
+	//valid -- an Executor, a primitive, a map and a struct
+	var g3 func(Executor, int, map[string]interface{}, struct {
+		A int
+		B string
+	})
+	fOk(reflect.TypeOf(g3),true)
+	fOk(reflect.TypeOf(g3),false)
+
+	//valid -- an Executor, a primitive, a map and a struct, returning a struct and error
+	// for query only
+	var g4 func(Executor, int, map[string]interface{}, struct {
+		A int
+		B string
+	}) (struct { C string
+		D bool}, error)
+	fOk(reflect.TypeOf(g4),false)
+	//invalid for Exec
+	f(reflect.TypeOf(g4),true, "The 1st output parameter of an Exec must be int64")
 }
+
+
