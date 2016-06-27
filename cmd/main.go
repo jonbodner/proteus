@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/jonbodner/gdb"
 	"strings"
+	"github.com/jonbodner/gdb/api"
+	"github.com/jonbodner/gdb/adapter"
 )
 
 type Product struct {
@@ -13,38 +15,38 @@ type Product struct {
 }
 
 type ProductDao struct {
-	FindById          func(e gdb.Executor, id int) Product                      `gdbq:"select * from Product where id = :id" gdbp:"id"`
-	Update            func(e gdb.Executor, p Product) int64                     `gdbe:"update Product set name = :p.Name, cost = :p.Cost where id = :p.Id" gdbp:"p"`
-	FindByNameAndCost func(e gdb.Executor, name string, cost float64) []Product `gdbq:"select * from Product where name=:name and cost=:cost" gdbp:"name,cost"`
+	FindById          func(e api.Executor, id int) Product                      `gdbq:"select * from Product where id = :id" gdbp:"id"`
+	Update            func(e api.Executor, p Product) int64                     `gdbe:"update Product set name = :p.Name, cost = :p.Cost where id = :p.Id" gdbp:"p"`
+	FindByNameAndCost func(e api.Executor, name string, cost float64) []Product `gdbq:"select * from Product where name=:name and cost=:cost" gdbp:"name,cost"`
 }
 
 type ProductDaoW struct {
 	ProductDao
 }
 
-func (pd ProductDaoW) FindById(e gdb.Executor, id int) Product {
+func (pd ProductDaoW) FindById(e api.Executor, id int) Product {
 	return pd.ProductDao.FindById(e, id)
 }
 
-func (pd ProductDaoW) Update(e gdb.Executor, p Product) int64 {
+func (pd ProductDaoW) Update(e api.Executor, p Product) int64 {
 	return pd.ProductDao.Update(e, p)
 }
 
-func (pd ProductDaoW) FindByNameAndCost(e gdb.Executor, name string, cost float64) []Product {
+func (pd ProductDaoW) FindByNameAndCost(e api.Executor, name string, cost float64) []Product {
 	return pd.ProductDao.FindByNameAndCost(e, name, cost)
 }
 
 type ProductDaoInt interface {
-	FindById(e gdb.Executor, id int) Product
-	Update(e gdb.Executor, p Product) int64
-	FindByNameAndCost(e gdb.Executor, name string, cost float64) []Product
+	FindById(e api.Executor, id int) Product
+	Update(e api.Executor, p Product) int64
+	FindByNameAndCost(e api.Executor, name string, cost float64) []Product
 }
 
 var productDao ProductDaoInt
 
 func init() {
 	v := ProductDao{}
-	err := gdb.Build(&v)
+	err := gdb.Build(&v, adapter.Sqlite)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -88,13 +90,13 @@ func (fr FakeRows) Close() error {
 
 type FakeExecutor struct{}
 
-func (fe FakeExecutor) Exec(query string, args ...interface{}) (gdb.Result, error) {
+func (fe FakeExecutor) Exec(query string, args ...interface{}) (api.Result, error) {
 	fmt.Println("Exec for query", query, "with params", args)
 	res := strings.HasPrefix(query, "insert")
 	return FakeResult(res), nil
 }
 
-func (fe FakeExecutor) Query(query string, args ...interface{}) (gdb.Rows, error) {
+func (fe FakeExecutor) Query(query string, args ...interface{}) (api.Rows, error) {
 	fmt.Println("Query for query", query, "with params", args)
 	fr := &FakeRows{}
 	return fr, nil
