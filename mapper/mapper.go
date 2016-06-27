@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jonbodner/gdb/api"
+	"strings"
 )
 
 func Extract(s interface{}, path []string) (interface{}, error) {
@@ -58,6 +59,7 @@ func fromPtr(s interface{}) interface{} {
 // If an error occurs while processing the current row, nil is returned for the interface and the error is non-nil
 // If a value is successfuly extracted from the current row, the instance is returned and the error is nil
 func Build(rows api.Rows, sType reflect.Type) (interface{}, error) {
+	//fmt.Println(sType)
 	if rows == nil || sType == nil {
 		return nil, errors.New("Both rows and sType must be non-nil")
 	}
@@ -78,15 +80,20 @@ func Build(rows api.Rows, sType reflect.Type) (interface{}, error) {
 	}
 
 	vals := make([]interface{}, len(cols))
+	for i :=0;i<len(vals);i++ {
+		vals[i] = new(interface{})
+	}
 
 	err = rows.Scan(vals...)
 	if err != nil {
+		fmt.Println("scan failed")
 		return nil, err
 	}
 
 	isPtr := false
 	if sType.Kind() == reflect.Ptr {
 		sType = sType.Elem()
+		isPtr = true
 	}
 	var out reflect.Value
 	if sType.Kind() == reflect.Map {
@@ -97,47 +104,59 @@ func Build(rows api.Rows, sType reflect.Type) (interface{}, error) {
 		for k, v := range cols {
 			curVal := vals[k]
 			rv := reflect.ValueOf(curVal)
-			if rv.Type().AssignableTo(sType.Elem()) {
-				out.SetMapIndex(reflect.ValueOf(v), rv)
+			if rv.Elem().Elem().Type().ConvertibleTo(sType.Elem()) {
+				out.SetMapIndex(reflect.ValueOf(v), rv.Elem().Elem().Convert(sType.Elem()))
 			} else {
-				return nil, fmt.Errorf("Unable to assign value %v of type %v to map value of type %v",curVal,rv.Type(), sType.Elem())
+				return nil, fmt.Errorf("Unable to assign value %v of type %v to map value of type %v with key %s",rv.Elem().Elem(),rv.Elem().Elem().Type(), sType.Elem(), v)
 			}
 		}
 	} else if sType.Kind() == reflect.Struct {
-		out = reflect.Zero(sType)
+		out = reflect.New(sType).Elem()
 		//build map of col names to field names (makes this 2N instead of N^2)
 		colFieldMap := map[string]reflect.StructField{}
 		for i := 0;i<sType.NumField();i++ {
 			sf := sType.Field(i)
-			if tagVal, ok := sf.Tag.Lookup("gdbp"); ok {
-				colFieldMap[tagVal] = sf
+			if tagVal, ok := sf.Tag.Lookup("gdbf"); ok {
+				colFieldMap[strings.SplitN(tagVal,",",2)[0]] = sf
 			}
 		}
 		for k, v := range cols {
 			if sf, ok := colFieldMap[v]; ok {
 				curVal := vals[k]
 				rv := reflect.ValueOf(curVal)
-				if rv.Type().AssignableTo(sf.Type) {
-					out.FieldByName(sf.Name).Set(rv)
+				if sf.Type.Kind() == reflect.Ptr {
+					if rv.Elem().Elem().Type().ConvertibleTo(sf.Type.Elem()) {
+						out.FieldByName(sf.Name).Set(reflect.New(sf.Type.Elem()))
+						out.FieldByName(sf.Name).Elem().Set(rv.Elem().Elem().Convert(sf.Type.Elem()))
+					} else {
+						fmt.Println("can't find the field")
+						return nil, fmt.Errorf("Unable to assign value %v of type %v to struct field %s of type %v",rv.Elem().Elem(),rv.Type().Elem().Elem(), sf.Name, sf.Type)
+					}
 				} else {
-					return nil, fmt.Errorf("Unable to assign value %v of type %v to struct field %s of type %v",curVal,rv.Type(), sf.Name, sf.Type)
+					if rv.Elem().Elem().Type().ConvertibleTo(sf.Type) {
+						out.FieldByName(sf.Name).Set(rv.Elem().Elem().Convert(sf.Type))
+					} else {
+						fmt.Println("can't find the field")
+						return nil, fmt.Errorf("Unable to assign value %v of type %v to struct field %s of type %v",rv.Elem().Elem(),rv.Type().Elem().Elem(), sf.Name, sf.Type)
+					}
 				}
 			}
 		}
 	} else {
 		// assume primitive
-		out = reflect.Zero(sType)
+		out = reflect.New(sType).Elem()
 		rv := reflect.ValueOf(vals[0])
-		if rv.Type().AssignableTo(sType) {
-			out.Set(rv)
+		if rv.Elem().Elem().Type().ConvertibleTo(sType) {
+			out.Set(rv.Elem().Elem().Convert(sType))
 		} else {
 			return nil, fmt.Errorf("Unable to assign value %v of type %v to return type of type %v",vals[0],rv.Type(), sType)
 		}
 	}
 
 	if isPtr {
-		oi := out.Interface()
-		return &oi, nil
+		out2 := reflect.New(sType)
+		out2.Elem().Set(out)
+		return out2.Interface(), nil
 	}
 	return out.Interface(), nil
 }
