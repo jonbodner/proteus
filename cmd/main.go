@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/jonbodner/gdb"
-	"strings"
-	"github.com/jonbodner/gdb/api"
 	"github.com/jonbodner/gdb/adapter"
+	"github.com/jonbodner/gdb/api"
+	"strings"
 )
 
 type Product struct {

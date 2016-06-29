@@ -11,9 +11,9 @@ func Sqlite(pos int) string {
 }
 
 func Postgres(pos int) string {
-	return fmt.Sprintf("$%d",pos)
+	return fmt.Sprintf("$%d", pos)
 }
 
 func Oracle(pos int) string {
-	return fmt.Sprintf(":%d",pos)
+	return fmt.Sprintf(":%d", pos)
 }

@@ -1,28 +1,29 @@
 package gdb
 
 import (
-	"testing"
-	"reflect"
-	"fmt"
 	"errors"
+	"fmt"
 	"github.com/jonbodner/gdb/adapter"
 	"github.com/jonbodner/gdb/cmp"
+	"reflect"
+	"testing"
+	"github.com/jonbodner/gdb/api"
 )
 
 func TestValidIdentifier(t *testing.T) {
 	values := map[string]bool{
-		"a":           true,
-		"main":        true,
-		"int":         true, //can't tell a type from an ident
-		"a b":         false,
-		"a.b":         true,
-		"a . b":       true, //surprising but legal
-		"a..b":        false,
-		".a.b":        false,
-		"":            false,
-		"a.b.c.d.e.f": true,
-		"a.b.":        false,
-		"ab;":         false,
+		"a":             true,
+		"main":          true,
+		"int":           true, //can't tell a type from an ident
+		"a b":           false,
+		"a.b":           true,
+		"a . b":         true, //surprising but legal
+		"a..b":          false,
+		".a.b":          false,
+		"":              false,
+		"a.b.c.d.e.f":   true,
+		"a.b.":          false,
+		"ab;":           false,
 		"a.b //comment": true, //yeah, we can do comments
 	}
 	for k, v := range values {
@@ -82,23 +83,23 @@ func TestConvertToPositionalParameters(t *testing.T) {
 
 	for k, v := range values {
 		q, pn, err := convertToPositionalParameters(k, adapter.MySQL)
-		if q != v.query || !reflect.DeepEqual(pn, v.paramNames) ||!cmp.Errors(err, v.err) {
+		if q != v.query || !reflect.DeepEqual(pn, v.paramNames) || !cmp.Errors(err, v.err) {
 			t.Errorf("failed for %s -> %v: {%v %v %v}", k, v, q, pn, err)
 		}
 	}
 }
 
 func TestBuildParamMap(t *testing.T) {
-	values := map[string]map[string]int {
-		"name,cost": map[string]int {
-			"name":1,
-			"cost":2,
+	values := map[string]map[string]int{
+		"name,cost": map[string]int{
+			"name": 1,
+			"cost": 2,
 		},
 	}
 	for k, v := range values {
 		pm := buildParamMap(k)
 		if !reflect.DeepEqual(pm, v) {
-			t.Errorf("failed for %s -> %v: %v",k,v,pm)
+			t.Errorf("failed for %s -> %v: %v", k, v, pm)
 		}
 	}
 }
@@ -114,38 +115,38 @@ type paramInfo struct {
 type queryParams []paramInfo
 
 func buildQueryParams(posNameMap []string, paramMap map[string]int, funcType reflect.Type) (queryParams, error)
- */
+*/
 func TestBuildQueryParams(t *testing.T) {
 	paramMap := map[string]int{
 		"id": 2,
-		"p":1,
+		"p":  1,
 	}
 	type inner struct {
-		Name string
+		Name  string
 		Count int
 	}
-	var f func(Executor,inner, int) (int, error)
+	var f func(api.Executor, inner, int) (int, error)
 	funcType := reflect.TypeOf(f)
 
 	type vals struct {
-		input []string
+		input  []string
 		output queryParams
-		err error
+		err    error
 	}
 
-	values := []vals {
+	values := []vals{
 		{
-			[]string{"id","p.Name","p.Count"},
-			queryParams{{"id", 2},{"p.Name",1}, {"p.Count",1} },
+			[]string{"id", "p.Name", "p.Count"},
+			queryParams{{"id", 2}, {"p.Name", 1}, {"p.Count", 1}},
 			nil,
 		},
 		{
-			[]string{"id.X","p.Name","p.Count"},
+			[]string{"id.X", "p.Name", "p.Count"},
 			nil,
 			errors.New("Query Parameter id.X has a path, but the incoming parameter is not a map or a struct"),
 		},
 		{
-			[]string{"id","p.Name","p.Count","bob"},
+			[]string{"id", "p.Name", "p.Count", "bob"},
 			nil,
 			errors.New("Query Parameter bob cannot be found in the incoming parameters"),
 		},
@@ -154,7 +155,7 @@ func TestBuildQueryParams(t *testing.T) {
 	for _, v := range values {
 		qp, err := buildQueryParams(v.input, paramMap, funcType)
 		if !reflect.DeepEqual(qp, v.output) || !cmp.Errors(err, v.err) {
-			t.Errorf("Expected %v -> %v %v, got %v %v",v.input, v.output, v.err, qp, err)
+			t.Errorf("Expected %v -> %v %v, got %v %v", v.input, v.output, v.err, qp, err)
 		}
 	}
 }
@@ -189,38 +190,38 @@ func TestValidateFunction(t *testing.T) {
 	f(reflect.TypeOf(f2), false, "First parameter must be of type gdb.Executor")
 
 	//invalid -- has a channel input param
-	var f3 func(Executor, chan int)
+	var f3 func(api.Executor, chan int)
 	f(reflect.TypeOf(f3), true, "no input parameter can be a channel")
 	f(reflect.TypeOf(f3), false, "no input parameter can be a channel")
 
 	//valid -- only an Executor
-	var g1 func(Executor)
-	fOk(reflect.TypeOf(g1),true)
-	fOk(reflect.TypeOf(g1),false)
+	var g1 func(api.Executor)
+	fOk(reflect.TypeOf(g1), true)
+	fOk(reflect.TypeOf(g1), false)
 
 	//valid -- an Executor and a primitive
-	var g2 func(Executor, int)
-	fOk(reflect.TypeOf(g2),true)
-	fOk(reflect.TypeOf(g2),false)
+	var g2 func(api.Executor, int)
+	fOk(reflect.TypeOf(g2), true)
+	fOk(reflect.TypeOf(g2), false)
 
 	//valid -- an Executor, a primitive, a map and a struct
-	var g3 func(Executor, int, map[string]interface{}, struct {
+	var g3 func(api.Executor, int, map[string]interface{}, struct {
 		A int
 		B string
 	})
-	fOk(reflect.TypeOf(g3),true)
-	fOk(reflect.TypeOf(g3),false)
+	fOk(reflect.TypeOf(g3), true)
+	fOk(reflect.TypeOf(g3), false)
 
 	//valid -- an Executor, a primitive, a map and a struct, returning a struct and error
 	// for query only
-	var g4 func(Executor, int, map[string]interface{}, struct {
+	var g4 func(api.Executor, int, map[string]interface{}, struct {
 		A int
 		B string
-	}) (struct { C string
-		D bool}, error)
-	fOk(reflect.TypeOf(g4),false)
+	}) (struct {
+		C string
+		D bool
+	}, error)
+	fOk(reflect.TypeOf(g4), false)
 	//invalid for Exec
-	f(reflect.TypeOf(g4),true, "The 1st output parameter of an Exec must be int64")
+	f(reflect.TypeOf(g4), true, "The 1st output parameter of an Exec must be int64")
 }
-
-

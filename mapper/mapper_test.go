@@ -1,15 +1,15 @@
 package mapper
 
 import (
-	"testing"
-	"reflect"
-	"github.com/jonbodner/gdb/cmp"
-	"errors"
- 	_ "github.com/mattn/go-sqlite3"
 	"database/sql"
-	"os"
-	"log"
+	"errors"
 	"fmt"
+	"github.com/jonbodner/gdb/cmp"
+	_ "github.com/mattn/go-sqlite3"
+	"log"
+	"os"
+	"reflect"
+	"testing"
 )
 
 func TestExtract(t *testing.T) {
@@ -21,20 +21,20 @@ func TestExtract(t *testing.T) {
 		if v == nil {
 			t.Errorf("Expected back an int, got a nil")
 		}
-		if i, ok := v.(int);!ok {
+		if i, ok := v.(int); !ok {
 			t.Errorf("Expected back an int, got a ", reflect.TypeOf(v).Kind())
 		} else {
 			if i != expected {
-				t.Errorf("Expected back %d, got %d",expected,i)
+				t.Errorf("Expected back %d, got %d", expected, i)
 			}
 		}
 	}
 	// base case int
-	f(10, []string{"A"},10)
+	f(10, []string{"A"}, 10)
 
 	// ptr case
 	a := 20
-	f(&a, []string{"A"},a)
+	f(&a, []string{"A"}, a)
 
 	// struct case
 	type Bar struct {
@@ -46,24 +46,24 @@ func TestExtract(t *testing.T) {
 	}
 
 	f(Foo{
-		B: Bar {
+		B: Bar{
 			A: 100,
 		},
-	}, []string{"foo","B","A"}, 100)
+	}, []string{"foo", "B", "A"}, 100)
 
 	// map case
-	f(map[string]interface{} {
-		"Bar": Bar {
+	f(map[string]interface{}{
+		"Bar": Bar{
 			A: 200,
 		},
-	}, []string{"m","Bar","A"}, 200)
+	}, []string{"m", "Bar", "A"}, 200)
 }
 
 func TestExtractFail(t *testing.T) {
 	f := func(in interface{}, path []string, msg string) {
 		_, err := Extract(in, path)
 		if err == nil {
-			t.Errorf("Expected an error %s, got none",msg)
+			t.Errorf("Expected an error %s, got none", msg)
 		}
 		eExp := errors.New(msg)
 		if !cmp.Errors(err, eExp) {
@@ -74,16 +74,16 @@ func TestExtractFail(t *testing.T) {
 	f(10, []string{}, "cannot extract value; no path remaining")
 
 	//path too long
-	f(10, []string{"A","B"},"cannot extract value; only maps and structs can have contained values")
+	f(10, []string{"A", "B"}, "cannot extract value; only maps and structs can have contained values")
 
 	//invalid map
-	f(map[int]interface{} {10:"Hello"}, []string{"m","10"}, "cannot extract value; map does not have a string key")
+	f(map[int]interface{}{10: "Hello"}, []string{"m", "10"}, "cannot extract value; map does not have a string key")
 
 	//no such field case
 	type Bar struct {
 		A int
 	}
-	f(Bar{A:20},[]string{"b","B"},"cannot extract value; no such field B")
+	f(Bar{A: 20}, []string{"b", "B"}, "cannot extract value; no such field B")
 }
 
 func TestBuild(t *testing.T) {
@@ -142,7 +142,7 @@ func TestBuildSqliteStruct(t *testing.T) {
 	//struct
 	type Product struct {
 		Id   int     `gdbf:"id,pk"`
-		Name *string  `gdbf:"name"`
+		Name *string `gdbf:"name"`
 		Cost float64 `gdbf:"cost"`
 	}
 
@@ -168,8 +168,8 @@ func TestBuildSqliteStruct(t *testing.T) {
 			if *p2.Name != fmt.Sprintf("person%d", i) {
 				t.Errorf("Wrong name, expected %s, got %s", fmt.Sprintf("person%d", i), *p2.Name)
 			}
-			if p2.Cost != 1.1 * float64(i) {
-				t.Errorf("Wrong cost, expected %f, got %f", 1.1 * float64(i), p2.Cost)
+			if p2.Cost != 1.1*float64(i) {
+				t.Errorf("Wrong cost, expected %f, got %f", 1.1*float64(i), p2.Cost)
 			}
 		}
 		//fmt.Println(p2)
@@ -199,7 +199,6 @@ func TestBuildSqlitePrimitive(t *testing.T) {
 	}
 	defer db.Close()
 	setupDb(db)
-
 
 	//primitive
 	stmt, err := db.Prepare("select name from product where id = ?")
@@ -251,7 +250,6 @@ func TestBuildSqlitePrimitivePtr(t *testing.T) {
 	}
 	defer db.Close()
 	setupDb(db)
-
 
 	//primitive
 	stmt, err := db.Prepare("select name from product where id = ?")
@@ -336,8 +334,8 @@ func TestBuildSqliteMap(t *testing.T) {
 			if !ok {
 				t.Errorf("name map value not found")
 			} else {
-				if string(name.([]byte)) != fmt.Sprintf("person%d",i) {
-					t.Errorf("Wrong name, expected %s, got %s, existed: %v", fmt.Sprintf("person%d",i), name, ok)
+				if string(name.([]byte)) != fmt.Sprintf("person%d", i) {
+					t.Errorf("Wrong name, expected %s, got %s, existed: %v", fmt.Sprintf("person%d", i), name, ok)
 				}
 			}
 			cost, ok := m2["cost"]
@@ -345,7 +343,7 @@ func TestBuildSqliteMap(t *testing.T) {
 				t.Errorf("cost map value not found")
 			} else {
 				if cost.(float64) != 1.1*float64(i) {
-					t.Errorf("Wrong cost, expected %f, got %f", 1.1 * float64(i), cost)
+					t.Errorf("Wrong cost, expected %f, got %f", 1.1*float64(i), cost)
 				}
 			}
 		}

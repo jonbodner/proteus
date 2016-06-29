@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/jonbodner/gdb/api"
+	"github.com/jonbodner/gdb/mapper"
 	"go/scanner"
 	"go/token"
 	"reflect"
 	"strings"
-	"github.com/jonbodner/gdb/mapper"
-	"github.com/jonbodner/gdb/api"
 )
 
 /*
@@ -132,7 +132,7 @@ func buildQueryParams(posNameMap []string, paramMap map[string]int, funcType ref
 
 func validIdentifier(curVar string) (string, error) {
 	if strings.Contains(curVar, ";") {
-		return "", fmt.Errorf("; is not allowed in an identifier: %s",curVar)
+		return "", fmt.Errorf("; is not allowed in an identifier: %s", curVar)
 	}
 	curVarB := []byte(curVar)
 
@@ -144,13 +144,14 @@ func validIdentifier(curVar string) (string, error) {
 	lastPeriod := false
 	first := true
 	identifier := ""
-	loop: for {
+loop:
+	for {
 		pos, tok, lit := s.Scan()
 		fmt.Printf("%s\t%s\t%q\n", fset.Position(pos), tok, lit)
-		switch (tok) {
+		switch tok {
 		case token.EOF:
 			if first || lastPeriod {
-				return "", fmt.Errorf("identifiers cannot be empty or end with a .: %s",curVar)
+				return "", fmt.Errorf("identifiers cannot be empty or end with a .: %s", curVar)
 			}
 			break loop
 		case token.SEMICOLON:
@@ -159,19 +160,19 @@ func validIdentifier(curVar string) (string, error) {
 			continue
 		case token.IDENT:
 			if !first && !lastPeriod {
-				return "", fmt.Errorf(". missing between parts of an identifier: %s",curVar)
+				return "", fmt.Errorf(". missing between parts of an identifier: %s", curVar)
 			}
 			first = false
 			lastPeriod = false
 			identifier += lit
 		case token.PERIOD:
 			if first || lastPeriod {
-				return "", fmt.Errorf("identifier cannot start with . or have two . in a row: %s",curVar)
+				return "", fmt.Errorf("identifier cannot start with . or have two . in a row: %s", curVar)
 			}
 			lastPeriod = true
 			identifier += "."
 		default:
-			return "", fmt.Errorf("Invalid character found in identifier: %s",curVar)
+			return "", fmt.Errorf("Invalid character found in identifier: %s", curVar)
 		}
 	}
 	return identifier, nil
@@ -242,14 +243,14 @@ func getExecAndQArgs(args []reflect.Value, qps queryParams) (api.Executor, []int
 	qArgs := make([]interface{}, len(qps))
 	for k, v := range qps {
 		//todo later: add support for slices as parameters
-		val, err := mapper.Extract(args[v.posInParams].Interface(), v.name)
+		val, err := mapper.Extract(args[v.posInParams].Interface(), strings.Split(v.name,"."))
 		if err != nil {
 			return nil, nil, err
 		}
 		qArgs[k] = val
 	}
 
-	return exec, qArgs
+	return exec, qArgs, nil
 }
 
 func buildExec(funcType reflect.Type, query string, paramMap map[string]int, pa api.ParamAdapter) (func(args []reflect.Value) []reflect.Value, error) {
@@ -270,7 +271,6 @@ func buildExec(funcType reflect.Type, query string, paramMap map[string]int, pa 
 			fmt.Println("calling", positionalQuery, "with params", qArgs)
 			result, err = exec.Exec(positionalQuery, qArgs)
 		}
-
 
 		//handle the 0,1,2 out parameter cases
 		if numOut == 0 {

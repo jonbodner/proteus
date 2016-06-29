@@ -1,10 +1,10 @@
 package mapper
 
 import (
-	"reflect"
 	"errors"
 	"fmt"
 	"github.com/jonbodner/gdb/api"
+	"reflect"
 	"strings"
 )
 
@@ -30,7 +30,7 @@ func Extract(s interface{}, path []string) (interface{}, error) {
 	if sv.Kind() == reflect.Struct {
 		//make sure the field exists
 		if _, exists := sv.Type().FieldByName(path[1]); !exists {
-			return nil, errors.New("cannot extract value; no such field "+path[1])
+			return nil, errors.New("cannot extract value; no such field " + path[1])
 		}
 
 		v := sv.FieldByName(path[1])
@@ -80,7 +80,7 @@ func Build(rows api.Rows, sType reflect.Type) (interface{}, error) {
 	}
 
 	vals := make([]interface{}, len(cols))
-	for i :=0;i<len(vals);i++ {
+	for i := 0; i < len(vals); i++ {
 		vals[i] = new(interface{})
 	}
 
@@ -107,17 +107,17 @@ func Build(rows api.Rows, sType reflect.Type) (interface{}, error) {
 			if rv.Elem().Elem().Type().ConvertibleTo(sType.Elem()) {
 				out.SetMapIndex(reflect.ValueOf(v), rv.Elem().Elem().Convert(sType.Elem()))
 			} else {
-				return nil, fmt.Errorf("Unable to assign value %v of type %v to map value of type %v with key %s",rv.Elem().Elem(),rv.Elem().Elem().Type(), sType.Elem(), v)
+				return nil, fmt.Errorf("Unable to assign value %v of type %v to map value of type %v with key %s", rv.Elem().Elem(), rv.Elem().Elem().Type(), sType.Elem(), v)
 			}
 		}
 	} else if sType.Kind() == reflect.Struct {
 		out = reflect.New(sType).Elem()
 		//build map of col names to field names (makes this 2N instead of N^2)
 		colFieldMap := map[string]reflect.StructField{}
-		for i := 0;i<sType.NumField();i++ {
+		for i := 0; i < sType.NumField(); i++ {
 			sf := sType.Field(i)
 			if tagVal, ok := sf.Tag.Lookup("gdbf"); ok {
-				colFieldMap[strings.SplitN(tagVal,",",2)[0]] = sf
+				colFieldMap[strings.SplitN(tagVal, ",", 2)[0]] = sf
 			}
 		}
 		for k, v := range cols {
@@ -130,14 +130,14 @@ func Build(rows api.Rows, sType reflect.Type) (interface{}, error) {
 						out.FieldByName(sf.Name).Elem().Set(rv.Elem().Elem().Convert(sf.Type.Elem()))
 					} else {
 						fmt.Println("can't find the field")
-						return nil, fmt.Errorf("Unable to assign value %v of type %v to struct field %s of type %v",rv.Elem().Elem(),rv.Type().Elem().Elem(), sf.Name, sf.Type)
+						return nil, fmt.Errorf("Unable to assign value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Type().Elem().Elem(), sf.Name, sf.Type)
 					}
 				} else {
 					if rv.Elem().Elem().Type().ConvertibleTo(sf.Type) {
 						out.FieldByName(sf.Name).Set(rv.Elem().Elem().Convert(sf.Type))
 					} else {
 						fmt.Println("can't find the field")
-						return nil, fmt.Errorf("Unable to assign value %v of type %v to struct field %s of type %v",rv.Elem().Elem(),rv.Type().Elem().Elem(), sf.Name, sf.Type)
+						return nil, fmt.Errorf("Unable to assign value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Type().Elem().Elem(), sf.Name, sf.Type)
 					}
 				}
 			}
@@ -149,7 +149,7 @@ func Build(rows api.Rows, sType reflect.Type) (interface{}, error) {
 		if rv.Elem().Elem().Type().ConvertibleTo(sType) {
 			out.Set(rv.Elem().Elem().Convert(sType))
 		} else {
-			return nil, fmt.Errorf("Unable to assign value %v of type %v to return type of type %v",vals[0],rv.Type(), sType)
+			return nil, fmt.Errorf("Unable to assign value %v of type %v to return type of type %v", vals[0], rv.Type(), sType)
 		}
 	}
 
