@@ -3,6 +3,7 @@ package mapper
 import (
 	"errors"
 	"reflect"
+	log "github.com/Sirupsen/logrus"
 )
 
 func Extract(s interface{}, path []string) (interface{}, error) {
@@ -21,7 +22,13 @@ func Extract(s interface{}, path []string) (interface{}, error) {
 		if sv.Type().Key().Kind() != reflect.String {
 			return nil, errors.New("cannot extract value; map does not have a string key")
 		}
+		log.Debugln(path[1])
+		log.Debugln(sv.MapKeys())
 		v := sv.MapIndex(reflect.ValueOf(path[1]))
+		log.Debugln(v)
+		if !v.IsValid() {
+			return nil, errors.New("cannot extract value; no such map key " + path[1])
+		}
 		return Extract(v.Interface(), path[1:])
 	}
 	if sv.Kind() == reflect.Struct {
@@ -45,5 +52,3 @@ func fromPtr(s interface{}) interface{} {
 	}
 	return s
 }
-
-

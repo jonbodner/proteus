@@ -1,14 +1,14 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"github.com/jonbodner/gdb"
 	"github.com/jonbodner/gdb/adapter"
 	"github.com/jonbodner/gdb/api"
-	"database/sql"
-	"os"
-	"log"
 	_ "github.com/mattn/go-sqlite3"
+	"log"
+	"os"
 )
 
 type Product struct {
@@ -18,12 +18,16 @@ type Product struct {
 }
 
 type ProductDao struct {
-	FindById          func(e api.Executor, id int) (Product, error)                      `gdbq:"select * from Product where id = :id:" gdbp:"id"`
-	Update            func(e api.Executor, p Product) (int64, error)                     `gdbe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" gdbp:"p"`
-	FindByNameAndCost func(e api.Executor, name string, cost float64) ([]Product, error) `gdbq:"select * from Product where name=:name: and cost=:cost:" gdbp:"name,cost"`
+	FindById             func(e api.Executor, id int) (Product, error)                                     `gdbq:"select * from Product where id = :id:" gdbp:"id"`
+	Update               func(e api.Executor, p Product) (int64, error)                                    `gdbe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" gdbp:"p"`
+	FindByNameAndCost    func(e api.Executor, name string, cost float64) ([]Product, error)                `gdbq:"select * from Product where name=:name: and cost=:cost:" gdbp:"name,cost"`
+	FindByIdMap          func(e api.Executor, id int) (map[string]interface{}, error)                      `gdbq:"select * from Product where id = :id:" gdbp:"id"`
+	UpdateMap            func(e api.Executor, p map[string]interface{}) (int64, error)                     `gdbe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" gdbp:"p"`
+	FindByNameAndCostMap func(e api.Executor, name string, cost float64) ([]map[string]interface{}, error) `gdbq:"select * from Product where name=:name: and cost=:cost:" gdbp:"name,cost"`
 }
 
 var productDao = ProductDao{}
+
 func init() {
 	err := gdb.Build(&productDao, adapter.Sqlite)
 	if err != nil {
@@ -47,6 +51,19 @@ func main() {
 	fmt.Println(productDao.FindById(gExec, 10))
 	fmt.Println(productDao.FindByNameAndCost(gExec, "fred", 54.10))
 	fmt.Println(productDao.FindByNameAndCost(gExec, "Thingie", 56.23))
+
+	//using a map of [string]interface{} works too!
+	fmt.Println(productDao.FindByIdMap(gExec, 10))
+	fmt.Println(productDao.FindByNameAndCostMap(gExec, "Thingie", 56.23))
+
+	fmt.Println(productDao.FindById(gExec, 11))
+	m := map[string]interface{}{
+		"Id":   11,
+		"Name": "bobbo",
+		"Cost": 12.94,
+	}
+	fmt.Println(productDao.UpdateMap(gExec, m))
+	fmt.Println(productDao.FindById(gExec, 11))
 
 	exec.Commit()
 }

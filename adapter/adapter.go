@@ -31,11 +31,9 @@ type wrapper struct {
 }
 
 func (w wrapper) Exec(query string, args ...interface{}) (api.Result, error) {
-	r, err := w.Tx.Exec(query, args...)
-	return api.Result(r),err
+	return w.Tx.Exec(query, args...)
 }
 
 func (w wrapper) Query(query string, args ...interface{}) (api.Rows, error) {
-	r, err := w.Tx.Query(query, args...)
-	return api.Rows(r), err
+	return w.Tx.Query(query, args...)
 }
