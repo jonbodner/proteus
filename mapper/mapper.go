@@ -6,48 +6,8 @@ import (
 	"github.com/jonbodner/gdb/api"
 	"reflect"
 	"strings"
+	log "github.com/Sirupsen/logrus"
 )
-
-func Extract(s interface{}, path []string) (interface{}, error) {
-	// error case path length == 0
-	if len(path) == 0 {
-		return nil, errors.New("cannot extract value; no path remaining")
-	}
-	// base case path length == 1
-	if len(path) == 1 {
-		return fromPtr(s), nil
-	}
-	// length > 1, find a match for path[1], and recurse
-	ss := fromPtr(s)
-	sv := reflect.ValueOf(ss)
-	if sv.Kind() == reflect.Map {
-		if sv.Type().Key().Kind() != reflect.String {
-			return nil, errors.New("cannot extract value; map does not have a string key")
-		}
-		v := sv.MapIndex(reflect.ValueOf(path[1]))
-		return Extract(v.Interface(), path[1:])
-	}
-	if sv.Kind() == reflect.Struct {
-		//make sure the field exists
-		if _, exists := sv.Type().FieldByName(path[1]); !exists {
-			return nil, errors.New("cannot extract value; no such field " + path[1])
-		}
-
-		v := sv.FieldByName(path[1])
-		return Extract(v.Interface(), path[1:])
-	}
-	return nil, errors.New("cannot extract value; only maps and structs can have contained values")
-}
-
-func fromPtr(s interface{}) interface{} {
-	st := reflect.TypeOf(s)
-	if st.Kind() == reflect.Ptr {
-		sp := reflect.ValueOf(s).Elem()
-		return sp.Interface()
-
-	}
-	return s
-}
 
 // Build takes the next value from Rows and uses it to create a new instance of the specified type
 // If the type is a primitive and there are more than 1 values in the current row, only the first value is used.
@@ -86,7 +46,7 @@ func Build(rows api.Rows, sType reflect.Type) (interface{}, error) {
 
 	err = rows.Scan(vals...)
 	if err != nil {
-		fmt.Println("scan failed")
+		log.Warnln("scan failed")
 		return nil, err
 	}
 
@@ -97,66 +57,84 @@ func Build(rows api.Rows, sType reflect.Type) (interface{}, error) {
 	}
 	var out reflect.Value
 	if sType.Kind() == reflect.Map {
-		if sType.Key().Kind() != reflect.String {
-			return nil, errors.New("Only maps with string keys are supported")
-		}
-		out = reflect.MakeMap(sType)
-		for k, v := range cols {
-			curVal := vals[k]
-			rv := reflect.ValueOf(curVal)
-			if rv.Elem().Elem().Type().ConvertibleTo(sType.Elem()) {
-				out.SetMapIndex(reflect.ValueOf(v), rv.Elem().Elem().Convert(sType.Elem()))
-			} else {
-				return nil, fmt.Errorf("Unable to assign value %v of type %v to map value of type %v with key %s", rv.Elem().Elem(), rv.Elem().Elem().Type(), sType.Elem(), v)
-			}
-		}
+		out, err = buildMap(sType, cols, vals)
 	} else if sType.Kind() == reflect.Struct {
-		out = reflect.New(sType).Elem()
-		//build map of col names to field names (makes this 2N instead of N^2)
-		colFieldMap := map[string]reflect.StructField{}
-		for i := 0; i < sType.NumField(); i++ {
-			sf := sType.Field(i)
-			if tagVal, ok := sf.Tag.Lookup("gdbf"); ok {
-				colFieldMap[strings.SplitN(tagVal, ",", 2)[0]] = sf
-			}
-		}
-		for k, v := range cols {
-			if sf, ok := colFieldMap[v]; ok {
-				curVal := vals[k]
-				rv := reflect.ValueOf(curVal)
-				if sf.Type.Kind() == reflect.Ptr {
-					if rv.Elem().Elem().Type().ConvertibleTo(sf.Type.Elem()) {
-						out.FieldByName(sf.Name).Set(reflect.New(sf.Type.Elem()))
-						out.FieldByName(sf.Name).Elem().Set(rv.Elem().Elem().Convert(sf.Type.Elem()))
-					} else {
-						fmt.Println("can't find the field")
-						return nil, fmt.Errorf("Unable to assign value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Type().Elem().Elem(), sf.Name, sf.Type)
-					}
-				} else {
-					if rv.Elem().Elem().Type().ConvertibleTo(sf.Type) {
-						out.FieldByName(sf.Name).Set(rv.Elem().Elem().Convert(sf.Type))
-					} else {
-						fmt.Println("can't find the field")
-						return nil, fmt.Errorf("Unable to assign value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Type().Elem().Elem(), sf.Name, sf.Type)
-					}
-				}
-			}
-		}
+		out, err = buildStruct(sType, cols, vals)
 	} else {
 		// assume primitive
-		out = reflect.New(sType).Elem()
-		rv := reflect.ValueOf(vals[0])
-		if rv.Elem().Elem().Type().ConvertibleTo(sType) {
-			out.Set(rv.Elem().Elem().Convert(sType))
-		} else {
-			return nil, fmt.Errorf("Unable to assign value %v of type %v to return type of type %v", vals[0], rv.Type(), sType)
-		}
+		out, err = buildPrimitive(sType, cols, vals)
 	}
 
+	if err != nil {
+		return nil, err
+	}
 	if isPtr {
 		out2 := reflect.New(sType)
 		out2.Elem().Set(out)
 		return out2.Interface(), nil
 	}
 	return out.Interface(), nil
+}
+
+func buildMap(sType reflect.Type, cols []string, vals []interface{}) (reflect.Value, error) {
+	out := reflect.MakeMap(sType)
+	if sType.Key().Kind() != reflect.String {
+		return out, errors.New("Only maps with string keys are supported")
+	}
+	for k, v := range cols {
+		curVal := vals[k]
+		rv := reflect.ValueOf(curVal)
+		if rv.Elem().Elem().Type().ConvertibleTo(sType.Elem()) {
+			out.SetMapIndex(reflect.ValueOf(v), rv.Elem().Elem().Convert(sType.Elem()))
+		} else {
+			return out, fmt.Errorf("Unable to assign value %v of type %v to map value of type %v with key %s", rv.Elem().Elem(), rv.Elem().Elem().Type(), sType.Elem(), v)
+		}
+	}
+	return out, nil
+}
+
+func buildStruct(sType reflect.Type, cols []string, vals []interface{}) (reflect.Value, error) {
+	out := reflect.New(sType).Elem()
+	//build map of col names to field names (makes this 2N instead of N^2)
+	colFieldMap := map[string]reflect.StructField{}
+	for i := 0; i < sType.NumField(); i++ {
+		sf := sType.Field(i)
+		if tagVal, ok := sf.Tag.Lookup("gdbf"); ok {
+			colFieldMap[strings.SplitN(tagVal, ",", 2)[0]] = sf
+		}
+	}
+	for k, v := range cols {
+		if sf, ok := colFieldMap[v]; ok {
+			curVal := vals[k]
+			rv := reflect.ValueOf(curVal)
+			if sf.Type.Kind() == reflect.Ptr {
+				if rv.Elem().Elem().Type().ConvertibleTo(sf.Type.Elem()) {
+					out.FieldByName(sf.Name).Set(reflect.New(sf.Type.Elem()))
+					out.FieldByName(sf.Name).Elem().Set(rv.Elem().Elem().Convert(sf.Type.Elem()))
+				} else {
+					log.Warnln("can't find the field")
+					return out, fmt.Errorf("Unable to assign pointer to value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.Name, sf.Type)
+				}
+			} else {
+				if rv.Elem().Elem().Type().ConvertibleTo(sf.Type) {
+					out.FieldByName(sf.Name).Set(rv.Elem().Elem().Convert(sf.Type))
+				} else {
+					log.Warnln("can't find the field")
+					return out, fmt.Errorf("Unable to assign value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.Name, sf.Type)
+				}
+			}
+		}
+	}
+	return out, nil
+}
+
+func buildPrimitive(sType reflect.Type, cols []string, vals []interface{}) (reflect.Value, error) {
+	out := reflect.New(sType).Elem()
+	rv := reflect.ValueOf(vals[0])
+	if rv.Elem().Elem().Type().ConvertibleTo(sType) {
+		out.Set(rv.Elem().Elem().Convert(sType))
+	} else {
+		return out, fmt.Errorf("Unable to assign value %v of type %v to return type of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sType)
+	}
+	return out, nil
 }

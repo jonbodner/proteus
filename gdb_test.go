@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jonbodner/gdb/adapter"
+	"github.com/jonbodner/gdb/api"
 	"github.com/jonbodner/gdb/cmp"
 	"reflect"
 	"testing"
-	"github.com/jonbodner/gdb/api"
 )
 
 func TestValidIdentifier(t *testing.T) {

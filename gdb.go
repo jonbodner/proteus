@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/jonbodner/gdb/api"
 	"github.com/jonbodner/gdb/mapper"
 	"go/scanner"
@@ -147,7 +148,7 @@ func validIdentifier(curVar string) (string, error) {
 loop:
 	for {
 		pos, tok, lit := s.Scan()
-		fmt.Printf("%s\t%s\t%q\n", fset.Position(pos), tok, lit)
+		log.Debugf("%s\t%s\t%q\n", fset.Position(pos), tok, lit)
 		switch tok {
 		case token.EOF:
 			if first || lastPeriod {
@@ -243,7 +244,7 @@ func getExecAndQArgs(args []reflect.Value, qps queryParams) (api.Executor, []int
 	qArgs := make([]interface{}, len(qps))
 	for k, v := range qps {
 		//todo later: add support for slices as parameters
-		val, err := mapper.Extract(args[v.posInParams].Interface(), strings.Split(v.name,"."))
+		val, err := mapper.Extract(args[v.posInParams].Interface(), strings.Split(v.name, "."))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -268,8 +269,8 @@ func buildExec(funcType reflect.Type, query string, paramMap map[string]int, pa 
 		var result api.Result
 		if err == nil {
 			//call executor.Exec with query and parameters
-			fmt.Println("calling", positionalQuery, "with params", qArgs)
-			result, err = exec.Exec(positionalQuery, qArgs)
+			log.Debugln("calling", positionalQuery, "with params", qArgs)
+			result, err = exec.Exec(positionalQuery, qArgs...)
 		}
 
 		//handle the 0,1,2 out parameter cases
@@ -277,41 +278,44 @@ func buildExec(funcType reflect.Type, query string, paramMap map[string]int, pa 
 			return []reflect.Value{}
 		}
 
+		zero := reflect.ValueOf(int64(0))
+		sType := funcType.Out(0)
 		if numOut == 1 {
 			if err != nil {
-				return []reflect.Value{reflect.ValueOf(0)}
+				return []reflect.Value{zero}
 			}
 			val, err := result.LastInsertId()
 			if err != nil {
-				return []reflect.Value{reflect.ValueOf(0)}
+				return []reflect.Value{zero}
 			}
 			if val != 0 {
-				return []reflect.Value{reflect.ValueOf(val)}
+				return []reflect.Value{reflect.ValueOf(val).Convert(sType)}
 			}
 			val, err = result.RowsAffected()
 			if err != nil {
-				return []reflect.Value{reflect.ValueOf(0)}
+				return []reflect.Value{zero}
 			}
-			return []reflect.Value{reflect.ValueOf(val)}
+			return []reflect.Value{reflect.ValueOf(val).Convert(sType)}
 		}
 		if numOut == 2 {
+			eType := funcType.Out(1)
 			if err != nil {
-				return []reflect.Value{reflect.ValueOf(0), reflect.ValueOf(err)}
+				return []reflect.Value{zero, reflect.ValueOf(err).Convert(eType)}
 			}
 			val, err := result.LastInsertId()
 			if err != nil {
-				return []reflect.Value{reflect.ValueOf(0), reflect.ValueOf(err)}
+				return []reflect.Value{zero, reflect.ValueOf(err).Convert(eType)}
 			}
 			if val != 0 {
-				return []reflect.Value{reflect.ValueOf(val), reflect.ValueOf(nil)}
+				return []reflect.Value{reflect.ValueOf(val).Convert(sType), errZero}
 			}
 			val, err = result.RowsAffected()
 			if err != nil {
-				return []reflect.Value{reflect.ValueOf(0), reflect.ValueOf(err)}
+				return []reflect.Value{zero, reflect.ValueOf(err).Convert(eType)}
 			}
-			return []reflect.Value{reflect.ValueOf(val), reflect.ValueOf(nil)}
+			return []reflect.Value{reflect.ValueOf(val).Convert(sType), errZero}
 		}
-		return []reflect.Value{reflect.ValueOf(0), reflect.ValueOf(errors.New("Should never get here!"))}
+		return []reflect.Value{zero, reflect.ValueOf(errors.New("Should never get here!"))}
 	}, nil
 }
 
@@ -328,10 +332,11 @@ func buildQuery(funcType reflect.Type, query string, paramMap map[string]int, pa
 	return func(args []reflect.Value) []reflect.Value {
 		exec, qArgs, err := getExecAndQArgs(args, qps)
 
+		var rows api.Rows
 		//call executor.Query with query and parameters
 		if err == nil {
-			fmt.Println("calling", positionalQuery, "with params", qArgs)
-			_, err = exec.Query(positionalQuery, qArgs)
+			log.Debugln("calling", positionalQuery, "with params", qArgs)
+			rows, err = exec.Query(positionalQuery, qArgs...)
 		}
 
 		//handle the 0,1,2 out parameter cases
@@ -339,22 +344,58 @@ func buildQuery(funcType reflect.Type, query string, paramMap map[string]int, pa
 			return []reflect.Value{}
 		}
 
+		sType := funcType.Out(0)
+		zero := reflect.Zero(sType)
 		if numOut == 1 {
 			if err != nil {
-				return []reflect.Value{reflect.Zero(funcType.Out(0))}
+				return []reflect.Value{zero}
 			}
-			//todo handle mapping
-			return []reflect.Value{reflect.Zero(funcType.Out(0))}
+			// handle mapping
+			val, err := handleMapping(sType, rows)
+			if err != nil {
+				return []reflect.Value{zero}
+			}
+			return []reflect.Value{reflect.ValueOf(val).Convert(sType)}
 		}
 		if numOut == 2 {
+			eType := funcType.Out(1)
 			if err != nil {
-				return []reflect.Value{reflect.Zero(funcType.Out(0)), reflect.ValueOf(err)}
+				return []reflect.Value{zero, reflect.ValueOf(err).Convert(eType)}
 			}
-			//todo handle mapping
-			return []reflect.Value{reflect.Zero(funcType.Out(0)), reflect.ValueOf(nil)}
+			// handle mapping
+			val, err := handleMapping(sType, rows)
+			var eVal reflect.Value
+			if err == nil {
+				eVal = errZero
+			} else {
+				eVal = reflect.ValueOf(err).Convert(eType)
+			}
+			return []reflect.Value{reflect.ValueOf(val).Convert(sType), eVal}
 		}
-		return []reflect.Value{reflect.Zero(funcType.Out(0)), reflect.ValueOf(errors.New("Should never get here!"))}
+		return []reflect.Value{zero, reflect.ValueOf(errors.New("Should never get here!"))}
 	}, nil
+}
+
+var errZero = reflect.Zero(reflect.TypeOf((*error)(nil)).Elem())
+
+func handleMapping(sType reflect.Type, rows api.Rows) (interface{}, error) {
+	var val interface{}
+	var err error
+	if sType.Kind() == reflect.Slice {
+		s := reflect.MakeSlice(sType, 0, 0)
+		var result interface{}
+		for {
+			result, err = mapper.Build(rows, sType.Elem())
+			if result == nil {
+				break
+			}
+			s = reflect.Append(s, reflect.ValueOf(result))
+		}
+		val = s.Interface()
+	} else {
+		val, err = mapper.Build(rows, sType)
+	}
+	return val, err
 }
 
 func buildParamMap(gdbp string) map[string]int {
@@ -389,7 +430,7 @@ func Build(dao interface{}, pa api.ParamAdapter) error {
 			//validate to make sure that the function matches what we expect
 			err := validateFunction(curField.Type, gdbe != "")
 			if err != nil {
-				fmt.Println("skipping function", curField.Name, "due to error:", err.Error())
+				log.Warnln("skipping function", curField.Name, "due to error:", err.Error())
 				continue
 			}
 
@@ -402,7 +443,7 @@ func Build(dao interface{}, pa api.ParamAdapter) error {
 				toFunc, err = buildExec(curField.Type, gdbe, paramMap, pa)
 			}
 			if err != nil {
-				fmt.Println("skipping function", curField.Name, "due to error:", err.Error())
+				log.Warnln("skipping function", curField.Name, "due to error:", err.Error())
 				continue
 			}
 			fv := sv.FieldByName(curField.Name)
