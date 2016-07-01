@@ -99,7 +99,7 @@ func buildStruct(sType reflect.Type, cols []string, vals []interface{}) (reflect
 	colFieldMap := map[string]reflect.StructField{}
 	for i := 0; i < sType.NumField(); i++ {
 		sf := sType.Field(i)
-		if tagVal, ok := sf.Tag.Lookup("gdbf"); ok {
+		if tagVal := sf.Tag.Get("gdbf"); tagVal != "" {
 			colFieldMap[strings.SplitN(tagVal, ",", 2)[0]] = sf
 		}
 	}
