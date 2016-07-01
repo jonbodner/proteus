@@ -1,12 +1,12 @@
-package gdb
+package proteus
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"github.com/jonbodner/gdb/api"
-	"github.com/jonbodner/gdb/mapper"
+	"github.com/jonbodner/proteus/api"
+	"github.com/jonbodner/proteus/mapper"
 	"go/scanner"
 	"go/token"
 	"reflect"
@@ -15,21 +15,17 @@ import (
 
 /*
 struct tags:
-gdbq - Query run by Executor.Query. Returns single entity or list of entities
-gdbe - Query run by Executor.Exec. Returns new id (if sql.Result has a non-zero value for LastInsertId) or number of rows changed
-gdbp - The parameter names. Should be in order for the function parameters (skipping over the first Executor parameter)
-gdbf - The fields on the dto that are mapped to select parameters in a query
+proq - Query run by Executor.Query. Returns single entity or list of entities
+proe - Query run by Executor.Exec. Returns new id (if sql.Result has a non-zero value for LastInsertId) or number of rows changed
+prop - The parameter names. Should be in order for the function parameters (skipping over the first Executor parameter)
+prof - The fields on the dto that are mapped to select parameters in a query
 next:
 Put a reference to a public string instead of the query and that public string will be used as the query
 later:
 struct tags to mark as CRUD operations
-gdbi
-gdbr
-gdbu
-gdbd
 
 converting name parameterized queries to positional queries
-1. build a map of gdbp entry->position in parameter list
+1. build a map of prop entry->position in parameter list
 2. For each : in the input query
 3. Find it
 4. Find the end of the term (whitespace, comma, or end of string)
@@ -62,7 +58,7 @@ func validateFunction(funcType reflect.Type, isExec bool) error {
 	}
 	exType := reflect.TypeOf((*api.Executor)(nil)).Elem()
 	if !funcType.In(0).Implements(exType) {
-		return errors.New("First parameter must be of type gdb.Executor")
+		return errors.New("First parameter must be of type api.Executor")
 	}
 	//no in parameter can be a channel
 	for i := 1; i < funcType.NumIn(); i++ {
@@ -398,8 +394,8 @@ func handleMapping(sType reflect.Type, rows api.Rows) (interface{}, error) {
 	return val, err
 }
 
-func buildParamMap(gdbp string) map[string]int {
-	queryParams := strings.Split(gdbp, ",")
+func buildParamMap(prop string) map[string]int {
+	queryParams := strings.Split(prop, ",")
 	m := map[string]int{}
 	for k, v := range queryParams {
 		m[v] = k + 1
@@ -420,27 +416,27 @@ func Build(dao interface{}, pa api.ParamAdapter) error {
 	}
 	svp := reflect.ValueOf(dao)
 	sv := reflect.Indirect(svp)
-	//for each field in ProductDao that is of type func and has a gdbi struct tag, assign it a func
+	//for each field in ProductDao that is of type func and has a proteus struct tag, assign it a func
 	for i := 0; i < t2.NumField(); i++ {
 		curField := t2.Field(i)
-		gdbq := curField.Tag.Get("gdbq")
-		gdbe := curField.Tag.Get("gdbe")
-		gdbp := curField.Tag.Get("gdbp")
-		if curField.Type.Kind() == reflect.Func && (gdbq != "" || gdbe != "") {
+		proq := curField.Tag.Get("proq")
+		proe := curField.Tag.Get("proe")
+		prop := curField.Tag.Get("prop")
+		if curField.Type.Kind() == reflect.Func && (proq != "" || proe != "") {
 			//validate to make sure that the function matches what we expect
-			err := validateFunction(curField.Type, gdbe != "")
+			err := validateFunction(curField.Type, proe != "")
 			if err != nil {
 				log.Warnln("skipping function", curField.Name, "due to error:", err.Error())
 				continue
 			}
 
-			paramMap := buildParamMap(gdbp)
+			paramMap := buildParamMap(prop)
 
 			var toFunc func(args []reflect.Value) []reflect.Value
-			if gdbq != "" {
-				toFunc, err = buildQuery(curField.Type, gdbq, paramMap, pa)
+			if proq != "" {
+				toFunc, err = buildQuery(curField.Type, proq, paramMap, pa)
 			} else {
-				toFunc, err = buildExec(curField.Type, gdbe, paramMap, pa)
+				toFunc, err = buildExec(curField.Type, proe, paramMap, pa)
 			}
 			if err != nil {
 				log.Warnln("skipping function", curField.Name, "due to error:", err.Error())

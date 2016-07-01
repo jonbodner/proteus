@@ -1,11 +1,11 @@
-package gdb
+package proteus
 
 import (
 	"errors"
 	"fmt"
-	"github.com/jonbodner/gdb/adapter"
-	"github.com/jonbodner/gdb/api"
-	"github.com/jonbodner/gdb/cmp"
+	"github.com/jonbodner/proteus/adapter"
+	"github.com/jonbodner/proteus/api"
+	"github.com/jonbodner/proteus/cmp"
 	"reflect"
 	"testing"
 )
@@ -186,8 +186,8 @@ func TestValidateFunction(t *testing.T) {
 
 	//invalid -- wrong first parameter type
 	var f2 func(int)
-	f(reflect.TypeOf(f2), true, "First parameter must be of type gdb.Executor")
-	f(reflect.TypeOf(f2), false, "First parameter must be of type gdb.Executor")
+	f(reflect.TypeOf(f2), true, "First parameter must be of type api.Executor")
+	f(reflect.TypeOf(f2), false, "First parameter must be of type api.Executor")
 
 	//invalid -- has a channel input param
 	var f3 func(api.Executor, chan int)

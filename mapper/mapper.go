@@ -3,7 +3,7 @@ package mapper
 import (
 	"errors"
 	"fmt"
-	"github.com/jonbodner/gdb/api"
+	"github.com/jonbodner/proteus/api"
 	"reflect"
 	"strings"
 	log "github.com/Sirupsen/logrus"
@@ -12,7 +12,7 @@ import (
 // Build takes the next value from Rows and uses it to create a new instance of the specified type
 // If the type is a primitive and there are more than 1 values in the current row, only the first value is used.
 // If the type is a map of string to interface, then the column names are the keys in the map and the values are assigned
-// If the type is a struct that has gdbp tags on its fields, then any matching tags will be associated with values with the associate columns
+// If the type is a struct that has prop tags on its fields, then any matching tags will be associated with values with the associate columns
 // Any non-associated values will be set to the zero value
 // If any columns cannot be assigned to any types, then an error is returned
 // If next returns false, then nil is returned for both the interface and the error
@@ -99,7 +99,7 @@ func buildStruct(sType reflect.Type, cols []string, vals []interface{}) (reflect
 	colFieldMap := map[string]reflect.StructField{}
 	for i := 0; i < sType.NumField(); i++ {
 		sf := sType.Field(i)
-		if tagVal := sf.Tag.Get("gdbf"); tagVal != "" {
+		if tagVal := sf.Tag.Get("prof"); tagVal != "" {
 			colFieldMap[strings.SplitN(tagVal, ",", 2)[0]] = sf
 		}
 	}

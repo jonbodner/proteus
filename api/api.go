@@ -106,7 +106,7 @@ type Rows interface {
 	Close() error
 }
 
-// Executor runs the queries that are processed by gdb.
+// Executor runs the queries that are processed by proteus.
 type Executor interface {
 	// Exec executes a query without returning any rows.
 	// The args are for any placeholder parameters in the query.

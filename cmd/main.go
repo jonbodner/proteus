@@ -3,33 +3,33 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"github.com/jonbodner/gdb"
-	"github.com/jonbodner/gdb/adapter"
-	"github.com/jonbodner/gdb/api"
+	"github.com/jonbodner/proteus"
+	"github.com/jonbodner/proteus/adapter"
+	"github.com/jonbodner/proteus/api"
 	_ "github.com/mattn/go-sqlite3"
-	"log"
+	log "github.com/Sirupsen/logrus"
 	"os"
 )
 
 type Product struct {
-	Id   int     `gdbf:"id,pk"`
-	Name string  `gdbf:"name"`
-	Cost float64 `gdbf:"cost"`
+	Id   int     `prof:"id,pk"`
+	Name string  `prof:"name"`
+	Cost float64 `prof:"cost"`
 }
 
 type ProductDao struct {
-	FindById             func(e api.Executor, id int) (Product, error)                                     `gdbq:"select * from Product where id = :id:" gdbp:"id"`
-	Update               func(e api.Executor, p Product) (int64, error)                                    `gdbe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" gdbp:"p"`
-	FindByNameAndCost    func(e api.Executor, name string, cost float64) ([]Product, error)                `gdbq:"select * from Product where name=:name: and cost=:cost:" gdbp:"name,cost"`
-	FindByIdMap          func(e api.Executor, id int) (map[string]interface{}, error)                      `gdbq:"select * from Product where id = :id:" gdbp:"id"`
-	UpdateMap            func(e api.Executor, p map[string]interface{}) (int64, error)                     `gdbe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" gdbp:"p"`
-	FindByNameAndCostMap func(e api.Executor, name string, cost float64) ([]map[string]interface{}, error) `gdbq:"select * from Product where name=:name: and cost=:cost:" gdbp:"name,cost"`
+	FindById             func(e api.Executor, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
+	Update               func(e api.Executor, p Product) (int64, error)                                    `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCost    func(e api.Executor, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindByIdMap          func(e api.Executor, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
+	UpdateMap            func(e api.Executor, p map[string]interface{}) (int64, error)                     `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCostMap func(e api.Executor, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
 }
 
 var productDao = ProductDao{}
 
 func init() {
-	err := gdb.Build(&productDao, adapter.Sqlite)
+	err := proteus.Build(&productDao, adapter.Sqlite)
 	if err != nil {
 		panic(err)
 	}
@@ -69,9 +69,9 @@ func main() {
 }
 
 func setupDb() *sql.DB {
-	os.Remove("./gdb.db")
+	os.Remove("./proteus_test.db")
 
-	db, err := sql.Open("sqlite3", "./gdb.db")
+	db, err := sql.Open("sqlite3", "./proteus_test.db")
 	if err != nil {
 		log.Fatal(err)
 	}

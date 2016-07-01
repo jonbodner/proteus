@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/jonbodner/gdb/cmp"
+	"github.com/jonbodner/proteus/cmp"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"os"
@@ -28,9 +28,9 @@ func setupDb(t *testing.T) *sql.DB {
 	if testing.Short() {
 		t.Skip("skipping sqlite test in short mode")
 	}
-	os.Remove("./gdb.db")
+	os.Remove("./proteus_test.db")
 
-	db, err := sql.Open("sqlite3", "./gdb.db")
+	db, err := sql.Open("sqlite3", "./proteus_test.db")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -68,9 +68,9 @@ func TestBuildSqliteStruct(t *testing.T) {
 
 	//struct
 	type Product struct {
-		Id   int     `gdbf:"id,pk"`
-		Name *string `gdbf:"name"`
-		Cost float64 `gdbf:"cost"`
+		Id   int     `prof:"id,pk"`
+		Name *string `prof:"name"`
+		Cost float64 `prof:"cost"`
 	}
 
 	rows, err := db.Query("select id, name, cost from product")

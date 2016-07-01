@@ -3,7 +3,7 @@ package mapper
 import (
 	"testing"
 	"errors"
-	"github.com/jonbodner/gdb/cmp"
+	"github.com/jonbodner/proteus/cmp"
 	"reflect"
 )
 
