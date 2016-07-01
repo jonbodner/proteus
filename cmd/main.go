@@ -12,7 +12,7 @@ import (
 )
 
 type Product struct {
-	Id   int     `prof:"id,pk"`
+	Id   int     `prof:"id"`
 	Name string  `prof:"name"`
 	Cost float64 `prof:"cost"`
 }
