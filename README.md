@@ -6,7 +6,7 @@ A simple tool for generating an application's data access layer.
 ## Quick Start
 1. Define a struct that contains function fields and tags to indicate the query and the parameter names:
 
-```
+```go
 type ProductDao struct {
 	FindById             func(e api.Executor, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
 	Update               func(e api.Executor, p Product) (int64, error)                                    `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
@@ -19,8 +19,9 @@ type ProductDao struct {
 
 Input parameter types can be primitives, structs, or maps of string to interface{}.
 
-2. If you want to map response fields to a struct, define a struct with struct tags to indicate the mapping:
-```
+2\. If you want to map response fields to a struct, define a struct with struct tags to indicate the mapping:
+
+```go
 type Product struct {
 	Id   int     `prof:"id"`
 	Name string  `prof:"name"`
@@ -28,8 +29,9 @@ type Product struct {
 }
 ```
 
-3. Pass an instance of the Dao struct to the proteus.Build function:
-```
+3\. Pass an instance of the Dao struct to the proteus.Build function:
+
+```go
 var productDao = ProductDao{}
 
 func init() {
@@ -40,15 +42,17 @@ func init() {
 }
 ```
 
-4. Open a connection to a data store that meets the Proteus interface:
-```
+4\. Open a connection to a data store that meets the Proteus interface:
+
+```go
 	db := setupDb()
 	defer db.Close()
 	exec := adapter.Sql(db)
 ```
 
-5. Make calls to the function fields in your Proteus-populated struct:
-```
+5\. Make calls to the function fields in your Proteus-populated struct:
+
+```go
 	fmt.Println(productDao.FindById(gExec, 10))
 	p := Product{10, "Thingie", 56.23}
 	fmt.Println(productDao.Update(gExec, p))
@@ -88,7 +92,7 @@ If you want to map the output of a DAO with a proq tag to a struct, then create 
 ## API
 
 ## FAQ
-1. Why doesn't Proteus generate a struct that meets an interface?
+1\. Why doesn't Proteus generate a struct that meets an interface?
 
 The reflection API in go has several limitations. One of them is that there is no way to use reflection to build a implementation
 of a method; you can only build implementations of functions. The difference is subtle, but the net result is that you cannot supply an
@@ -102,7 +106,7 @@ names of the functions and the types of the function parameters match an interfa
 
 Given these limitations, Proteus uses structs to hold the generated functions. If you want an interface that describes
 the functionality provided by the struct, you can do something like this:
-```
+```go
 type ProductDaoS struct {
 	FindById             func(e api.Executor, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
 	Update               func(e api.Executor, p Product) (int64, error)                                    `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
@@ -140,7 +144,7 @@ func NewProductDao() ProductDao {
 
 A future version of Proteus may include a tool that can be used with go generate to automatically create the wrapper and interface.
 
-2. Why do I have to specify the parameter names with a struct tag?
+2\. Why do I have to specify the parameter names with a struct tag?
 
 This is another limitation of go's reflection API. The names of parameters are not available at runtime to be inspected,
 and must be supplied by another way in order to be referenced in a query.
@@ -150,7 +154,7 @@ and must be supplied by another way in order to be referenced in a query.
 There are more interesting features coming to Proteus. They are (in likely order of implementation):
 
 - Support for slice input parameters
-```
+```go
 type FooDAO struct {
 	FindSeveral func(e api.Executor, ids []int) ([]Product, error) `proq:"select * from Product where id in (:ids:)" prop:"ids"`
 }
@@ -169,7 +173,7 @@ func UseFoo() {
 ```
 
 - Support for storing queries in property files
-```
+```go
 type FooDAO struct {
 	Find func(e api.Executor, ids int) (Product, error) `proqe:"product.get" prop:"ids"`
 }
