@@ -14,7 +14,7 @@ import (
 
 func TestBuild(t *testing.T) {
 	//todo
-	v, err := Build(nil, reflect.TypeOf(10))
+	v, err := Map(nil, reflect.TypeOf(10))
 	if v != nil {
 		t.Error("Expected nil when passing in nil rows")
 	}
@@ -52,8 +52,13 @@ func setupDb(t *testing.T) *sql.DB {
 		log.Fatal(err)
 	}
 	defer stmt.Close()
-	for i := 0; i < 100; i++ {
-		_, err = stmt.Exec(i, fmt.Sprintf("person%d", i), 1.1*float64(i))
+	for i := 0; i < 5; i++ {
+		var name *string
+		if i%2 == 0 {
+			n := fmt.Sprintf("person%d", i)
+			name = &n
+		}
+		_, err = stmt.Exec(i, name, 1.1*float64(i))
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -80,8 +85,8 @@ func TestBuildSqliteStruct(t *testing.T) {
 	defer rows.Close()
 	pType := reflect.TypeOf((*Product)(nil)).Elem()
 
-	for i := 0; i < 100; i++ {
-		prod, err := Build(rows, pType)
+	for i := 0; i < 5; i++ {
+		prod, err := Map(rows, pType)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -92,8 +97,14 @@ func TestBuildSqliteStruct(t *testing.T) {
 			if p2.Id != i {
 				t.Errorf("Wrong id, expected %d, got %d", i, p2.Id)
 			}
-			if *p2.Name != fmt.Sprintf("person%d", i) {
-				t.Errorf("Wrong name, expected %s, got %s", fmt.Sprintf("person%d", i), *p2.Name)
+			if i%2 == 0 {
+				if *p2.Name != fmt.Sprintf("person%d", i) {
+					t.Errorf("Wrong name, expected %s, got %s", fmt.Sprintf("person%d", i), *p2.Name)
+				}
+			} else {
+				if p2.Name != nil {
+					t.Errorf("Wrong name, expected nil, got %v", p2.Name)
+				}
 			}
 			if p2.Cost != 1.1*float64(i) {
 				t.Errorf("Wrong cost, expected %f, got %f", 1.1*float64(i), p2.Cost)
@@ -108,7 +119,7 @@ func TestBuildSqliteStruct(t *testing.T) {
 	if rows.Next() {
 		t.Error("Expected no more rows, but had some")
 	}
-	prod, err := Build(rows, pType)
+	prod, err := Map(rows, pType)
 	if prod != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
@@ -125,12 +136,12 @@ func TestBuildSqlitePrimitive(t *testing.T) {
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query("3")
+	rows, err := stmt.Query("4")
 	if err != nil {
 		log.Fatal(err)
 	}
 	sType := reflect.TypeOf("")
-	s, err := Build(rows, sType)
+	s, err := Map(rows, sType)
 	if err != nil {
 		t.Error(err)
 	}
@@ -141,11 +152,46 @@ func TestBuildSqlitePrimitive(t *testing.T) {
 	if !ok {
 		t.Error("Wrong type")
 	}
-	if s2 != "person3" {
-		t.Errorf("Expected %s, got %s", "person3", s2)
+	if s2 != "person4" {
+		t.Errorf("Expected %s, got %s", "person4", s2)
 	}
 
-	s, err = Build(rows, sType)
+	s, err = Map(rows, sType)
+	if s != nil || err != nil {
+		t.Error("Expected to be at end, but wasn't")
+	}
+
+	_, err = db.Exec("delete from product")
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func TestBuildSqlitePrimitiveNilFail(t *testing.T) {
+	db := setupDb(t)
+	defer db.Close()
+
+	//primitive
+	stmt, err := db.Prepare("select name from product where id = ?")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.Query("3")
+	if err != nil {
+		log.Fatal(err)
+	}
+	sType := reflect.TypeOf("")
+	s, err := Map(rows, sType)
+	if err == nil {
+		t.Error("Expected error didn't get one")
+	}
+	if err.Error() != "Attempting to return nil for non-pointer type string" {
+		t.Error("Expected error message '%s', got '%s'", "Attempting to return nil for non-pointer type string", err.Error())
+	}
+
+	s, err = Map(rows, sType)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
@@ -167,12 +213,12 @@ func TestBuildSqlitePrimitivePtr(t *testing.T) {
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query("3")
+	rows, err := stmt.Query("4")
 	if err != nil {
 		log.Fatal(err)
 	}
 	sType := reflect.TypeOf((*string)(nil))
-	s, err := Build(rows, sType)
+	s, err := Map(rows, sType)
 	if err != nil {
 		t.Error(err)
 	}
@@ -183,12 +229,52 @@ func TestBuildSqlitePrimitivePtr(t *testing.T) {
 	if !ok {
 		t.Error("Wrong type")
 	} else {
-		if *s2 != "person3" {
-			t.Errorf("Expected %s, got %s", "person3", s2)
+		if *s2 != "person4" {
+			t.Errorf("Expected %s, got %s", "person4", s2)
 		}
 	}
 
-	s, err = Build(rows, sType)
+	s, err = Map(rows, sType)
+	if s != nil || err != nil {
+		t.Error("Expected to be at end, but wasn't")
+	}
+
+	_, err = db.Exec("delete from product")
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func TestBuildSqlitePrimitivePtrNil(t *testing.T) {
+	db := setupDb(t)
+	defer db.Close()
+
+	//primitive
+	stmt, err := db.Prepare("select name from product where id = ?")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.Query("3")
+	if err != nil {
+		log.Fatal(err)
+	}
+	sType := reflect.TypeOf((*string)(nil))
+	s, err := Map(rows, sType)
+	if err != nil {
+		t.Error(err)
+	}
+	s2, ok := s.(*string)
+	if !ok {
+		t.Error("Wrong type")
+	} else {
+		if s2 != nil {
+			t.Errorf("Expected nil, got %v %v", reflect.TypeOf(s2), *s2)
+		}
+	}
+
+	s, err = Map(rows, sType)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
@@ -213,8 +299,8 @@ func TestBuildSqliteMap(t *testing.T) {
 
 	mType := reflect.TypeOf(m)
 
-	for i := 0; i < 100; i++ {
-		prod, err := Build(rows, mType)
+	for i := 0; i < 5; i++ {
+		prod, err := Map(rows, mType)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -231,11 +317,17 @@ func TestBuildSqliteMap(t *testing.T) {
 				}
 			}
 			name, ok := m2["name"]
-			if !ok {
-				t.Errorf("name map value not found")
-			} else {
+			if i%2 == 0 {
+				//should have a name
+				if !ok {
+					t.Errorf("name map value not found")
+				}
 				if string(name.([]byte)) != fmt.Sprintf("person%d", i) {
 					t.Errorf("Wrong name, expected %s, got %s, existed: %v", fmt.Sprintf("person%d", i), name, ok)
+				}
+			} else {
+				if ok {
+					t.Errorf("name map value should not be found")
 				}
 			}
 			cost, ok := m2["cost"]
@@ -256,7 +348,7 @@ func TestBuildSqliteMap(t *testing.T) {
 	if rows.Next() {
 		t.Error("Expected no more rows, but had some")
 	}
-	prod, err := Build(rows, mType)
+	prod, err := Map(rows, mType)
 	if prod != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}

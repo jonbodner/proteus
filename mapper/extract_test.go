@@ -7,6 +7,67 @@ import (
 	"reflect"
 )
 
+func TestExtractPointer(t *testing.T) {
+	f := func(in interface{}, path []string, expected *int) {
+		v, err := Extract(in, path)
+		if err != nil {
+			t.Errorf("Expected no error, got %s", err)
+		}
+		if v == nil {
+			if expected != nil {
+				t.Errorf("Expected back an *int, got a nil")
+			}
+			return
+		}
+		if i, ok := v.(*int); !ok {
+			t.Errorf("Expected back an *int, got a %v", reflect.TypeOf(v).Kind())
+		} else {
+			if i != expected {
+				t.Errorf("Expected back %d, got %d", expected, i)
+			}
+		}
+	}
+	// ptr case
+	a := 20
+	f(&a, []string{"A"}, &a)
+
+	f(nil, []string{"A"}, nil)
+
+	// struct case
+	type Bar struct {
+		A *int
+	}
+
+	type Foo struct {
+		B Bar
+	}
+
+	f(Foo{
+		B: Bar{
+			A: nil,
+		},
+	}, []string{"foo", "B", "A"}, nil)
+
+	f(Foo{
+		B: Bar{
+			A: &a,
+		},
+	}, []string{"foo", "B", "A"}, &a)
+
+	// map case
+	f(map[string]interface{}{
+		"Bar": Bar{
+			A: nil,
+		},
+	}, []string{"m", "Bar", "A"}, nil)
+
+	f(map[string]interface{}{
+		"Bar": Bar{
+			A: &a,
+		},
+	}, []string{"m", "Bar", "A"}, &a)
+}
+
 func TestExtract(t *testing.T) {
 	f := func(in interface{}, path []string, expected int) {
 		v, err := Extract(in, path)
@@ -17,7 +78,7 @@ func TestExtract(t *testing.T) {
 			t.Errorf("Expected back an int, got a nil")
 		}
 		if i, ok := v.(int); !ok {
-			t.Errorf("Expected back an int, got a ", reflect.TypeOf(v).Kind())
+			t.Errorf("Expected back an int, got a %v", reflect.TypeOf(v).Kind())
 		} else {
 			if i != expected {
 				t.Errorf("Expected back %d, got %d", expected, i)
@@ -26,10 +87,6 @@ func TestExtract(t *testing.T) {
 	}
 	// base case int
 	f(10, []string{"A"}, 10)
-
-	// ptr case
-	a := 20
-	f(&a, []string{"A"}, a)
 
 	// struct case
 	type Bar struct {

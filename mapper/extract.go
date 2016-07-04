@@ -13,7 +13,7 @@ func Extract(s interface{}, path []string) (interface{}, error) {
 	}
 	// base case path length == 1
 	if len(path) == 1 {
-		return fromPtr(s), nil
+		return s, nil
 	}
 	// length > 1, find a match for path[1], and recurse
 	ss := fromPtr(s)

@@ -3,13 +3,14 @@ package mapper
 import (
 	"errors"
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/jonbodner/proteus/api"
 	"reflect"
 	"strings"
-	log "github.com/Sirupsen/logrus"
+	"unsafe"
 )
 
-// Build takes the next value from Rows and uses it to create a new instance of the specified type
+// Map takes the next value from Rows and uses it to create a new instance of the specified type
 // If the type is a primitive and there are more than 1 values in the current row, only the first value is used.
 // If the type is a map of string to interface, then the column names are the keys in the map and the values are assigned
 // If the type is a struct that has prop tags on its fields, then any matching tags will be associated with values with the associate columns
@@ -18,7 +19,7 @@ import (
 // If next returns false, then nil is returned for both the interface and the error
 // If an error occurs while processing the current row, nil is returned for the interface and the error is non-nil
 // If a value is successfuly extracted from the current row, the instance is returned and the error is nil
-func Build(rows api.Rows, sType reflect.Type) (interface{}, error) {
+func Map(rows api.Rows, sType reflect.Type) (interface{}, error) {
 	//fmt.Println(sType)
 	if rows == nil || sType == nil {
 		return nil, errors.New("Both rows and sType must be non-nil")
@@ -70,8 +71,17 @@ func Build(rows api.Rows, sType reflect.Type) (interface{}, error) {
 	}
 	if isPtr {
 		out2 := reflect.New(sType)
-		out2.Elem().Set(out)
+		k := out.Type().Kind()
+		log.Debugln("kind of out", k)
+		if (k == reflect.Interface || k == reflect.Ptr) && out.IsNil() {
+			out2 = reflect.NewAt(sType, unsafe.Pointer(nil))
+		} else {
+			out2.Elem().Set(out)
+		}
 		return out2.Interface(), nil
+	}
+	if out.IsNil() {
+		return nil, fmt.Errorf("Attempting to return nil for non-pointer type %v", sType)
 	}
 	return out.Interface(), nil
 }
@@ -84,6 +94,9 @@ func buildMap(sType reflect.Type, cols []string, vals []interface{}) (reflect.Va
 	for k, v := range cols {
 		curVal := vals[k]
 		rv := reflect.ValueOf(curVal)
+		if rv.Elem().IsNil() {
+			continue
+		}
 		if rv.Elem().Elem().Type().ConvertibleTo(sType.Elem()) {
 			out.SetMapIndex(reflect.ValueOf(v), rv.Elem().Elem().Convert(sType.Elem()))
 		} else {
@@ -108,6 +121,12 @@ func buildStruct(sType reflect.Type, cols []string, vals []interface{}) (reflect
 			curVal := vals[k]
 			rv := reflect.ValueOf(curVal)
 			if sf.Type.Kind() == reflect.Ptr {
+				log.Debugln("isPtr", sf, rv, rv.Type(), rv.Elem(), curVal, sType)
+				if rv.Elem().IsNil() {
+					log.Debugln("nil", sf, rv, curVal, sType)
+					continue
+				}
+				log.Debugln("isPtr Not Nil", rv.Elem().Type())
 				if rv.Elem().Elem().Type().ConvertibleTo(sf.Type.Elem()) {
 					out.FieldByName(sf.Name).Set(reflect.New(sf.Type.Elem()))
 					out.FieldByName(sf.Name).Elem().Set(rv.Elem().Elem().Convert(sf.Type.Elem()))
@@ -116,6 +135,10 @@ func buildStruct(sType reflect.Type, cols []string, vals []interface{}) (reflect
 					return out, fmt.Errorf("Unable to assign pointer to value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.Name, sf.Type)
 				}
 			} else {
+				if rv.Elem().IsNil() {
+					log.Warnln("Attempting to assign a nil to a non-pointer field")
+					return out, fmt.Errorf("Unable to assign nil value to non-pointer struct field %s of type %v", sf.Name, sf.Type)
+				}
 				if rv.Elem().Elem().Type().ConvertibleTo(sf.Type) {
 					out.FieldByName(sf.Name).Set(rv.Elem().Elem().Convert(sf.Type))
 				} else {
@@ -130,7 +153,11 @@ func buildStruct(sType reflect.Type, cols []string, vals []interface{}) (reflect
 
 func buildPrimitive(sType reflect.Type, cols []string, vals []interface{}) (reflect.Value, error) {
 	out := reflect.New(sType).Elem()
+	//vals[0] is of type *interface{}, because everything in vals is of type *interface{}
 	rv := reflect.ValueOf(vals[0])
+	if rv.Elem().IsNil() {
+		return rv.Elem(), nil
+	}
 	if rv.Elem().Elem().Type().ConvertibleTo(sType) {
 		out.Set(rv.Elem().Elem().Convert(sType))
 	} else {

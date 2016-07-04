@@ -381,7 +381,7 @@ func handleMapping(sType reflect.Type, rows api.Rows) (interface{}, error) {
 		s := reflect.MakeSlice(sType, 0, 0)
 		var result interface{}
 		for {
-			result, err = mapper.Build(rows, sType.Elem())
+			result, err = mapper.Map(rows, sType.Elem())
 			if result == nil {
 				break
 			}
@@ -389,7 +389,7 @@ func handleMapping(sType reflect.Type, rows api.Rows) (interface{}, error) {
 		}
 		val = s.Interface()
 	} else {
-		val, err = mapper.Build(rows, sType)
+		val, err = mapper.Map(rows, sType)
 	}
 	return val, err
 }
@@ -403,6 +403,7 @@ func buildParamMap(prop string) map[string]int {
 	return m
 }
 
+// Build is the main entry point into Proteus
 func Build(dao interface{}, pa api.ParamAdapter) error {
 	t := reflect.TypeOf(dao)
 	//must be a pointer to struct

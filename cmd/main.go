@@ -3,18 +3,26 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/jonbodner/proteus"
 	"github.com/jonbodner/proteus/adapter"
 	"github.com/jonbodner/proteus/api"
 	_ "github.com/mattn/go-sqlite3"
-	log "github.com/Sirupsen/logrus"
 	"os"
 )
 
 type Product struct {
 	Id   int     `prof:"id"`
 	Name string  `prof:"name"`
-	Cost float64 `prof:"cost"`
+	Cost *float64 `prof:"cost"`
+}
+
+func (p Product) String() string {
+	c := "<nil>"
+	if p.Cost != nil {
+		c = fmt.Sprintf("%f",*p.Cost)
+	}
+	return fmt.Sprintf("%d: %s(%s)",p.Id, p.Name, c)
 }
 
 type ProductDao struct {
@@ -24,6 +32,7 @@ type ProductDao struct {
 	FindByIdMap          func(e api.Executor, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
 	UpdateMap            func(e api.Executor, p map[string]interface{}) (int64, error)                     `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
 	FindByNameAndCostMap func(e api.Executor, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	Insert               func(e api.Executor, id int, name string, cost *float64) (int64, error)            `proe:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
 }
 
 var productDao = ProductDao{}
@@ -43,27 +52,29 @@ func main() {
 		panic(err)
 	}
 
-	gExec := adapter.Sql(exec)
+	pExec := adapter.Sql(exec)
 
-	fmt.Println(productDao.FindById(gExec, 10))
-	p := Product{10, "Thingie", 56.23}
-	fmt.Println(productDao.Update(gExec, p))
-	fmt.Println(productDao.FindById(gExec, 10))
-	fmt.Println(productDao.FindByNameAndCost(gExec, "fred", 54.10))
-	fmt.Println(productDao.FindByNameAndCost(gExec, "Thingie", 56.23))
+	fmt.Println(productDao.FindById(pExec, 10))
+	cost := new(float64)
+	*cost = 56.23
+	p := Product{10, "Thingie", cost}
+	fmt.Println(productDao.Update(pExec, p))
+	fmt.Println(productDao.FindById(pExec, 10))
+	fmt.Println(productDao.FindByNameAndCost(pExec, "fred", 54.10))
+	fmt.Println(productDao.FindByNameAndCost(pExec, "Thingie", 56.23))
 
 	//using a map of [string]interface{} works too!
-	fmt.Println(productDao.FindByIdMap(gExec, 10))
-	fmt.Println(productDao.FindByNameAndCostMap(gExec, "Thingie", 56.23))
+	fmt.Println(productDao.FindByIdMap(pExec, 10))
+	fmt.Println(productDao.FindByNameAndCostMap(pExec, "Thingie", 56.23))
 
-	fmt.Println(productDao.FindById(gExec, 11))
+	fmt.Println(productDao.FindById(pExec, 11))
 	m := map[string]interface{}{
 		"Id":   11,
 		"Name": "bobbo",
 		"Cost": 12.94,
 	}
-	fmt.Println(productDao.UpdateMap(gExec, m))
-	fmt.Println(productDao.FindById(gExec, 11))
+	fmt.Println(productDao.UpdateMap(pExec, m))
+	fmt.Println(productDao.FindById(pExec, 11))
 
 	exec.Commit()
 }
@@ -88,13 +99,16 @@ func setupDb() *sql.DB {
 	if err != nil {
 		log.Fatal(err)
 	}
-	stmt, err := tx.Prepare("insert into product(id, name, cost) values(?, ?, ?)")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer stmt.Close()
+
+	pExec := adapter.Sql(tx)
+
 	for i := 0; i < 100; i++ {
-		_, err = stmt.Exec(i, fmt.Sprintf("person%d", i), 1.1*float64(i))
+		var cost *float64
+		if i % 2 == 0 {
+			c := 1.1*float64(i)
+			cost = &c
+		}
+		_, err = productDao.Insert(pExec, i, fmt.Sprintf("person%d", i), cost)
 		if err != nil {
 			log.Fatal(err)
 		}
