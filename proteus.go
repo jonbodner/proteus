@@ -335,6 +335,9 @@ func buildQuery(funcType reflect.Type, query string, paramMap map[string]int, pa
 			rows, err = exec.Query(positionalQuery, qArgs...)
 		}
 
+		if err != nil {
+			defer rows.Close()
+		}
 		//handle the 0,1,2 out parameter cases
 		if numOut == 0 {
 			return []reflect.Value{}
