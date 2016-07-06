@@ -80,7 +80,8 @@ func Map(rows api.Rows, sType reflect.Type) (interface{}, error) {
 		}
 		return out2.Interface(), nil
 	}
-	if out.IsNil() {
+	k := out.Type().Kind()
+	if (k == reflect.Ptr || k == reflect.Interface) && out.IsNil() {
 		return nil, fmt.Errorf("Attempting to return nil for non-pointer type %v", sType)
 	}
 	return out.Interface(), nil
