@@ -71,7 +71,6 @@ func BenchmarkSelectNative(b *testing.B) {
 		if err != nil {
 			panic(err)
 		}
-		defer rows.Close()
 		if rows.Next() {
 			err = rows.Scan(&id, &name, cost)
 			if err != nil {
@@ -92,6 +91,7 @@ func BenchmarkSelectNative(b *testing.B) {
 				}
 			}
 		}
+		rows.Close()
 	}
 }
 
