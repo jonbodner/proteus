@@ -86,7 +86,7 @@ func MakeBuilder(sType reflect.Type) (Builder, error) {
 		sType = sType.Elem()
 		isPtr = true
 	}
-	
+
 	//only going to handle scalar types here
 	if sType.Kind() == reflect.Slice {
 		sType = sType.Elem()
@@ -102,11 +102,15 @@ func MakeBuilder(sType reflect.Type) (Builder, error) {
 		}, nil
 	} else if sType.Kind() == reflect.Struct {
 		//build map of col names to field names (makes this 2N instead of N^2)
-		colFieldMap := map[string]reflect.StructField{}
+		colFieldMap := map[string]fieldInfo{}
 		for i := 0; i < sType.NumField(); i++ {
 			sf := sType.Field(i)
 			if tagVal := sf.Tag.Get("prof"); tagVal != "" {
-				colFieldMap[strings.SplitN(tagVal, ",", 2)[0]] = sf
+				colFieldMap[strings.SplitN(tagVal, ",", 2)[0]] = fieldInfo{
+					name: sf.Name,
+					fieldType: sf.Type,
+					pos: i,
+				}
 			}
 		}
 		return  func(cols []string, vals []interface{}) (interface{}, error) {
@@ -125,6 +129,12 @@ func MakeBuilder(sType reflect.Type) (Builder, error) {
 
 type Builder func(cols []string, vals []interface{}) (interface{}, error)
 
+type fieldInfo struct {
+	name string
+	fieldType reflect.Type
+	pos int
+}
+
 func buildMap(sType reflect.Type, cols []string, vals []interface{}) (reflect.Value, error) {
 	out := reflect.MakeMap(sType)
 	for k, v := range cols {
@@ -142,36 +152,36 @@ func buildMap(sType reflect.Type, cols []string, vals []interface{}) (reflect.Va
 	return out, nil
 }
 
-func buildStruct(sType reflect.Type, cols []string, vals []interface{}, colFieldMap map[string]reflect.StructField) (reflect.Value, error) {
+func buildStruct(sType reflect.Type, cols []string, vals []interface{}, colFieldMap map[string]fieldInfo) (reflect.Value, error) {
 	out := reflect.New(sType).Elem()
 	for k, v := range cols {
 		if sf, ok := colFieldMap[v]; ok {
 			curVal := vals[k]
 			rv := reflect.ValueOf(curVal)
-			if sf.Type.Kind() == reflect.Ptr {
-				log.Debugln("isPtr", sf, rv, rv.Type(), rv.Elem(), curVal, sType)
+			if sf.fieldType.Kind() == reflect.Ptr {
+				//log.Debugln("isPtr", sf, rv, rv.Type(), rv.Elem(), curVal, sType)
 				if rv.Elem().IsNil() {
-					log.Debugln("nil", sf, rv, curVal, sType)
+					//log.Debugln("nil", sf, rv, curVal, sType)
 					continue
 				}
-				log.Debugln("isPtr Not Nil", rv.Elem().Type())
-				if rv.Elem().Elem().Type().ConvertibleTo(sf.Type.Elem()) {
-					out.FieldByName(sf.Name).Set(reflect.New(sf.Type.Elem()))
-					out.FieldByName(sf.Name).Elem().Set(rv.Elem().Elem().Convert(sf.Type.Elem()))
+				//log.Debugln("isPtr Not Nil", rv.Elem().Type())
+				if rv.Elem().Elem().Type().ConvertibleTo(sf.fieldType.Elem()) {
+					out.Field(sf.pos).Set(reflect.New(sf.fieldType.Elem()))
+					out.Field(sf.pos).Elem().Set(rv.Elem().Elem().Convert(sf.fieldType.Elem()))
 				} else {
 					log.Warnln("can't find the field")
-					return out, fmt.Errorf("Unable to assign pointer to value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.Name, sf.Type)
+					return out, fmt.Errorf("Unable to assign pointer to value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name, sf.fieldType)
 				}
 			} else {
 				if rv.Elem().IsNil() {
 					log.Warnln("Attempting to assign a nil to a non-pointer field")
-					return out, fmt.Errorf("Unable to assign nil value to non-pointer struct field %s of type %v", sf.Name, sf.Type)
+					return out, fmt.Errorf("Unable to assign nil value to non-pointer struct field %s of type %v", sf.name, sf.fieldType)
 				}
-				if rv.Elem().Elem().Type().ConvertibleTo(sf.Type) {
-					out.FieldByName(sf.Name).Set(rv.Elem().Elem().Convert(sf.Type))
+				if rv.Elem().Elem().Type().ConvertibleTo(sf.fieldType) {
+					out.Field(sf.pos).Set(rv.Elem().Elem().Convert(sf.fieldType))
 				} else {
 					log.Warnln("can't find the field")
-					return out, fmt.Errorf("Unable to assign value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.Name, sf.Type)
+					return out, fmt.Errorf("Unable to assign value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name, sf.fieldType)
 				}
 			}
 		}
