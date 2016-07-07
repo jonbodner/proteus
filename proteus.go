@@ -325,6 +325,13 @@ func buildQuery(funcType reflect.Type, query string, paramMap map[string]int, pa
 		return nil, err
 	}
 	numOut := funcType.NumOut()
+	var builder mapper.Builder
+	if numOut > 0 {
+		builder, err = mapper.MakeBuilder(funcType.Out(0))
+		if err != nil {
+			return nil, err
+		}
+	}
 	return func(args []reflect.Value) []reflect.Value {
 		exec, qArgs, err := getExecAndQArgs(args, qps)
 
@@ -347,7 +354,7 @@ func buildQuery(funcType reflect.Type, query string, paramMap map[string]int, pa
 				return []reflect.Value{zero}
 			}
 			// handle mapping
-			val, err := handleMapping(sType, rows)
+			val, err := handleMapping(sType, rows, builder)
 			if err != nil {
 				return []reflect.Value{zero}
 			}
@@ -359,7 +366,7 @@ func buildQuery(funcType reflect.Type, query string, paramMap map[string]int, pa
 				return []reflect.Value{zero, reflect.ValueOf(err).Convert(eType)}
 			}
 			// handle mapping
-			val, err := handleMapping(sType, rows)
+			val, err := handleMapping(sType, rows, builder)
 			var eVal reflect.Value
 			if err == nil {
 				eVal = errZero
@@ -374,14 +381,14 @@ func buildQuery(funcType reflect.Type, query string, paramMap map[string]int, pa
 
 var errZero = reflect.Zero(reflect.TypeOf((*error)(nil)).Elem())
 
-func handleMapping(sType reflect.Type, rows api.Rows) (interface{}, error) {
+func handleMapping(sType reflect.Type, rows api.Rows, builder mapper.Builder) (interface{}, error) {
 	var val interface{}
 	var err error
 	if sType.Kind() == reflect.Slice {
 		s := reflect.MakeSlice(sType, 0, 0)
 		var result interface{}
 		for {
-			result, err = mapper.Map(rows, sType.Elem())
+			result, err = mapper.Map(rows, builder)
 			if result == nil {
 				break
 			}
@@ -389,7 +396,7 @@ func handleMapping(sType reflect.Type, rows api.Rows) (interface{}, error) {
 		}
 		val = s.Interface()
 	} else {
-		val, err = mapper.Map(rows, sType)
+		val, err = mapper.Map(rows, builder)
 	}
 	rows.Close()
 	return val, err

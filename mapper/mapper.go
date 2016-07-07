@@ -19,10 +19,10 @@ import (
 // If next returns false, then nil is returned for both the interface and the error
 // If an error occurs while processing the current row, nil is returned for the interface and the error is non-nil
 // If a value is successfuly extracted from the current row, the instance is returned and the error is nil
-func Map(rows api.Rows, sType reflect.Type) (interface{}, error) {
+func Map(rows api.Rows, builder Builder) (interface{}, error) {
 	//fmt.Println(sType)
-	if rows == nil || sType == nil {
-		return nil, errors.New("Both rows and sType must be non-nil")
+	if rows == nil {
+		return nil, errors.New("rows must be non-nil")
 	}
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
@@ -51,21 +51,10 @@ func Map(rows api.Rows, sType reflect.Type) (interface{}, error) {
 		return nil, err
 	}
 
-	isPtr := false
-	if sType.Kind() == reflect.Ptr {
-		sType = sType.Elem()
-		isPtr = true
-	}
-	var out reflect.Value
-	if sType.Kind() == reflect.Map {
-		out, err = buildMap(sType, cols, vals)
-	} else if sType.Kind() == reflect.Struct {
-		out, err = buildStruct(sType, cols, vals)
-	} else {
-		// assume primitive
-		out, err = buildPrimitive(sType, cols, vals)
-	}
+	return builder(cols, vals)
+}
 
+func ptrConverter(isPtr bool, sType reflect.Type, out reflect.Value, err error) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
@@ -87,11 +76,57 @@ func Map(rows api.Rows, sType reflect.Type) (interface{}, error) {
 	return out.Interface(), nil
 }
 
+func MakeBuilder(sType reflect.Type) (Builder, error) {
+	if sType == nil {
+		return nil, errors.New("sType cannot be nil")
+	}
+
+	isPtr := false
+	if sType.Kind() == reflect.Ptr {
+		sType = sType.Elem()
+		isPtr = true
+	}
+	
+	//only going to handle scalar types here
+	if sType.Kind() == reflect.Slice {
+		sType = sType.Elem()
+	}
+
+	if sType.Kind() == reflect.Map {
+		if sType.Key().Kind() != reflect.String {
+			return nil, errors.New("Only maps with string keys are supported")
+		}
+		return  func(cols []string, vals []interface{}) (interface{}, error) {
+			out, err := buildMap(sType, cols, vals)
+			return ptrConverter(isPtr, sType, out, err)
+		}, nil
+	} else if sType.Kind() == reflect.Struct {
+		//build map of col names to field names (makes this 2N instead of N^2)
+		colFieldMap := map[string]reflect.StructField{}
+		for i := 0; i < sType.NumField(); i++ {
+			sf := sType.Field(i)
+			if tagVal := sf.Tag.Get("prof"); tagVal != "" {
+				colFieldMap[strings.SplitN(tagVal, ",", 2)[0]] = sf
+			}
+		}
+		return  func(cols []string, vals []interface{}) (interface{}, error) {
+			out, err := buildStruct(sType, cols, vals, colFieldMap)
+			return ptrConverter(isPtr, sType, out, err)
+		}, nil
+
+	} else {
+		// assume primitive
+		return  func(cols []string, vals []interface{}) (interface{}, error) {
+			out, err := buildPrimitive(sType, cols, vals)
+			return ptrConverter(isPtr, sType, out, err)
+		}, nil
+	}
+}
+
+type Builder func(cols []string, vals []interface{}) (interface{}, error)
+
 func buildMap(sType reflect.Type, cols []string, vals []interface{}) (reflect.Value, error) {
 	out := reflect.MakeMap(sType)
-	if sType.Key().Kind() != reflect.String {
-		return out, errors.New("Only maps with string keys are supported")
-	}
 	for k, v := range cols {
 		curVal := vals[k]
 		rv := reflect.ValueOf(curVal)
@@ -107,16 +142,8 @@ func buildMap(sType reflect.Type, cols []string, vals []interface{}) (reflect.Va
 	return out, nil
 }
 
-func buildStruct(sType reflect.Type, cols []string, vals []interface{}) (reflect.Value, error) {
+func buildStruct(sType reflect.Type, cols []string, vals []interface{}, colFieldMap map[string]reflect.StructField) (reflect.Value, error) {
 	out := reflect.New(sType).Elem()
-	//build map of col names to field names (makes this 2N instead of N^2)
-	colFieldMap := map[string]reflect.StructField{}
-	for i := 0; i < sType.NumField(); i++ {
-		sf := sType.Field(i)
-		if tagVal := sf.Tag.Get("prof"); tagVal != "" {
-			colFieldMap[strings.SplitN(tagVal, ",", 2)[0]] = sf
-		}
-	}
 	for k, v := range cols {
 		if sf, ok := colFieldMap[v]; ok {
 			curVal := vals[k]

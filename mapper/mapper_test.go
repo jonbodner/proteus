@@ -14,11 +14,12 @@ import (
 
 func TestBuild(t *testing.T) {
 	//todo
-	v, err := Map(nil, reflect.TypeOf(10))
+	b, _ := MakeBuilder(reflect.TypeOf(10))
+	v, err := Map(nil, b)
 	if v != nil {
 		t.Error("Expected nil when passing in nil rows")
 	}
-	eExp := errors.New("Both rows and sType must be non-nil")
+	eExp := errors.New("rows must be non-nil")
 	if !cmp.Errors(err, eExp) {
 		t.Errorf("Expected error %s, got %s", eExp, err)
 	}
@@ -84,9 +85,9 @@ func TestBuildSqliteStruct(t *testing.T) {
 	}
 	defer rows.Close()
 	pType := reflect.TypeOf((*Product)(nil)).Elem()
-
+	b, _ := MakeBuilder(pType)
 	for i := 0; i < 5; i++ {
-		prod, err := Map(rows, pType)
+		prod, err := Map(rows, b)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -119,7 +120,7 @@ func TestBuildSqliteStruct(t *testing.T) {
 	if rows.Next() {
 		t.Error("Expected no more rows, but had some")
 	}
-	prod, err := Map(rows, pType)
+	prod, err := Map(rows, b)
 	if prod != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
@@ -141,7 +142,8 @@ func TestBuildSqlitePrimitive(t *testing.T) {
 		log.Fatal(err)
 	}
 	sType := reflect.TypeOf("")
-	s, err := Map(rows, sType)
+	b, _ := MakeBuilder(sType)
+	s, err := Map(rows, b)
 	if err != nil {
 		t.Error(err)
 	}
@@ -156,7 +158,7 @@ func TestBuildSqlitePrimitive(t *testing.T) {
 		t.Errorf("Expected %s, got %s", "person4", s2)
 	}
 
-	s, err = Map(rows, sType)
+	s, err = Map(rows, b)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
@@ -183,15 +185,16 @@ func TestBuildSqlitePrimitiveNilFail(t *testing.T) {
 		log.Fatal(err)
 	}
 	sType := reflect.TypeOf("")
-	s, err := Map(rows, sType)
+	b, _ := MakeBuilder(sType)
+	s, err := Map(rows, b)
 	if err == nil {
 		t.Error("Expected error didn't get one")
 	}
 	if err.Error() != "Attempting to return nil for non-pointer type string" {
-		t.Error("Expected error message '%s', got '%s'", "Attempting to return nil for non-pointer type string", err.Error())
+		t.Errorf("Expected error message '%s', got '%s'", "Attempting to return nil for non-pointer type string", err.Error())
 	}
 
-	s, err = Map(rows, sType)
+	s, err = Map(rows, b)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
@@ -218,7 +221,8 @@ func TestBuildSqlitePrimitivePtr(t *testing.T) {
 		log.Fatal(err)
 	}
 	sType := reflect.TypeOf((*string)(nil))
-	s, err := Map(rows, sType)
+	b, _ := MakeBuilder(sType)
+	s, err := Map(rows, b)
 	if err != nil {
 		t.Error(err)
 	}
@@ -234,7 +238,7 @@ func TestBuildSqlitePrimitivePtr(t *testing.T) {
 		}
 	}
 
-	s, err = Map(rows, sType)
+	s, err = Map(rows, b)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
@@ -261,7 +265,8 @@ func TestBuildSqlitePrimitivePtrNil(t *testing.T) {
 		log.Fatal(err)
 	}
 	sType := reflect.TypeOf((*string)(nil))
-	s, err := Map(rows, sType)
+	b, _ := MakeBuilder(sType)
+	s, err := Map(rows, b)
 	if err != nil {
 		t.Error(err)
 	}
@@ -274,7 +279,7 @@ func TestBuildSqlitePrimitivePtrNil(t *testing.T) {
 		}
 	}
 
-	s, err = Map(rows, sType)
+	s, err = Map(rows, b)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
@@ -298,9 +303,9 @@ func TestBuildSqliteMap(t *testing.T) {
 	var m map[string]interface{}
 
 	mType := reflect.TypeOf(m)
-
+	b, _ := MakeBuilder(mType)
 	for i := 0; i < 5; i++ {
-		prod, err := Map(rows, mType)
+		prod, err := Map(rows, b)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -348,7 +353,7 @@ func TestBuildSqliteMap(t *testing.T) {
 	if rows.Next() {
 		t.Error("Expected no more rows, but had some")
 	}
-	prod, err := Map(rows, mType)
+	prod, err := Map(rows, b)
 	if prod != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
