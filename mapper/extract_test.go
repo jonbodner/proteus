@@ -1,10 +1,12 @@
 package mapper
 
 import (
-	"testing"
 	"errors"
-	"github.com/jonbodner/proteus/cmp"
+	"fmt"
 	"reflect"
+	"testing"
+
+	"github.com/jonbodner/proteus/cmp"
 )
 
 func TestExtractPointer(t *testing.T) {
@@ -138,3 +140,12 @@ func TestExtractFail(t *testing.T) {
 	f(Bar{A: 20}, []string{"b", "B"}, "cannot extract value; no such field B")
 }
 
+func TestExtractType(t *testing.T) {
+	fmt.Println("asdf")
+	type pp struct {
+		Name string
+		Cost float64
+	}
+	myType, err := ExtractType(reflect.TypeOf(pp{}), []string{"p", "Name"})
+	fmt.Printf("%v, %s, %v\n", myType, myType.Kind(), err)
+}

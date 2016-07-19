@@ -3,8 +3,34 @@ package mapper
 import (
 	"errors"
 	"reflect"
+
 	log "github.com/Sirupsen/logrus"
 )
+
+func ExtractType(curType reflect.Type, path []string) (reflect.Type, error) {
+	// error case path length == 0
+	if len(path) == 0 {
+		return nil, errors.New("cannot extract type; no path remaining")
+	}
+	ss := fromPtrType(curType)
+	// base case path length == 1
+	if len(path) == 1 {
+		return ss, nil
+	}
+	// length > 1, find a match for path[1], and recurse
+	if ss.Kind() == reflect.Map {
+		//give up -- we can't figure out what's in the map, so just return the type of the value
+		return ss.Elem(), nil
+	}
+	if ss.Kind() != reflect.Struct {
+		return nil, errors.New("Cannot find the type for the subfield of anything other than a struct.")
+	}
+	//make sure the field exists
+	if f, exists := ss.FieldByName(path[1]); exists {
+		return ExtractType(f.Type, path[1:])
+	}
+	return nil, errors.New("cannot find the type; no such field " + path[1])
+}
 
 func Extract(s interface{}, path []string) (interface{}, error) {
 	// error case path length == 0
@@ -49,6 +75,13 @@ func fromPtr(s interface{}) interface{} {
 		sp := reflect.ValueOf(s).Elem()
 		return sp.Interface()
 
+	}
+	return s
+}
+
+func fromPtrType(s reflect.Type) reflect.Type {
+	for s.Kind() == reflect.Ptr {
+		s = s.Elem()
 	}
 	return s
 }

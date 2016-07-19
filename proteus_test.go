@@ -3,11 +3,12 @@ package proteus
 import (
 	"errors"
 	"fmt"
+	"reflect"
+	"testing"
+
 	"github.com/jonbodner/proteus/adapter"
 	"github.com/jonbodner/proteus/api"
 	"github.com/jonbodner/proteus/cmp"
-	"reflect"
-	"testing"
 )
 
 func TestValidIdentifier(t *testing.T) {
@@ -34,57 +35,83 @@ func TestValidIdentifier(t *testing.T) {
 }
 
 func TestConvertToPositionalParameters(t *testing.T) {
+	var f1 func(api.Executor, int)
+	type pp struct {
+		Name string
+		Cost float64
+		Id   int
+	}
+
+	var f2 func(api.Executor, pp)
+	var f3 func(api.Executor, string, float64)
+
 	type inner struct {
-		query      string
-		paramNames []string
-		err        error
+		paramMap map[string]int
+		funcType reflect.Type
+		query    string
+		qps      queryParams
+		err      error
 	}
 	values := map[string]inner{
 		`select * from Product where id = :id:`: inner{
+			map[string]int{"id": 1},
+			reflect.TypeOf(f1),
 			"select * from Product where id = ?",
-			[]string{"id"},
+			queryParams{{"id", 1}},
 			nil,
 		},
 		`update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:`: inner{
+			map[string]int{"p": 1},
+			reflect.TypeOf(f2),
 			"update Product set name = ?, cost = ? where id = ?",
-			[]string{"p.Name", "p.Cost", "p.Id"},
+			queryParams{{"p.Name", 1}, {"p.Cost", 1}, {"p.Id", 1}},
 			nil,
 		},
 		`select * from Product where name=:name: and cost=:cost:`: inner{
+			map[string]int{"name": 1, "cost": 2},
+			reflect.TypeOf(f3),
 			"select * from Product where name=? and cost=?",
-			[]string{"name", "cost"},
+			queryParams{{"name", 1}, {"cost", 2}},
 			nil,
 		},
 		//forget ending :
 		`select * from Product where name=:name: and cost=:cost`: inner{
+			map[string]int{"name": 1, "cost": 2},
+			reflect.TypeOf(f3),
 			"",
 			nil,
 			fmt.Errorf("Missing a closing : somewhere: %s", `select * from Product where name=:name: and cost=:cost`),
 		},
 		//empty ::
 		`select * from Product where name=:: and cost=:cost`: inner{
+			map[string]int{"name": 1, "cost": 2},
+			reflect.TypeOf(f3),
 			"",
 			nil,
 			errors.New("Empty variable declaration at position 34"),
 		},
 		//invalid identifier
 		`select * from Product where name=:a,b,c: and cost=:cost`: inner{
+			map[string]int{"name": 1, "cost": 2},
+			reflect.TypeOf(f3),
 			"",
 			nil,
 			errors.New("Invalid character found in identifier: a,b,c"),
 		},
 		//escaped character (invalid sql, but not the problem at hand)
 		`select * from Pr\:oduct where name=:name: and cost=:cost:`: inner{
+			map[string]int{"name": 1, "cost": 2},
+			reflect.TypeOf(f3),
 			"select * from Pr:oduct where name=? and cost=?",
-			[]string{"name", "cost"},
+			queryParams{{"name", 1}, {"cost", 2}},
 			nil,
 		},
 	}
 
 	for k, v := range values {
-		q, pn, err := convertToPositionalParameters(k, adapter.MySQL)
-		if q != v.query || !reflect.DeepEqual(pn, v.paramNames) || !cmp.Errors(err, v.err) {
-			t.Errorf("failed for %s -> %v: {%v %v %v}", k, v, q, pn, err)
+		q, qps, _, err := convertToPositionalParameters(k, v.paramMap, v.funcType, adapter.MySQL)
+		if q.simple != v.query || !reflect.DeepEqual(qps, v.qps) || !cmp.Errors(err, v.err) {
+			t.Errorf("failed for %s -> %#v: %v", k, v, err)
 		}
 	}
 }
@@ -100,62 +127,6 @@ func TestBuildParamMap(t *testing.T) {
 		pm := buildParamMap(k)
 		if !reflect.DeepEqual(pm, v) {
 			t.Errorf("failed for %s -> %v: %v", k, v, pm)
-		}
-	}
-}
-
-/*
-type paramInfo struct {
-	name        string
-	posInParams int
-}
-
-// key == position in query
-// value == name to evaluate & position in function in parameters
-type queryParams []paramInfo
-
-func buildQueryParams(posNameMap []string, paramMap map[string]int, funcType reflect.Type) (queryParams, error)
-*/
-func TestBuildQueryParams(t *testing.T) {
-	paramMap := map[string]int{
-		"id": 2,
-		"p":  1,
-	}
-	type inner struct {
-		Name  string
-		Count int
-	}
-	var f func(api.Executor, inner, int) (int, error)
-	funcType := reflect.TypeOf(f)
-
-	type vals struct {
-		input  []string
-		output queryParams
-		err    error
-	}
-
-	values := []vals{
-		{
-			[]string{"id", "p.Name", "p.Count"},
-			queryParams{{"id", 2}, {"p.Name", 1}, {"p.Count", 1}},
-			nil,
-		},
-		{
-			[]string{"id.X", "p.Name", "p.Count"},
-			nil,
-			errors.New("Query Parameter id.X has a path, but the incoming parameter is not a map or a struct"),
-		},
-		{
-			[]string{"id", "p.Name", "p.Count", "bob"},
-			nil,
-			errors.New("Query Parameter bob cannot be found in the incoming parameters"),
-		},
-	}
-
-	for _, v := range values {
-		qp, err := buildQueryParams(v.input, paramMap, funcType)
-		if !reflect.DeepEqual(qp, v.output) || !cmp.Errors(err, v.err) {
-			t.Errorf("Expected %v -> %v %v, got %v %v", v.input, v.output, v.err, qp, err)
 		}
 	}
 }
