@@ -141,6 +141,7 @@ func convertToPositionalParameters(query string, paramMap map[string]int, funcTy
 					if pathType != nil && pathType.Kind() == reflect.Slice {
 						sliceQP = append(sliceQP, paramInfo{id, paramPos})
 						out.WriteString(addSlice(id))
+						queryKind = templ
 					} else {
 						scalarQP = append(scalarQP, paramInfo{id, paramPos})
 						out.WriteString(pa(pos))

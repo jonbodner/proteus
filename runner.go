@@ -35,6 +35,7 @@ func finalizeQuery(positionalQuery processedQuery, sliceQPs queryParams, args []
 	sliceArgs := []interface{}{}
 	var err error
 	if positionalQuery.kind == templ {
+		log.Debugf("Processing template query with sliceQPs %#v\n", sliceQPs)
 		var b bytes.Buffer
 		sliceMap := map[string]interface{}{}
 		for _, v := range sliceQPs {
