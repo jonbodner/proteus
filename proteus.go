@@ -87,12 +87,12 @@ func Build(dao interface{}, pa api.ParamAdapter) error {
 				curFunc = buildExec
 			}
 
-			positionalQuery, qps, sliceQPs, err := convertToPositionalParameters(query, paramMap, funcType, pa)
+			positionalQuery, qps, err := convertToPositionalParameters(query, paramMap, funcType, pa)
 			if err != nil {
 				return err
 			}
 
-			toFunc, err := curFunc(funcType, qps, sliceQPs, positionalQuery)
+			toFunc, err := curFunc(funcType, qps, positionalQuery)
 
 			if err != nil {
 				log.Warnln("skipping function", curField.Name, "due to error:", err.Error())
@@ -105,4 +105,4 @@ func Build(dao interface{}, pa api.ParamAdapter) error {
 	return nil
 }
 
-type funcBuilder func(reflect.Type, queryParams, queryParams, processedQuery) (func([]reflect.Value) []reflect.Value, error)
+type funcBuilder func(reflect.Type, queryParams, processedQuery) (func([]reflect.Value) []reflect.Value, error)

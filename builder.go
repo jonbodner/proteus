@@ -18,11 +18,11 @@ import (
 func validateFunction(funcType reflect.Type, isExec bool) error {
 	//first parameter is Executor
 	if funcType.NumIn() == 0 {
-		return errors.New("Need to supply an Executor parameter")
+		return errors.New("need to supply an Executor parameter")
 	}
 	exType := reflect.TypeOf((*api.Executor)(nil)).Elem()
 	if !funcType.In(0).Implements(exType) {
-		return errors.New("First parameter must be of type api.Executor")
+		return errors.New("first parameter must be of type api.Executor")
 	}
 	//no in parameter can be a channel
 	for i := 1; i < funcType.NumIn(); i++ {
@@ -33,7 +33,7 @@ func validateFunction(funcType reflect.Type, isExec bool) error {
 
 	//has 0, 1, or 2 return values
 	if funcType.NumOut() > 2 {
-		return errors.New("Must return 0, 1, or 2 values")
+		return errors.New("must return 0, 1, or 2 values")
 	}
 
 	//if 2 return values, second is error
@@ -50,7 +50,7 @@ func validateFunction(funcType reflect.Type, isExec bool) error {
 			return errors.New("1st output parameter cannot be a channel")
 		}
 		if isExec && funcType.Out(0).Kind() != reflect.Int64 {
-			return errors.New("The 1st output parameter of an Exec must be int64")
+			return errors.New("the 1st output parameter of an Exec must be int64")
 		}
 	}
 	return nil
@@ -78,11 +78,10 @@ type processedQuery struct {
 	temp   *template.Template
 }
 
-func convertToPositionalParameters(query string, paramMap map[string]int, funcType reflect.Type, pa api.ParamAdapter) (processedQuery, queryParams, queryParams, error) {
+func convertToPositionalParameters(query string, paramMap map[string]int, funcType reflect.Type, pa api.ParamAdapter) (processedQuery, queryParams, error) {
 	var out bytes.Buffer
 
-	var scalarQP queryParams
-	var sliceQP queryParams
+	var qps queryParams
 
 	// escapes:
 	// \ (any character), that character literally (meant for escaping : and \)
@@ -90,7 +89,6 @@ func convertToPositionalParameters(query string, paramMap map[string]int, funcTy
 	inEscape := false
 	inVar := false
 	curVar := []rune{}
-	pos := 1
 	queryKind := simple
 	for k, v := range query {
 		if inEscape {
@@ -105,13 +103,13 @@ func convertToPositionalParameters(query string, paramMap map[string]int, funcTy
 			if inVar {
 				if len(curVar) == 0 {
 					//error! must have a something
-					return processedQuery{}, nil, nil, fmt.Errorf("Empty variable declaration at position %d", k)
+					return processedQuery{}, nil, fmt.Errorf("empty variable declaration at position %d", k)
 				}
 				curVarS := string(curVar)
 				id, err := validIdentifier(curVarS)
 				if err != nil {
 					//error, identifier must be valid go identifier with . for path
-					return processedQuery{}, nil, nil, err
+					return processedQuery{}, nil, err
 				}
 				//it's a valid identifier, but now we need to know if it's a slice or a scalar.
 				//all we have is the name, not the mapping of the name to the position in the in parameters for the function.
@@ -131,24 +129,22 @@ func convertToPositionalParameters(query string, paramMap map[string]int, funcTy
 						case reflect.Map, reflect.Struct:
 							//do nothing
 						default:
-							return processedQuery{}, nil, nil, fmt.Errorf("Query Parameter %s has a path, but the incoming parameter is not a map or a struct", paramName)
+							return processedQuery{}, nil, fmt.Errorf("query Parameter %s has a path, but the incoming parameter is not a map or a struct", paramName)
 						}
 					}
 					pathType, err := mapper.ExtractType(paramType, path)
 					if err != nil {
-						return processedQuery{}, nil, nil, err
+						return processedQuery{}, nil, err
 					}
+					out.WriteString(addSlice(id))
+					isSlice := false
 					if pathType != nil && pathType.Kind() == reflect.Slice {
-						sliceQP = append(sliceQP, paramInfo{id, paramPos})
-						out.WriteString(addSlice(id))
 						queryKind = templ
-					} else {
-						scalarQP = append(scalarQP, paramInfo{id, paramPos})
-						out.WriteString(pa(pos))
-						pos++
+						isSlice = true
 					}
+					qps = append(qps, paramInfo{id, paramPos, isSlice})
 				} else {
-					return processedQuery{}, nil, nil, fmt.Errorf("Query Parameter %s cannot be found in the incoming parameters", paramName)
+					return processedQuery{}, nil, fmt.Errorf("query Parameter %s cannot be found in the incoming parameters", paramName)
 				}
 
 				inVar = false
@@ -165,23 +161,35 @@ func convertToPositionalParameters(query string, paramMap map[string]int, funcTy
 		}
 	}
 	if inVar {
-		return processedQuery{}, nil, nil, fmt.Errorf("Missing a closing : somewhere: %s", query)
+		return processedQuery{}, nil, fmt.Errorf("missing a closing : somewhere: %s", query)
 	}
 
-	var temp *template.Template
-	if queryKind == templ {
-		var err error
-		temp, err = template.New("query").Funcs(template.FuncMap{"join": joinFactory(pos, pa)}).Parse(out.String())
-		if err != nil {
-			return processedQuery{}, nil, nil, err
-		}
+	queryString := out.String()
+	temp, err := template.New("query").Funcs(template.FuncMap{"join": joinFactory(0, pa)}).Parse(queryString)
+	if err != nil {
+		return processedQuery{}, nil, err
 	}
-	return processedQuery{kind: queryKind, simple: out.String(), temp: temp}, scalarQP, sliceQP, nil
+	if queryKind == simple {
+		//can evaluate the template now, with 1 for the length for each item
+		m := map[string]interface{}{}
+		for _, v := range qps {
+			m[fixNameForTemplate(v.name)] = 1
+		}
+		var b bytes.Buffer
+		err = temp.Execute(&b, m)
+		if err != nil {
+			return processedQuery{}, nil, err
+		}
+		queryString = b.String()
+		temp = nil
+	}
+	return processedQuery{kind: queryKind, simple: queryString, temp: temp}, qps, nil
 }
 
 type paramInfo struct {
 	name        string
 	posInParams int
+	isSlice     bool
 }
 
 // key == position in query
@@ -206,8 +214,14 @@ func joinFactory(startPos int, paramAdapter api.ParamAdapter) func(int) string {
 	}
 }
 
+func fixNameForTemplate(name string) string {
+	//need to make sure that foo.bar and fooDOTbar don't collide, however unlikely
+	name = strings.Replace(name, "DOT", "DOTDOT", -1)
+	return strings.Replace(name, ".", "DOT", -1)
+}
+
 func addSlice(sliceName string) string {
-	return fmt.Sprintf(sliceTemplate, sliceName)
+	return fmt.Sprintf(sliceTemplate, fixNameForTemplate(sliceName))
 }
 
 func validIdentifier(curVar string) (string, error) {
@@ -252,7 +266,7 @@ loop:
 			lastPeriod = true
 			identifier += "."
 		default:
-			return "", fmt.Errorf("Invalid character found in identifier: %s", curVar)
+			return "", fmt.Errorf("invalid character found in identifier: %s", curVar)
 		}
 	}
 	return identifier, nil

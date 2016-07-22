@@ -57,21 +57,21 @@ func TestConvertToPositionalParameters(t *testing.T) {
 			map[string]int{"id": 1},
 			reflect.TypeOf(f1),
 			"select * from Product where id = ?",
-			queryParams{{"id", 1}},
+			queryParams{{"id", 1, false}},
 			nil,
 		},
 		`update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:`: inner{
 			map[string]int{"p": 1},
 			reflect.TypeOf(f2),
 			"update Product set name = ?, cost = ? where id = ?",
-			queryParams{{"p.Name", 1}, {"p.Cost", 1}, {"p.Id", 1}},
+			queryParams{{"p.Name", 1, false}, {"p.Cost", 1, false}, {"p.Id", 1, false}},
 			nil,
 		},
 		`select * from Product where name=:name: and cost=:cost:`: inner{
 			map[string]int{"name": 1, "cost": 2},
 			reflect.TypeOf(f3),
 			"select * from Product where name=? and cost=?",
-			queryParams{{"name", 1}, {"cost", 2}},
+			queryParams{{"name", 1, false}, {"cost", 2, false}},
 			nil,
 		},
 		//forget ending :
@@ -80,7 +80,7 @@ func TestConvertToPositionalParameters(t *testing.T) {
 			reflect.TypeOf(f3),
 			"",
 			nil,
-			fmt.Errorf("Missing a closing : somewhere: %s", `select * from Product where name=:name: and cost=:cost`),
+			fmt.Errorf("missing a closing : somewhere: %s", `select * from Product where name=:name: and cost=:cost`),
 		},
 		//empty ::
 		`select * from Product where name=:: and cost=:cost`: inner{
@@ -88,7 +88,7 @@ func TestConvertToPositionalParameters(t *testing.T) {
 			reflect.TypeOf(f3),
 			"",
 			nil,
-			errors.New("Empty variable declaration at position 34"),
+			errors.New("empty variable declaration at position 34"),
 		},
 		//invalid identifier
 		`select * from Product where name=:a,b,c: and cost=:cost`: inner{
@@ -96,20 +96,20 @@ func TestConvertToPositionalParameters(t *testing.T) {
 			reflect.TypeOf(f3),
 			"",
 			nil,
-			errors.New("Invalid character found in identifier: a,b,c"),
+			errors.New("invalid character found in identifier: a,b,c"),
 		},
 		//escaped character (invalid sql, but not the problem at hand)
 		`select * from Pr\:oduct where name=:name: and cost=:cost:`: inner{
 			map[string]int{"name": 1, "cost": 2},
 			reflect.TypeOf(f3),
 			"select * from Pr:oduct where name=? and cost=?",
-			queryParams{{"name", 1}, {"cost", 2}},
+			queryParams{{"name", 1, false}, {"cost", 2, false}},
 			nil,
 		},
 	}
 
 	for k, v := range values {
-		q, qps, _, err := convertToPositionalParameters(k, v.paramMap, v.funcType, adapter.MySQL)
+		q, qps, err := convertToPositionalParameters(k, v.paramMap, v.funcType, adapter.MySQL)
 		if q.simple != v.query || !reflect.DeepEqual(qps, v.qps) || !cmp.Errors(err, v.err) {
 			t.Errorf("failed for %s -> %#v: %v", k, v, err)
 		}
@@ -152,13 +152,13 @@ func TestValidateFunction(t *testing.T) {
 
 	//invalid -- no parameters
 	var f1 func()
-	f(reflect.TypeOf(f1), true, "Need to supply an Executor parameter")
-	f(reflect.TypeOf(f1), false, "Need to supply an Executor parameter")
+	f(reflect.TypeOf(f1), true, "need to supply an Executor parameter")
+	f(reflect.TypeOf(f1), false, "need to supply an Executor parameter")
 
 	//invalid -- wrong first parameter type
 	var f2 func(int)
-	f(reflect.TypeOf(f2), true, "First parameter must be of type api.Executor")
-	f(reflect.TypeOf(f2), false, "First parameter must be of type api.Executor")
+	f(reflect.TypeOf(f2), true, "first parameter must be of type api.Executor")
+	f(reflect.TypeOf(f2), false, "first parameter must be of type api.Executor")
 
 	//invalid -- has a channel input param
 	var f3 func(api.Executor, chan int)
@@ -194,5 +194,5 @@ func TestValidateFunction(t *testing.T) {
 	}, error)
 	fOk(reflect.TypeOf(g4), false)
 	//invalid for Exec
-	f(reflect.TypeOf(g4), true, "The 1st output parameter of an Exec must be int64")
+	f(reflect.TypeOf(g4), true, "the 1st output parameter of an Exec must be int64")
 }

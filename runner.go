@@ -17,37 +17,43 @@ func getExecAndQArgs(args []reflect.Value, qps queryParams) (api.Executor, []int
 
 	//walk through the rest of the input parameters and build a slice for args
 
-	qArgs := make([]interface{}, len(qps))
-	for k, v := range qps {
-		//todo later: add support for slices as parameters
+	var qArgs []interface{}
+	for _, v := range qps {
 		val, err := mapper.Extract(args[v.posInParams].Interface(), strings.Split(v.name, "."))
 		if err != nil {
 			return nil, nil, err
 		}
-		qArgs[k] = val
+		if v.isSlice {
+			valV := reflect.ValueOf(val)
+			for i := 0; i < valV.Len(); i++ {
+				qArgs = append(qArgs, valV.Index(i).Interface())
+			}
+		} else {
+			qArgs = append(qArgs, val)
+		}
 	}
 
 	return exec, qArgs, nil
 }
 
-func finalizeQuery(positionalQuery processedQuery, sliceQPs queryParams, args []reflect.Value) (string, []interface{}, error) {
+func finalizeQuery(positionalQuery processedQuery, qps queryParams, args []reflect.Value) (string, error) {
 	queryToRun := positionalQuery.simple
-	sliceArgs := []interface{}{}
 	var err error
 	if positionalQuery.kind == templ {
-		log.Debugf("Processing template query with sliceQPs %#v\n", sliceQPs)
+		log.Debugf("Processing template query with qps %#v\n", qps)
 		var b bytes.Buffer
 		sliceMap := map[string]interface{}{}
-		for _, v := range sliceQPs {
-			var val interface{}
-			val, err = mapper.Extract(args[v.posInParams].Interface(), strings.Split(v.name, "."))
-			if err != nil {
-				break
-			}
-			valV := reflect.ValueOf(val)
-			sliceMap[v.name] = valV.Len()
-			for i := 0; i < valV.Len(); i++ {
-				sliceArgs = append(sliceArgs, valV.Index(i).Interface())
+		for _, v := range qps {
+			if v.isSlice {
+				var val interface{}
+				val, err = mapper.Extract(args[v.posInParams].Interface(), strings.Split(v.name, "."))
+				if err != nil {
+					break
+				}
+				valV := reflect.ValueOf(val)
+				sliceMap[fixNameForTemplate(v.name)] = valV.Len()
+			} else {
+				sliceMap[fixNameForTemplate(v.name)] = 1
 			}
 		}
 		if err == nil {
@@ -57,19 +63,18 @@ func finalizeQuery(positionalQuery processedQuery, sliceQPs queryParams, args []
 			queryToRun = b.String()
 		}
 	}
-	return queryToRun, sliceArgs, err
+	return queryToRun, err
 }
 
-func buildExec(funcType reflect.Type, qps queryParams, sliceQPs queryParams, positionalQuery processedQuery) (func(args []reflect.Value) []reflect.Value, error) {
+func buildExec(funcType reflect.Type, qps queryParams, positionalQuery processedQuery) (func(args []reflect.Value) []reflect.Value, error) {
 	numOut := funcType.NumOut()
 	return func(args []reflect.Value) []reflect.Value {
 		exec, qArgs, err := getExecAndQArgs(args, qps)
 		var result api.Result
 		if err == nil {
 			//call executor.Exec with query and parameters
-			queryToRun, sliceArgs, err2 := finalizeQuery(positionalQuery, sliceQPs, args)
+			queryToRun, err2 := finalizeQuery(positionalQuery, qps, args)
 			if err2 == nil {
-				qArgs = append(qArgs, sliceArgs...)
 				log.Debugln("calling", queryToRun, "with params", qArgs)
 				result, err = exec.Exec(queryToRun, qArgs...)
 			}
@@ -118,11 +123,11 @@ func buildExec(funcType reflect.Type, qps queryParams, sliceQPs queryParams, pos
 			}
 			return []reflect.Value{reflect.ValueOf(val).Convert(sType), errZero}
 		}
-		return []reflect.Value{zero, reflect.ValueOf(errors.New("Should never get here!"))}
+		return []reflect.Value{zero, reflect.ValueOf(errors.New("should never get here!"))}
 	}, nil
 }
 
-func buildQuery(funcType reflect.Type, qps queryParams, sliceQPs queryParams, positionalQuery processedQuery) (func(args []reflect.Value) []reflect.Value, error) {
+func buildQuery(funcType reflect.Type, qps queryParams, positionalQuery processedQuery) (func(args []reflect.Value) []reflect.Value, error) {
 	numOut := funcType.NumOut()
 	var builder mapper.Builder
 	var err error
@@ -138,9 +143,8 @@ func buildQuery(funcType reflect.Type, qps queryParams, sliceQPs queryParams, po
 		var rows api.Rows
 		//call executor.Query with query and parameters
 		if err == nil {
-			queryToRun, sliceArgs, err2 := finalizeQuery(positionalQuery, sliceQPs, args)
+			queryToRun, err2 := finalizeQuery(positionalQuery, qps, args)
 			if err2 == nil {
-				qArgs = append(qArgs, sliceArgs...)
 				log.Debugln("calling", queryToRun, "with params", qArgs)
 				rows, err = exec.Query(queryToRun, qArgs...)
 			}
@@ -180,7 +184,7 @@ func buildQuery(funcType reflect.Type, qps queryParams, sliceQPs queryParams, po
 			}
 			return []reflect.Value{reflect.ValueOf(val).Convert(sType), eVal}
 		}
-		return []reflect.Value{zero, reflect.ValueOf(errors.New("Should never get here!"))}
+		return []reflect.Value{zero, reflect.ValueOf(errors.New("should never get here!"))}
 	}, nil
 }
 
