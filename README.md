@@ -10,16 +10,46 @@ A simple tool for generating an application's data access layer.
 
 ```go
 type ProductDao struct {
-	FindById             func(e api.Executor, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
-	Update               func(e api.Executor, p Product) (int64, error)                                    `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCost    func(e api.Executor, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
-	FindByIdMap          func(e api.Executor, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
-	UpdateMap            func(e api.Executor, p map[string]interface{}) (int64, error)                     `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCostMap func(e api.Executor, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindById                      func(e api.Executor, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
+	Update                        func(e api.Executor, p Product) (int64, error)                                    `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCost             func(e api.Executor, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindByIdMap                   func(e api.Executor, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
+	UpdateMap                     func(e api.Executor, p map[string]interface{}) (int64, error)                     `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCostMap          func(e api.Executor, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindByIDSlice                 func(e api.Executor, ids []int) ([]Product, error)                                `proq:"select * from Product where id in (:ids:)" prop:"ids"`
+	FindByIDSliceAndName          func(e api.Executor, ids []int, name string) ([]Product, error)                   `proq:"select * from Product where name = :name: and id in (:ids:)" prop:"ids,name"`
+	FindByIDSliceNameAndCost      func(e api.Executor, ids []int, name string, cost *float64) ([]Product, error)    `proq:"select * from Product where name = :name: and id in (:ids:) and (cost is null or cost = :cost:)" prop:"ids,name,cost"`
+	FindByIDSliceCostAndNameSlice func(e api.Executor, ids []int, names []string, cost *float64) ([]Product, error) `proq:"select * from Product where id in (:ids:) and (cost is null or cost = :cost:) and name in (:names:)" prop:"ids,names,cost"`
 }
 ```
 
-Input parameter types can be primitives, structs, or maps of string to interface{}.
+The first input parameter is always of type api.Executor.
+```go
+// Executor runs the queries that are processed by proteus.
+type Executor interface {
+	// Exec executes a query without returning any rows.
+	// The args are for any placeholder parameters in the query.
+	Exec(query string, args ...interface{}) (Result, error)
+
+	// Query executes a query that returns rows, typically a SELECT.
+	// The args are for any placeholder parameters in the query.
+	Query(query string, args ...interface{}) (Rows, error)
+}
+```
+
+The remaining input parameters can be primitives, structs, maps of string to interface{}, or slices. 
+
+For queries, return types can be:
+- empty
+- a single value being returned (a primitive, struct, or map of string to interface{})
+- a single value that's a slice of primitive, struct, or a map of string to interface{}
+- a primitive, struct, or map of string to interface{} and an error
+- a slice of primitive, struct, or a map of string to interface{} and an error
+
+For insert/updates, return types can be:
+- empty
+- an int64 that indicates the new PK (for an insert) or number of rows affected (for an update)
+- an int64 and an error
 
 2\. If you want to map response fields to a struct, define a struct with struct tags to indicate the mapping:
 
@@ -74,6 +104,11 @@ func init() {
 	}
 	fmt.Println(productDao.UpdateMap(gExec, m))
 	fmt.Println(productDao.FindById(gExec, 11))
+
+	fmt.Println(productDao.FindByIDSlice(pExec, []int{1, 3, 5}))
+	fmt.Println(productDao.FindByIDSliceAndName(pExec, []int{1, 3, 5}, "person1"))
+	fmt.Println(productDao.FindByIDSliceNameAndCost(pExec, []int{1, 3, 5}, "person3", nil))
+	fmt.Println(productDao.FindByIDSliceCostAndNameSlice(pExec, []int{1, 3, 5}, []string{"person3", "person5"}, nil))
 ```
 
 ## Struct Tags
@@ -155,25 +190,6 @@ and must be supplied by another way in order to be referenced in a query.
 
 There are more interesting features coming to Proteus. They are (in likely order of implementation):
 
-- Support for slice input parameters
-```go
-type FooDAO struct {
-	FindSeveral func(e api.Executor, ids []int) ([]Product, error) `proq:"select * from Product where id in (:ids:)" prop:"ids"`
-}
-
-
-func UseFoo() {
-	db, _ := sql.Open("sqlite3", "./proteus_test.db")
-	defer db.Close()
-
-	fooDAO := FooDAO{}
-	proteus.Build(&fooDAO, adapter.Sqlite)
-	ids := []int{1,2,3}
-	exec := adapter.Sql(db)
-	fmt.Println(fooDAO.FindSeveral(exec, ids)) //return any Products that have ids 1, 2, or 3
-}
-```
-
 - Support for storing queries in property files
 ```go
 type FooDAO struct {
@@ -190,6 +206,15 @@ func UseFoo() {
 	proteus.BuildWithExternalQueries(&fooDAO, adapter.Sqlite, queryStore)
 	exec := adapter.Sql(db)
 	fmt.Println(fooDAO.Find(exec, 1))
+}
+```
+
+- Support for positional parameters instead of the prop struct tag:
+```go
+type ProductDaoS struct {
+	FindById             func(e api.Executor, id int) (Product, error)                                     `proq:"select * from Product where id = :$1:"`
+	Update               func(e api.Executor, p Product) (int64, error)                                    `proe:"update Product set name = :$1.Name:, cost = :$1.Cost: where id = :$1.Id:"`
+	FindByNameAndCost    func(e api.Executor, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
 }
 ```
 
