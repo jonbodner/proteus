@@ -165,7 +165,7 @@ func convertToPositionalParameters(query string, paramMap map[string]int, funcTy
 	}
 
 	queryString := out.String()
-	temp, err := template.New("query").Funcs(template.FuncMap{"join": joinFactory(0, pa)}).Parse(queryString)
+	temp, err := template.New("query").Funcs(template.FuncMap{"join": joinFactory(1, pa)}).Parse(queryString)
 	if err != nil {
 		return processedQuery{}, nil, err
 	}

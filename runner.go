@@ -73,12 +73,12 @@ func buildExec(funcType reflect.Type, qps queryParams, positionalQuery processed
 		var result api.Result
 		if err == nil {
 			//call executor.Exec with query and parameters
-			queryToRun, err2 := finalizeQuery(positionalQuery, qps, args)
-			if err2 == nil {
+			var queryToRun string
+			queryToRun, err = finalizeQuery(positionalQuery, qps, args)
+			if err == nil {
 				log.Debugln("calling", queryToRun, "with params", qArgs)
 				result, err = exec.Exec(queryToRun, qArgs...)
 			}
-			err = err2
 		}
 
 		//handle the 0,1,2 out parameter cases
@@ -92,14 +92,7 @@ func buildExec(funcType reflect.Type, qps queryParams, positionalQuery processed
 			if err != nil {
 				return []reflect.Value{zero}
 			}
-			val, err := result.LastInsertId()
-			if err != nil {
-				return []reflect.Value{zero}
-			}
-			if val != 0 {
-				return []reflect.Value{reflect.ValueOf(val).Convert(sType)}
-			}
-			val, err = result.RowsAffected()
+			val, err := result.RowsAffected()
 			if err != nil {
 				return []reflect.Value{zero}
 			}
@@ -110,14 +103,7 @@ func buildExec(funcType reflect.Type, qps queryParams, positionalQuery processed
 			if err != nil {
 				return []reflect.Value{zero, reflect.ValueOf(err).Convert(eType)}
 			}
-			val, err := result.LastInsertId()
-			if err != nil {
-				return []reflect.Value{zero, reflect.ValueOf(err).Convert(eType)}
-			}
-			if val != 0 {
-				return []reflect.Value{reflect.ValueOf(val).Convert(sType), errZero}
-			}
-			val, err = result.RowsAffected()
+			val, err := result.RowsAffected()
 			if err != nil {
 				return []reflect.Value{zero, reflect.ValueOf(err).Convert(eType)}
 			}
@@ -143,12 +129,12 @@ func buildQuery(funcType reflect.Type, qps queryParams, positionalQuery processe
 		var rows api.Rows
 		//call executor.Query with query and parameters
 		if err == nil {
-			queryToRun, err2 := finalizeQuery(positionalQuery, qps, args)
-			if err2 == nil {
+			var queryToRun string
+			queryToRun, err = finalizeQuery(positionalQuery, qps, args)
+			if err == nil {
 				log.Debugln("calling", queryToRun, "with params", qArgs)
 				rows, err = exec.Query(queryToRun, qArgs...)
 			}
-			err = err2
 		}
 
 		//handle the 0,1,2 out parameter cases

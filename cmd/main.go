@@ -9,6 +9,7 @@ import (
 	"github.com/jonbodner/proteus"
 	"github.com/jonbodner/proteus/adapter"
 	"github.com/jonbodner/proteus/api"
+	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -40,17 +41,31 @@ type ProductDao struct {
 	FindByIDSliceCostAndNameSlice func(e api.Executor, ids []int, names []string, cost *float64) ([]Product, error) `proq:"select * from Product where id in (:ids:) and (cost is null or cost = :cost:) and name in (:names:)" prop:"ids,names,cost"`
 }
 
-var productDao = ProductDao{}
+var productDaoSqlite = ProductDao{}
+var productDaoPostgres = ProductDao{}
 
 func init() {
 	log.SetLevel(log.DebugLevel)
-	err := proteus.Build(&productDao, adapter.Sqlite)
+	log.SetFormatter(&log.TextFormatter{})
+	err := proteus.Build(&productDaoPostgres, adapter.Postgres)
+	if err != nil {
+		panic(err)
+	}
+
+	err = proteus.Build(&productDaoSqlite, adapter.Sqlite)
 	if err != nil {
 		panic(err)
 	}
 }
 
+type setupDb func() *sql.DB
+
 func main() {
+	run(setupDbSqlite, productDaoSqlite)
+	run(setupDbPostgres, productDaoPostgres)
+}
+
+func run(setupDb setupDb, productDao ProductDao) {
 	db := setupDb()
 	defer db.Close()
 	exec, err := db.Begin()
@@ -60,44 +75,44 @@ func main() {
 
 	pExec := adapter.Sql(exec)
 
-	fmt.Println(productDao.FindByID(pExec, 10))
+	log.Debug(productDao.FindByID(pExec, 10))
 	cost := new(float64)
 	*cost = 56.23
 	p := Product{10, "Thingie", cost}
-	fmt.Println(productDao.Update(pExec, p))
-	fmt.Println(productDao.FindByID(pExec, 10))
-	fmt.Println(productDao.FindByNameAndCost(pExec, "fred", 54.10))
-	fmt.Println(productDao.FindByNameAndCost(pExec, "Thingie", 56.23))
+	log.Debug(productDao.Update(pExec, p))
+	log.Debug(productDao.FindByID(pExec, 10))
+	log.Debug(productDao.FindByNameAndCost(pExec, "fred", 54.10))
+	log.Debug(productDao.FindByNameAndCost(pExec, "Thingie", 56.23))
 
 	//using a map of [string]interface{} works too!
-	fmt.Println(productDao.FindByIDMap(pExec, 10))
-	fmt.Println(productDao.FindByNameAndCostMap(pExec, "Thingie", 56.23))
+	log.Debug(productDao.FindByIDMap(pExec, 10))
+	log.Debug(productDao.FindByNameAndCostMap(pExec, "Thingie", 56.23))
 
-	fmt.Println(productDao.FindByID(pExec, 11))
+	log.Debug(productDao.FindByID(pExec, 11))
 	m := map[string]interface{}{
 		"Id":   11,
 		"Name": "bobbo",
 		"Cost": 12.94,
 	}
-	fmt.Println(productDao.UpdateMap(pExec, m))
-	fmt.Println(productDao.FindByID(pExec, 11))
+	log.Debug(productDao.UpdateMap(pExec, m))
+	log.Debug(productDao.FindByID(pExec, 11))
 
-	fmt.Println(productDao.FindByIDSlice(pExec, []int{1, 3, 5}))
-	fmt.Println(productDao.FindByIDSliceAndName(pExec, []int{1, 3, 5}, "person1"))
-	fmt.Println(productDao.FindByIDSliceNameAndCost(pExec, []int{1, 3, 5}, "person3", nil))
-	fmt.Println(productDao.FindByIDSliceCostAndNameSlice(pExec, []int{1, 3, 5}, []string{"person3", "person5"}, nil))
+	log.Debug(productDao.FindByIDSlice(pExec, []int{1, 3, 5}))
+	log.Debug(productDao.FindByIDSliceAndName(pExec, []int{1, 3, 5}, "person1"))
+	log.Debug(productDao.FindByIDSliceNameAndCost(pExec, []int{1, 3, 5}, "person3", nil))
+	log.Debug(productDao.FindByIDSliceCostAndNameSlice(pExec, []int{1, 3, 5}, []string{"person3", "person5"}, nil))
 
 	exec.Commit()
 }
 
-func setupDb() *sql.DB {
-	os.Remove("./proteus_test.db")
+func setupDbPostgres() *sql.DB {
+	db, err := sql.Open("postgres", "postgres://jon:jon@localhost/jon")
 
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
 	if err != nil {
 		log.Fatal(err)
 	}
 	sqlStmt := `
+	drop table if exists product;
 	create table product (id integer not null primary key, name text, cost real);
 	`
 	_, err = db.Exec(sqlStmt)
@@ -105,7 +120,32 @@ func setupDb() *sql.DB {
 		log.Fatalf("%q: %s\n", err, sqlStmt)
 		return nil
 	}
+	populate(db, productDaoPostgres)
+	return db
+}
 
+func setupDbSqlite() *sql.DB {
+	os.Remove("./proteus_test.db")
+
+	db, err := sql.Open("sqlite3", "./proteus_test.db")
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	sqlStmt := `
+	drop table if exists product;
+	create table product (id integer not null primary key, name text, cost real);
+	`
+	_, err = db.Exec(sqlStmt)
+	if err != nil {
+		log.Fatalf("%q: %s\n", err, sqlStmt)
+		return nil
+	}
+	populate(db, productDaoSqlite)
+	return db
+}
+
+func populate(db *sql.DB, productDao ProductDao) {
 	tx, err := db.Begin()
 	if err != nil {
 		log.Fatal(err)
@@ -119,11 +159,11 @@ func setupDb() *sql.DB {
 			c := 1.1 * float64(i)
 			cost = &c
 		}
-		_, err = productDao.Insert(pExec, i, fmt.Sprintf("person%d", i), cost)
+		rowCount, err := productDao.Insert(pExec, i, fmt.Sprintf("person%d", i), cost)
 		if err != nil {
 			log.Fatal(err)
 		}
+		log.Debug(rowCount)
 	}
 	tx.Commit()
-	return db
 }
