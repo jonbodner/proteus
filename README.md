@@ -48,8 +48,8 @@ For queries, return types can be:
 
 For insert/updates, return types can be:
 - empty
-- an int64 that indicates the new PK (for an insert) or number of rows affected (for an update)
-- an int64 and an error
+- an int64 that indicates the number of rows affected
+- an int64 that indicates the number of rows affected and an error
 
 2\. If you want to map response fields to a struct, define a struct with struct tags to indicate the mapping:
 
