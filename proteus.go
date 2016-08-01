@@ -75,7 +75,7 @@ func Build(dao interface{}, pa api.ParamAdapter) error {
 				continue
 			}
 
-			paramMap := buildParamMap(prop)
+			paramMap := buildParamMap(prop, funcType.NumIn())
 
 			var query string
 			var curFunc funcBuilder

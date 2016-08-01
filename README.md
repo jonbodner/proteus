@@ -117,8 +117,19 @@ Proteus generates implementations of DAO functions by examining struct tags and 
 The following are the recognized struct tags:
 
 - proq - Query run by Executor.Query. Returns single entity or list of entities
-- proe - Query run by Executor.Exec. Returns new id (if sql.Result has a non-zero value for LastInsertId) or number of rows changed
-- prop - The parameter names. Should be in order for the function parameters (skipping over the first Executor parameter)
+- proe - Query run by Executor.Exec. Returns the number of rows changed
+- prop - The parameter names. Should be in the order of the function parameters (skipping over the first Executor parameter)
+
+The prop struct tag is optional. If it is not supplied, the query must contain positional parameters ($1, $2, etc.) instead
+of named parameters. For example:
+
+```go
+type ProductDaoS struct {
+	FindById             func(e api.Executor, id int) (Product, error)                                     `proq:"select * from Product where id = :$1:"`
+	Update               func(e api.Executor, p Product) (int64, error)                                    `proe:"update Product set name = :$1.Name:, cost = :$1.Cost: where id = :$1.Id:"`
+	FindByNameAndCost    func(e api.Executor, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
+}
+```
 
 If you want to map the output of a DAO with a proq tag to a struct, then create a struct and put
  the following struct tag on each field that you want to map to a value in the output:
@@ -131,7 +142,7 @@ If you want to map the output of a DAO with a proq tag to a struct, then create 
 ## FAQ
 1\. Why doesn't Proteus generate a struct that meets an interface?
 
-The reflection API in go has several limitations. One of them is that there is no way to use reflection to build a implementation
+Go has some surprising limitations. One of them is that there is no way to use reflection to build a implementation
 of a method; you can only build implementations of functions. The difference is subtle, but the net result is that you cannot supply an
 interface to the reflection API and get back something that implements that interface.
 
@@ -206,15 +217,6 @@ func UseFoo() {
 	proteus.BuildWithExternalQueries(&fooDAO, adapter.Sqlite, queryStore)
 	exec := adapter.Sql(db)
 	fmt.Println(fooDAO.Find(exec, 1))
-}
-```
-
-- Support for positional parameters instead of the prop struct tag:
-```go
-type ProductDaoS struct {
-	FindById             func(e api.Executor, id int) (Product, error)                                     `proq:"select * from Product where id = :$1:"`
-	Update               func(e api.Executor, p Product) (int64, error)                                    `proe:"update Product set name = :$1.Name:, cost = :$1.Cost: where id = :$1.Id:"`
-	FindByNameAndCost    func(e api.Executor, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
 }
 ```
 

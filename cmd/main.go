@@ -39,6 +39,7 @@ type ProductDao struct {
 	FindByIDSliceAndName          func(e api.Executor, ids []int, name string) ([]Product, error)                   `proq:"select * from Product where name = :name: and id in (:ids:)" prop:"ids,name"`
 	FindByIDSliceNameAndCost      func(e api.Executor, ids []int, name string, cost *float64) ([]Product, error)    `proq:"select * from Product where name = :name: and id in (:ids:) and (cost is null or cost = :cost:)" prop:"ids,name,cost"`
 	FindByIDSliceCostAndNameSlice func(e api.Executor, ids []int, names []string, cost *float64) ([]Product, error) `proq:"select * from Product where id in (:ids:) and (cost is null or cost = :cost:) and name in (:names:)" prop:"ids,names,cost"`
+	FindByNameAndCostUnlabeled    func(e api.Executor, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
 }
 
 var productDaoSqlite = ProductDao{}
@@ -97,16 +98,20 @@ func run(setupDb setupDb, productDao ProductDao) {
 	log.Debug(productDao.UpdateMap(pExec, m))
 	log.Debug(productDao.FindByID(pExec, 11))
 
+	//searching using a slice
 	log.Debug(productDao.FindByIDSlice(pExec, []int{1, 3, 5}))
 	log.Debug(productDao.FindByIDSliceAndName(pExec, []int{1, 3, 5}, "person1"))
 	log.Debug(productDao.FindByIDSliceNameAndCost(pExec, []int{1, 3, 5}, "person3", nil))
 	log.Debug(productDao.FindByIDSliceCostAndNameSlice(pExec, []int{1, 3, 5}, []string{"person3", "person5"}, nil))
 
+	//using positional parameters instead of names
+	log.Debug(productDao.FindByNameAndCostUnlabeled(pExec, "Thingie", 56.23))
+
 	exec.Commit()
 }
 
 func setupDbPostgres() *sql.DB {
-	db, err := sql.Open("postgres", "postgres://jon:jon@localhost/jon")
+	db, err := sql.Open("postgres", "postgres://jon:jon@localhost/jon?sslmode=disable")
 
 	if err != nil {
 		log.Fatal(err)

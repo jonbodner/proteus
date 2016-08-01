@@ -56,11 +56,22 @@ func validateFunction(funcType reflect.Type, isExec bool) error {
 	return nil
 }
 
-func buildParamMap(prop string) map[string]int {
+func buildParamMap(prop string, paramCount int) map[string]int {
+	if len(prop) == 0 {
+		return buildDummyParameters(paramCount)
+	}
 	queryParams := strings.Split(prop, ",")
 	m := map[string]int{}
 	for k, v := range queryParams {
 		m[v] = k + 1
+	}
+	return m
+}
+
+func buildDummyParameters(paramCount int) map[string]int {
+	m := map[string]int{}
+	for i := 1; i < paramCount; i++ {
+		m[fmt.Sprintf("$%d", i)] = i
 	}
 	return m
 }
@@ -217,7 +228,10 @@ func joinFactory(startPos int, paramAdapter api.ParamAdapter) func(int) string {
 func fixNameForTemplate(name string) string {
 	//need to make sure that foo.bar and fooDOTbar don't collide, however unlikely
 	name = strings.Replace(name, "DOT", "DOTDOT", -1)
-	return strings.Replace(name, ".", "DOT", -1)
+	name = strings.Replace(name, ".", "DOT", -1)
+	name = strings.Replace(name, "DOLLAR", "DOLLARDOLLAR", -1)
+	name = strings.Replace(name, "$", "DOLLAR", -1)
+	return name
 }
 
 func addSlice(sliceName string) string {
@@ -238,6 +252,7 @@ func validIdentifier(curVar string) (string, error) {
 	lastPeriod := false
 	first := true
 	identifier := ""
+	dollar := false
 loop:
 	for {
 		pos, tok, lit := s.Scan()
@@ -265,6 +280,22 @@ loop:
 			}
 			lastPeriod = true
 			identifier += "."
+		case token.ILLEGAL:
+			fmt.Println("illegal: ", lit, []byte(lit))
+			//special case to support $N notation, only valid for first part
+			if lit == "$" && first {
+				identifier = "$"
+				dollar = true
+				first = false
+				continue
+			}
+			return "", fmt.Errorf("invalid character found in identifier: %s", curVar)
+		case token.INT:
+			if !dollar {
+				return "", fmt.Errorf("invalid character found in identifier: %s", curVar)
+			}
+			identifier += lit
+			dollar = false
 		default:
 			return "", fmt.Errorf("invalid character found in identifier: %s", curVar)
 		}
