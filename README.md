@@ -195,7 +195,19 @@ A future version of Proteus may include a tool that can be used with go generate
 2\. Why do I have to specify the parameter names with a struct tag?
 
 This is another limitation of go's reflection API. The names of parameters are not available at runtime to be inspected,
-and must be supplied by another way in order to be referenced in a query.
+and must be supplied by another way in order to be referenced in a query. If you do not want to use a prop struct tag, you
+can use positional parameters ($1, $2, etc.) instead.
+
+3\. Why do I need to use a proteus/adapter.Sql to wrap a database/sql DB or Tx from the standard library?
+
+Interfaces in Go can behave in surprising ways. Most of the time, two interfaces that have the same methods are considered to be identical.
+However, this is not always the case. When interfaces appear as the types in the input parameters of another interface, the determination
+that two interfaces are compatible depends on their name, not on their structure.  
+
+The Proteus API in written in terms of interfaces that are defined within Proteus. This means that 
+
+IMHO, this is a bug in the implementation of Go. There's a ticket to track this issue, https://github.com/golang/go/issues/8082 . If you 
+are interested in seeing Go changed to use structual equality for interfaces in all situations, please comment on the ticket.
 
 ## Future Directions
 
