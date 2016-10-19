@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 
+	"database/sql"
 	log "github.com/Sirupsen/logrus"
 	"github.com/jonbodner/proteus/api"
 	"github.com/jonbodner/proteus/mapper"
@@ -14,14 +15,27 @@ import (
 func getExecAndQArgs(args []reflect.Value, qps queryParams) (api.Executor, []interface{}, error) {
 	//pull out that first input parameter as an Executor
 	exec := args[0].Interface().(api.Executor)
+	qArgs, err := getQArgs(args, qps)
+
+	return exec, qArgs, err
+}
+
+func getQuerierAndQArgs(args []reflect.Value, qps queryParams) (api.Querier, []interface{}, error) {
+	//pull out that first input parameter as an Querier
+	exec := args[0].Interface().(api.Querier)
+	qArgs, err := getQArgs(args, qps)
+
+	return exec, qArgs, err
+}
+
+func getQArgs(args []reflect.Value, qps queryParams) ([]interface{}, error) {
 
 	//walk through the rest of the input parameters and build a slice for args
-
 	var qArgs []interface{}
 	for _, v := range qps {
 		val, err := mapper.Extract(args[v.posInParams].Interface(), strings.Split(v.name, "."))
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if v.isSlice {
 			valV := reflect.ValueOf(val)
@@ -33,7 +47,7 @@ func getExecAndQArgs(args []reflect.Value, qps queryParams) (api.Executor, []int
 		}
 	}
 
-	return exec, qArgs, nil
+	return qArgs, nil
 }
 
 func finalizeQuery(positionalQuery processedQuery, qps queryParams, args []reflect.Value) (string, error) {
@@ -70,7 +84,7 @@ func buildExec(funcType reflect.Type, qps queryParams, positionalQuery processed
 	numOut := funcType.NumOut()
 	return func(args []reflect.Value) []reflect.Value {
 		exec, qArgs, err := getExecAndQArgs(args, qps)
-		var result api.Result
+		var result sql.Result
 		if err == nil {
 			//call executor.Exec with query and parameters
 			var queryToRun string
@@ -124,7 +138,7 @@ func buildQuery(funcType reflect.Type, qps queryParams, positionalQuery processe
 		}
 	}
 	return func(args []reflect.Value) []reflect.Value {
-		exec, qArgs, err := getExecAndQArgs(args, qps)
+		exec, qArgs, err := getQuerierAndQArgs(args, qps)
 
 		var rows api.Rows
 		//call executor.Query with query and parameters

@@ -15,45 +15,52 @@ import (
 	"github.com/jonbodner/proteus/mapper"
 )
 
-func validateFunction(funcType reflect.Type, isExec bool) error {
+func validateFunction(funcType reflect.Type) (bool, error) {
 	//first parameter is Executor
 	if funcType.NumIn() == 0 {
-		return errors.New("need to supply an Executor parameter")
+		return false, errors.New("need to supply an Executor or Querier parameter")
 	}
 	exType := reflect.TypeOf((*api.Executor)(nil)).Elem()
-	if !funcType.In(0).Implements(exType) {
-		return errors.New("first parameter must be of type api.Executor")
+	qType := reflect.TypeOf((*api.Querier)(nil)).Elem()
+	var isExec bool
+	switch fType := funcType.In(0); {
+	case fType.Implements(exType):
+		isExec = true
+	case fType.Implements(qType):
+		isExec = false
+	default:
+		return false, errors.New("first parameter must be of type api.Executor or api.Querier")
 	}
 	//no in parameter can be a channel
 	for i := 1; i < funcType.NumIn(); i++ {
 		if funcType.In(i).Kind() == reflect.Chan {
-			return errors.New("no input parameter can be a channel")
+			return false, errors.New("no input parameter can be a channel")
 		}
 	}
 
 	//has 0, 1, or 2 return values
 	if funcType.NumOut() > 2 {
-		return errors.New("must return 0, 1, or 2 values")
+		return false, errors.New("must return 0, 1, or 2 values")
 	}
 
 	//if 2 return values, second is error
 	if funcType.NumOut() == 2 {
 		errType := reflect.TypeOf((*error)(nil)).Elem()
 		if !funcType.Out(1).Implements(errType) {
-			return errors.New("2nd output parameter must be of type error")
+			return false, errors.New("2nd output parameter must be of type error")
 		}
 	}
 
 	//if 1 or 2, 1st param is not a channel (handle map, I guess)
 	if funcType.NumOut() > 0 {
 		if funcType.Out(0).Kind() == reflect.Chan {
-			return errors.New("1st output parameter cannot be a channel")
+			return false, errors.New("1st output parameter cannot be a channel")
 		}
 		if isExec && funcType.Out(0).Kind() != reflect.Int64 {
-			return errors.New("the 1st output parameter of an Exec must be int64")
+			return false, errors.New("the 1st output parameter of an Executor must be int64")
 		}
 	}
-	return nil
+	return isExec, nil
 }
 
 func buildParamMap(prop string, paramCount int) map[string]int {

@@ -1,9 +1,9 @@
 package adapter
 
 import (
+	"database/sql"
 	"fmt"
 	"github.com/jonbodner/proteus/api"
-	"database/sql"
 )
 
 func MySQL(pos int) string {
@@ -23,7 +23,7 @@ func Oracle(pos int) string {
 }
 
 // Sql returns a wrapper that adapts several standard go sql types to work with Proteus.
-func Sql(sqle sqlExecutor) api.Executor {
+func Sql(sqle sqlExecutor) api.Wrapper {
 	return wrapper{sqle}
 }
 
@@ -31,7 +31,7 @@ type wrapper struct {
 	sqlExecutor
 }
 
-func (w wrapper) Exec(query string, args ...interface{}) (api.Result, error) {
+func (w wrapper) Exec(query string, args ...interface{}) (sql.Result, error) {
 	return w.sqlExecutor.Exec(query, args...)
 }
 

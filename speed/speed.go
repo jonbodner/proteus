@@ -7,9 +7,9 @@ import (
 	"github.com/jonbodner/proteus/adapter"
 	"github.com/jonbodner/proteus/api"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/pkg/profile"
 	"log"
 	"time"
-	"github.com/pkg/profile"
 )
 
 func SelectProteus() {
@@ -55,8 +55,8 @@ func validate(i int, p BenchProduct) {
 		if p.Cost == nil {
 			fmt.Errorf("cost should have been non-nil")
 		} else {
-			if *p.Cost != 1.1 * float64(i) {
-				fmt.Errorf("should have had %f, had %f instead", 1.1 * float64(i), *p.Cost)
+			if *p.Cost != 1.1*float64(i) {
+				fmt.Errorf("should have had %f, had %f instead", 1.1*float64(i), *p.Cost)
 			}
 		}
 	} else {
@@ -82,7 +82,7 @@ func SelectNative() {
 		var id int
 		var name string
 		var cost *float64
-		for j := 0;j< 10;j++ {
+		for j := 0; j < 10; j++ {
 			rows, err := tx.Query("select id, name, cost from Product where id = ?", j)
 			if err != nil {
 				panic(err)
@@ -93,7 +93,7 @@ func SelectNative() {
 					panic(err)
 				}
 				p := BenchProduct{Id: id, Name: name, Cost: cost}
-				validate(j,p)
+				validate(j, p)
 			}
 			rows.Close()
 		}
@@ -114,8 +114,8 @@ type BenchProductDao struct {
 
 func main() {
 	defer profile.Start().Stop()
-	for i := 0;i<5;i++ {
-		fmt.Println("round ",i+1)
+	for i := 0; i < 5; i++ {
+		fmt.Println("round ", i+1)
 		SelectProteus()
 		SelectNative()
 		fmt.Println("round ", i+2)

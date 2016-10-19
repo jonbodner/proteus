@@ -14,24 +14,24 @@ import (
 )
 
 type Product2 struct {
-	Id int `prof:"id"`
-	Name string `prof:"name"`
+	Id   int             `prof:"id"`
+	Name string          `prof:"name"`
 	Cost sql.NullFloat64 `prof:"cost"`
 }
 
 func (p Product2) String() string {
 	c := "<nil>"
-	if p.Cost != nil {
-		c = fmt.Sprintf("%f", *p.Cost)
+	if p.Cost.Valid {
+		c = fmt.Sprintf("%f", p.Cost)
 	}
 	return fmt.Sprintf("%d: %s(%s)", p.Id, p.Name, c)
 }
 
 type Product2Dao struct {
-	FindByID                      func(e api.Executor, id int) (Product2, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
-	Update                        func(e api.Executor, p Product2) (int64, error)                                    `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCost             func(e api.Executor, name string, cost float64) ([]Product2, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
-	Insert                        func(e api.Executor, id int, name string, cost *float64) (int64, error)           `proe:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
+	FindByID          func(e api.Querier, id int) (Product2, error)                           `proq:"select * from Product where id = :id:" prop:"id"`
+	Update            func(e api.Executor, p Product2) (int64, error)                         `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCost func(e api.Querier, name string, cost float64) ([]Product2, error)      `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	Insert            func(e api.Executor, id int, name string, cost *float64) (int64, error) `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
 }
 
 var product2DaoSqlite = Product2Dao{}
@@ -62,8 +62,10 @@ func run(setupDb setupDb, productDao Product2Dao) {
 	pExec := adapter.Sql(exec)
 
 	log.Debug(productDao.FindByID(pExec, 10))
-	cost := new(float64)
-	*cost = 56.23
+	cost := sql.NullFloat64{
+		Float64: 56.23,
+		Valid:   true,
+	}
 	p := Product2{10, "Thingie", cost}
 	log.Debug(productDao.Update(pExec, p))
 	log.Debug(productDao.FindByID(pExec, 10))

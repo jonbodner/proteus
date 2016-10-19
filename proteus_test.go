@@ -124,7 +124,7 @@ func TestBuildParamMap(t *testing.T) {
 		},
 	}
 	for k, v := range values {
-		pm := buildParamMap(k)
+		pm := buildParamMap(k, 2)
 		if !reflect.DeepEqual(pm, v) {
 			t.Errorf("failed for %s -> %v: %v", k, v, pm)
 		}
@@ -132,8 +132,8 @@ func TestBuildParamMap(t *testing.T) {
 }
 
 func TestValidateFunction(t *testing.T) {
-	f := func(fType reflect.Type, isExec bool, msg string) {
-		err := validateFunction(fType, isExec)
+	f := func(fType reflect.Type, msg string) {
+		isExec, err := validateFunction(fType)
 		if err == nil {
 			t.Fatalf("Expected err")
 		}
@@ -141,39 +141,49 @@ func TestValidateFunction(t *testing.T) {
 		if !cmp.Errors(err, eExp) {
 			t.Errorf("Wrong error expected %s, got %s", eExp, err)
 		}
+		if isExec != false {
+			t.Errorf("Wrong isExec, expected false, got %v", isExec)
+		}
 	}
 
-	fOk := func(fType reflect.Type, isExec bool) {
-		err := validateFunction(fType, isExec)
+	fOk := func(fType reflect.Type, isExecIn bool) {
+		isExec, err := validateFunction(fType)
 		if err != nil {
 			t.Errorf("Unexpected err %s", err)
+		}
+		if isExecIn != isExec {
+			t.Errorf("Wrong isExec, expected %v, got %v", isExecIn, isExec)
 		}
 	}
 
 	//invalid -- no parameters
 	var f1 func()
-	f(reflect.TypeOf(f1), true, "need to supply an Executor parameter")
-	f(reflect.TypeOf(f1), false, "need to supply an Executor parameter")
+	f(reflect.TypeOf(f1), "need to supply an Executor or Querier parameter")
+	f(reflect.TypeOf(f1), "need to supply an Executor or Querier parameter")
 
 	//invalid -- wrong first parameter type
 	var f2 func(int)
-	f(reflect.TypeOf(f2), true, "first parameter must be of type api.Executor")
-	f(reflect.TypeOf(f2), false, "first parameter must be of type api.Executor")
+	f(reflect.TypeOf(f2), "first parameter must be of type api.Executor or api.Querier")
+	f(reflect.TypeOf(f2), "first parameter must be of type api.Executor or api.Querier")
 
 	//invalid -- has a channel input param
 	var f3 func(api.Executor, chan int)
-	f(reflect.TypeOf(f3), true, "no input parameter can be a channel")
-	f(reflect.TypeOf(f3), false, "no input parameter can be a channel")
+	f(reflect.TypeOf(f3), "no input parameter can be a channel")
+	f(reflect.TypeOf(f3), "no input parameter can be a channel")
 
 	//valid -- only an Executor
 	var g1 func(api.Executor)
 	fOk(reflect.TypeOf(g1), true)
-	fOk(reflect.TypeOf(g1), false)
+
+	var g1q func(api.Querier)
+	fOk(reflect.TypeOf(g1q), false)
 
 	//valid -- an Executor and a primitive
 	var g2 func(api.Executor, int)
 	fOk(reflect.TypeOf(g2), true)
-	fOk(reflect.TypeOf(g2), false)
+
+	var g2q func(api.Querier, int)
+	fOk(reflect.TypeOf(g2q), false)
 
 	//valid -- an Executor, a primitive, a map and a struct
 	var g3 func(api.Executor, int, map[string]interface{}, struct {
@@ -181,10 +191,8 @@ func TestValidateFunction(t *testing.T) {
 		B string
 	})
 	fOk(reflect.TypeOf(g3), true)
-	fOk(reflect.TypeOf(g3), false)
 
-	//valid -- an Executor, a primitive, a map and a struct, returning a struct and error
-	// for query only
+	//invalid -- an Executor, a primitive, a map and a struct, returning a struct and error
 	var g4 func(api.Executor, int, map[string]interface{}, struct {
 		A int
 		B string
@@ -192,7 +200,35 @@ func TestValidateFunction(t *testing.T) {
 		C string
 		D bool
 	}, error)
-	fOk(reflect.TypeOf(g4), false)
 	//invalid for Exec
-	f(reflect.TypeOf(g4), true, "the 1st output parameter of an Exec must be int64")
+	f(reflect.TypeOf(g4), "the 1st output parameter of an Executor must be int64")
+
+	//valid for query
+	var g4q func(api.Querier, int, map[string]interface{}, struct {
+		A int
+		B string
+	}) (struct {
+		C string
+		D bool
+	}, error)
+	fOk(reflect.TypeOf(g4q), false)
+}
+
+func TestBuild(t *testing.T) {
+	type args struct {
+		dao interface{}
+		pa  api.ParamAdapter
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+	// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		if err := Build(tt.args.dao, tt.args.pa); (err != nil) != tt.wantErr {
+			t.Errorf("%q. Build() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+		}
+	}
 }

@@ -1,12 +1,8 @@
 package api
 
-// A Result summarizes an executed SQL command.
-type Result interface {
-	// RowsAffected returns the number of rows affected by an
-	// update, insert, or delete. Not every database or database
-	// driver may support this.
-	RowsAffected() (int64, error)
-}
+import (
+	"database/sql"
+)
 
 // Rows is the result of a query. Its cursor starts before the first row
 // of the result set. Use Next to advance through the rows:
@@ -99,15 +95,23 @@ type Rows interface {
 	Close() error
 }
 
-// Executor runs the queries that are processed by proteus.
+// Executor runs queries that modify the data store.
 type Executor interface {
 	// Exec executes a query without returning any rows.
 	// The args are for any placeholder parameters in the query.
-	Exec(query string, args ...interface{}) (Result, error)
+	Exec(query string, args ...interface{}) (sql.Result, error)
+}
 
+// Querier runs queries that return Rows from the data store
+type Querier interface {
 	// Query executes a query that returns rows, typically a SELECT.
 	// The args are for any placeholder parameters in the query.
 	Query(query string, args ...interface{}) (Rows, error)
+}
+
+type Wrapper interface {
+	Executor
+	Querier
 }
 
 // ParamAdapter maps to valid positional parameters in a DBMS.

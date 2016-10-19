@@ -63,13 +63,12 @@ func Build(dao interface{}, pa api.ParamAdapter) error {
 	//for each field in ProductDao that is of type func and has a proteus struct tag, assign it a func
 	for i := 0; i < t2.NumField(); i++ {
 		curField := t2.Field(i)
-		proq := curField.Tag.Get("proq")
-		proe := curField.Tag.Get("proe")
+		query := curField.Tag.Get("proq")
 		prop := curField.Tag.Get("prop")
-		if curField.Type.Kind() == reflect.Func && (proq != "" || proe != "") {
+		if curField.Type.Kind() == reflect.Func && query != "" {
 			funcType := curField.Type
 			//validate to make sure that the function matches what we expect
-			err := validateFunction(funcType, proe != "")
+			isExec, err := validateFunction(funcType)
 			if err != nil {
 				log.Warnln("skipping function", curField.Name, "due to error:", err.Error())
 				continue
@@ -77,22 +76,18 @@ func Build(dao interface{}, pa api.ParamAdapter) error {
 
 			paramMap := buildParamMap(prop, funcType.NumIn())
 
-			var query string
-			var curFunc funcBuilder
-			if proq != "" {
-				query = proq
-				curFunc = buildQuery
-			} else {
-				query = proe
-				curFunc = buildExec
-			}
-
 			positionalQuery, qps, err := convertToPositionalParameters(query, paramMap, funcType, pa)
 			if err != nil {
 				return err
 			}
 
-			toFunc, err := curFunc(funcType, qps, positionalQuery)
+			var toFunc func(args []reflect.Value) []reflect.Value
+
+			if isExec {
+				toFunc, err = buildExec(funcType, qps, positionalQuery)
+			} else {
+				toFunc, err = buildQuery(funcType, qps, positionalQuery)
+			}
 
 			if err != nil {
 				log.Warnln("skipping function", curField.Name, "due to error:", err.Error())

@@ -96,7 +96,7 @@ func MakeBuilder(sType reflect.Type) (Builder, error) {
 		if sType.Key().Kind() != reflect.String {
 			return nil, errors.New("Only maps with string keys are supported")
 		}
-		return  func(cols []string, vals []interface{}) (interface{}, error) {
+		return func(cols []string, vals []interface{}) (interface{}, error) {
 			out, err := buildMap(sType, cols, vals)
 			return ptrConverter(isPtr, sType, out, err)
 		}, nil
@@ -107,20 +107,20 @@ func MakeBuilder(sType reflect.Type) (Builder, error) {
 			sf := sType.Field(i)
 			if tagVal := sf.Tag.Get("prof"); tagVal != "" {
 				colFieldMap[strings.SplitN(tagVal, ",", 2)[0]] = fieldInfo{
-					name: sf.Name,
+					name:      sf.Name,
 					fieldType: sf.Type,
-					pos: i,
+					pos:       i,
 				}
 			}
 		}
-		return  func(cols []string, vals []interface{}) (interface{}, error) {
+		return func(cols []string, vals []interface{}) (interface{}, error) {
 			out, err := buildStruct(sType, cols, vals, colFieldMap)
 			return ptrConverter(isPtr, sType, out, err)
 		}, nil
 
 	} else {
 		// assume primitive
-		return  func(cols []string, vals []interface{}) (interface{}, error) {
+		return func(cols []string, vals []interface{}) (interface{}, error) {
 			out, err := buildPrimitive(sType, cols, vals)
 			return ptrConverter(isPtr, sType, out, err)
 		}, nil
@@ -130,9 +130,9 @@ func MakeBuilder(sType reflect.Type) (Builder, error) {
 type Builder func(cols []string, vals []interface{}) (interface{}, error)
 
 type fieldInfo struct {
-	name string
+	name      string
 	fieldType reflect.Type
-	pos int
+	pos       int
 }
 
 func buildMap(sType reflect.Type, cols []string, vals []interface{}) (reflect.Value, error) {

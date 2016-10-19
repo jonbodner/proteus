@@ -10,27 +10,33 @@ A simple tool for generating an application's data access layer.
 
 ```go
 type ProductDao struct {
-	FindById                      func(e api.Executor, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
-	Update                        func(e api.Executor, p Product) (int64, error)                                    `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCost             func(e api.Executor, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
-	FindByIdMap                   func(e api.Executor, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
-	UpdateMap                     func(e api.Executor, p map[string]interface{}) (int64, error)                     `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCostMap          func(e api.Executor, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
-	FindByIDSlice                 func(e api.Executor, ids []int) ([]Product, error)                                `proq:"select * from Product where id in (:ids:)" prop:"ids"`
-	FindByIDSliceAndName          func(e api.Executor, ids []int, name string) ([]Product, error)                   `proq:"select * from Product where name = :name: and id in (:ids:)" prop:"ids,name"`
-	FindByIDSliceNameAndCost      func(e api.Executor, ids []int, name string, cost *float64) ([]Product, error)    `proq:"select * from Product where name = :name: and id in (:ids:) and (cost is null or cost = :cost:)" prop:"ids,name,cost"`
-	FindByIDSliceCostAndNameSlice func(e api.Executor, ids []int, names []string, cost *float64) ([]Product, error) `proq:"select * from Product where id in (:ids:) and (cost is null or cost = :cost:) and name in (:names:)" prop:"ids,names,cost"`
+	FindByID                      func(e api.Querier, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
+	Update                        func(e api.Executor, p Product) (int64, error)                                   `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCost             func(e api.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindByIDMap                   func(e api.Querier, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
+	UpdateMap                     func(e api.Executor, p map[string]interface{}) (int64, error)                    `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCostMap          func(e api.Querier, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	Insert                        func(e api.Executor, id int, name string, cost *float64) (int64, error)          `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
+	FindByIDSlice                 func(e api.Querier, ids []int) ([]Product, error)                                `proq:"select * from Product where id in (:ids:)" prop:"ids"`
+	FindByIDSliceAndName          func(e api.Querier, ids []int, name string) ([]Product, error)                   `proq:"select * from Product where name = :name: and id in (:ids:)" prop:"ids,name"`
+	FindByIDSliceNameAndCost      func(e api.Querier, ids []int, name string, cost *float64) ([]Product, error)    `proq:"select * from Product where name = :name: and id in (:ids:) and (cost is null or cost = :cost:)" prop:"ids,name,cost"`
+	FindByIDSliceCostAndNameSlice func(e api.Querier, ids []int, names []string, cost *float64) ([]Product, error) `proq:"select * from Product where id in (:ids:) and (cost is null or cost = :cost:) and name in (:names:)" prop:"ids,names,cost"`
+	FindByNameAndCostUnlabeled    func(e api.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
 }
 ```
 
-The first input parameter is always of type api.Executor.
+The first input parameter is either of type api.Executor or api.Querier:
 ```go
-// Executor runs the queries that are processed by proteus.
+// Executor runs queries that modify the data store.
 type Executor interface {
 	// Exec executes a query without returning any rows.
 	// The args are for any placeholder parameters in the query.
-	Exec(query string, args ...interface{}) (Result, error)
-
+	Exec(query string, args ...interface{}) (sql.Result, error)
+}
+```
+```go
+// Querier runs queries that return Rows from the data store
+type Querier interface {
 	// Query executes a query that returns rows, typically a SELECT.
 	// The args are for any placeholder parameters in the query.
 	Query(query string, args ...interface{}) (Rows, error)
@@ -116,24 +122,23 @@ func init() {
 Proteus generates implementations of DAO functions by examining struct tags and parameters types on function fields in a struct.
 The following are the recognized struct tags:
 
-- proq - Query run by Executor.Query. Returns single entity or list of entities
-- proe - Query run by Executor.Exec. Returns the number of rows changed
-- prop - The parameter names. Should be in the order of the function parameters (skipping over the first Executor parameter)
+- `proq` - The query. Returns single entity or list of entities
+- `prop` - The parameter names. Should be in the order of the function parameters (skipping over the first Executor or Querier parameter)
 
-The prop struct tag is optional. If it is not supplied, the query must contain positional parameters ($1, $2, etc.) instead
+The `prop` struct tag is optional. If it is not supplied, the query must contain positional parameters ($1, $2, etc.) instead
 of named parameters. For example:
 
 ```go
 type ProductDaoS struct {
-	FindById             func(e api.Executor, id int) (Product, error)                                     `proq:"select * from Product where id = :$1:"`
-	Update               func(e api.Executor, p Product) (int64, error)                                    `proe:"update Product set name = :$1.Name:, cost = :$1.Cost: where id = :$1.Id:"`
-	FindByNameAndCost    func(e api.Executor, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
+	FindById             func(e api.Querier, id int) (Product, error)                                     `proq:"select * from Product where id = :$1:"`
+	Update               func(e api.Executor, p Product) (int64, error)                                   `proq:"update Product set name = :$1.Name:, cost = :$1.Cost: where id = :$1.Id:"`
+	FindByNameAndCost    func(e api.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
 }
 ```
 
-If you want to map the output of a DAO with a proq tag to a struct, then create a struct and put
+If you want to map the output of a DAO with a `proq` tag to a struct, then create a struct and put
  the following struct tag on each field that you want to map to a value in the output:
-- prof - The fields on the dto that are mapped to select parameters in a query
+- `prof` - The fields on the dto that are mapped to select parameters in a query
 
 ## Valid function signatures
 
@@ -198,13 +203,12 @@ This is another limitation of go's reflection API. The names of parameters are n
 and must be supplied by another way in order to be referenced in a query. If you do not want to use a prop struct tag, you
 can use positional parameters ($1, $2, etc.) instead.
 
-3\. Why do I need to use a proteus/adapter.Sql to wrap a database/sql DB or Tx from the standard library?
+3\. Why do I need to use the `adapter.Sql` function to wrap a `sql.DB` or `sql.Tx` from the standard library?
 
-Interfaces in Go can behave in surprising ways. Most of the time, two interfaces that have the same methods are considered to be identical.
-However, this is not always the case. When interfaces appear as the types in the input parameters of another interface, the determination
-that two interfaces are compatible depends on their name, not on their structure.  
-
-The Proteus API in written in terms of interfaces that are defined within Proteus. This means that 
+The `Query` method defined on `sql.DB` and `sql.Tx` returns a `*sql.Rows` type. Unfortunately, `sql.Rows` is a struct, not an interface. 
+While Proteus takes advantage of interfaces in the `sql` packages, it is not tied to SQL and cannot depend on the concrete `sql.Rows` type. 
+To replace it, an interface, `api.Rows`, is defined within Proteus. This has the side-effect of making the method signature of a standard SQL Query incompatible
+ with the `api.Querier` interface definition. The `adapter.Sql` function fixes this incompatibility.
 
 IMHO, this is a bug in the implementation of Go. There's a ticket to track this issue, https://github.com/golang/go/issues/8082 . If you 
 are interested in seeing Go changed to use structual equality for interfaces in all situations, please comment on the ticket.
