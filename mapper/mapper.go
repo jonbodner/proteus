@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
@@ -8,7 +9,6 @@ import (
 	"reflect"
 	"strings"
 	"unsafe"
-	"database/sql"
 )
 
 // Map takes the next value from Rows and uses it to create a new instance of the specified type
