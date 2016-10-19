@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	log "github.com/Sirupsen/logrus"
+	"database/sql/driver"
 )
 
 func ExtractType(curType reflect.Type, path []string) (reflect.Type, error) {
@@ -39,6 +40,10 @@ func Extract(s interface{}, path []string) (interface{}, error) {
 	}
 	// base case path length == 1
 	if len(path) == 1 {
+		//if this implements the driver.Valuer interface, call Value, otherwise just return it
+		if valuer, ok := s.(driver.Valuer); ok {
+			return valuer.Value()
+		}
 		return s, nil
 	}
 	// length > 1, find a match for path[1], and recurse

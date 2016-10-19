@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"unsafe"
+	"database/sql"
 )
 
 // Map takes the next value from Rows and uses it to create a new instance of the specified type
@@ -152,6 +153,10 @@ func buildMap(sType reflect.Type, cols []string, vals []interface{}) (reflect.Va
 	return out, nil
 }
 
+var (
+	scannerType = reflect.TypeOf((*sql.Scanner)(nil)).Elem()
+)
+
 func buildStruct(sType reflect.Type, cols []string, vals []interface{}, colFieldMap map[string]fieldInfo) (reflect.Value, error) {
 	out := reflect.New(sType).Elem()
 	for k, v := range cols {
@@ -165,7 +170,14 @@ func buildStruct(sType reflect.Type, cols []string, vals []interface{}, colField
 					continue
 				}
 				//log.Debugln("isPtr Not Nil", rv.Elem().Type())
-				if rv.Elem().Elem().Type().ConvertibleTo(sf.fieldType.Elem()) {
+				if sf.fieldType.Implements(scannerType) {
+					toScan := (reflect.New(sf.fieldType).Elem().Interface()).(sql.Scanner)
+					err := toScan.Scan(rv.Elem().Elem().Interface())
+					if err != nil {
+						return out, err
+					}
+					out.Field(sf.pos).Set(reflect.ValueOf(toScan))
+				} else if rv.Elem().Elem().Type().ConvertibleTo(sf.fieldType.Elem()) {
 					out.Field(sf.pos).Set(reflect.New(sf.fieldType.Elem()))
 					out.Field(sf.pos).Elem().Set(rv.Elem().Elem().Convert(sf.fieldType.Elem()))
 				} else {
@@ -177,7 +189,14 @@ func buildStruct(sType reflect.Type, cols []string, vals []interface{}, colField
 					log.Warnln("Attempting to assign a nil to a non-pointer field")
 					return out, fmt.Errorf("Unable to assign nil value to non-pointer struct field %s of type %v", sf.name, sf.fieldType)
 				}
-				if rv.Elem().Elem().Type().ConvertibleTo(sf.fieldType) {
+				if reflect.PtrTo(sf.fieldType).Implements(scannerType) {
+					toScan := (reflect.New(sf.fieldType).Interface()).(sql.Scanner)
+					err := toScan.Scan(rv.Elem().Elem().Interface())
+					if err != nil {
+						return out, err
+					}
+					out.Field(sf.pos).Set(reflect.ValueOf(toScan).Elem())
+				} else if rv.Elem().Elem().Type().ConvertibleTo(sf.fieldType) {
 					out.Field(sf.pos).Set(rv.Elem().Elem().Convert(sf.fieldType))
 				} else {
 					log.Warnln("can't find the field")

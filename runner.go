@@ -167,6 +167,9 @@ func buildQuery(funcType reflect.Type, qps queryParams, positionalQuery processe
 			if err != nil {
 				return []reflect.Value{zero}
 			}
+			if val == nil {
+				return []reflect.Value{reflect.Zero(sType)}
+			}
 			return []reflect.Value{reflect.ValueOf(val).Convert(sType)}
 		}
 		if numOut == 2 {
@@ -181,6 +184,9 @@ func buildQuery(funcType reflect.Type, qps queryParams, positionalQuery processe
 				eVal = errZero
 			} else {
 				eVal = reflect.ValueOf(err).Convert(eType)
+			}
+			if val == nil {
+				return []reflect.Value{reflect.Zero(sType), eVal}
 			}
 			return []reflect.Value{reflect.ValueOf(val).Convert(sType), eVal}
 		}
