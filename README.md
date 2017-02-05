@@ -140,6 +140,33 @@ If you want to map the output of a DAO with a `proq` tag to a struct, then creat
  the following struct tag on each field that you want to map to a value in the output:
 - `prof` - The fields on the dto that are mapped to select parameters in a query
 
+## Storing queries outside of struct tags
+Struct tags are cumbersome for all but the shortest queries. In order to allow a more natural way to store longer queries,
+one or more instances of the `api.QueryMapper` interface can be passed into the `proteus.Build` function. In order to 
+reference a query stored in an `api.QueryMapper`, you should put `q:name` as the value of the `proq` struct tag, where
+`name` is the name for the query.
+
+For example:
+
+```go
+	m := proteus.MapMapper{
+		"q1": "select * from foo where id = :id:",
+		"q2": "update foo set x=:x: where id = :id:",
+	}
+
+	type s struct {
+		GetF func(e api.Querier, id string) (f, error) `proq:"q:q1" prop:"id"`
+		Update func(e api.Executor, id string, x string) (int64, error) `proq:"q:q2" prop:"id,x"`
+	}
+	
+	sImpl := s{}
+	err := proteus.Build(&sImpl, adapter.Sqlite, m)
+```
+
+Out of the box, you can use either a `map[string]string` or a unix properties file to store your queries. In order
+to use a `map[string]string`, cast your map to `proteus.MapMapper` (or just declare your variable to be of type `proteus.MapMapper`). To use a properties file, call the method 
+`proteus.PropFileToQueryMapper` with the name of the property file that contains your queries.
+
 ## Valid function signatures
 
 ## API
@@ -216,25 +243,6 @@ are interested in seeing Go changed to use structual equality for interfaces in 
 ## Future Directions
 
 There are more interesting features coming to Proteus. They are (in likely order of implementation):
-
-- Support for storing queries in property files
-```go
-type FooDAO struct {
-	Find func(e api.Executor, ids int) (Product, error) `proqe:"product.get" prop:"ids"`
-}
-
-
-func UseFoo() {
-	db, _ := sql.Open("sqlite3", "./proteus_test.db")
-	defer db.Close()
-
-	var queryStore api.QueryStore //this will be a new interface
-	fooDAO := FooDAO{}
-	proteus.BuildWithExternalQueries(&fooDAO, adapter.Sqlite, queryStore)
-	exec := adapter.Sql(db)
-	fmt.Println(fooDAO.Find(exec, 1))
-}
-```
 
 - go generate tool to create a wrapper struct and interface for a Proteus DAO
 
