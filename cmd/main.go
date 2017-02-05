@@ -11,6 +11,7 @@ import (
 	"github.com/jonbodner/proteus/api"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/jonbodner/dbtimer"
 )
 
 type Product struct {
@@ -46,6 +47,9 @@ var productDaoSqlite = ProductDao{}
 var productDaoPostgres = ProductDao{}
 
 func init() {
+	dbtimer.SetTimerLoggerFunc(func(ti dbtimer.TimerInfo) {
+		fmt.Printf("%s %s %v %v %d\n",ti.Method, ti.Query, ti.Args, ti.Err, ti.End.Sub(ti.Start).Nanoseconds()/1000)
+	})
 	log.SetLevel(log.DebugLevel)
 	log.SetFormatter(&log.TextFormatter{})
 	err := proteus.Build(&productDaoPostgres, adapter.Postgres)
@@ -111,7 +115,9 @@ func run(setupDb setupDb, productDao ProductDao) {
 }
 
 func setupDbPostgres() *sql.DB {
-	db, err := sql.Open("postgres", "postgres://jon:jon@localhost/jon?sslmode=disable")
+	//db, err := sql.Open("postgres", "postgres://jon:jon@localhost/jon?sslmode=disable")
+	db, err := sql.Open("timer", "postgres postgres://jon:jon@localhost/jon?sslmode=disable")
+
 
 	if err != nil {
 		log.Fatal(err)
@@ -132,7 +138,8 @@ func setupDbPostgres() *sql.DB {
 func setupDbSqlite() *sql.DB {
 	os.Remove("./proteus_test.db")
 
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	//db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("timer", "sqlite3 ./proteus_test.db")
 
 	if err != nil {
 		log.Fatal(err)
