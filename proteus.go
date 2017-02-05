@@ -6,6 +6,8 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/jonbodner/proteus/api"
+	"strings"
+	"fmt"
 )
 
 /*
@@ -47,7 +49,7 @@ If the entity is a primitive, then the first value returned for a row must be of
 */
 
 // Build is the main entry point into Proteus
-func Build(dao interface{}, pa api.ParamAdapter) error {
+func Build(dao interface{}, pa api.ParamAdapter, mappers ...api.QueryMapper) error {
 	t := reflect.TypeOf(dao)
 	//must be a pointer to struct
 	if t.Kind() != reflect.Ptr {
@@ -75,6 +77,21 @@ func Build(dao interface{}, pa api.ParamAdapter) error {
 			}
 
 			paramMap := buildParamMap(prop, funcType.NumIn())
+
+			if strings.HasPrefix(query, "q:") {
+				name := query[2:]
+				found := false
+				for _, v := range mappers {
+					if q := v.Map(name); q != "" {
+						query = q
+						found = true
+						break
+					}
+				}
+				if !found {
+					return fmt.Errorf("skipping function %s because no query could be found for name %s", curField.Name, name)
+				}
+			}
 
 			positionalQuery, qps, err := convertToPositionalParameters(query, paramMap, funcType, pa)
 			if err != nil {

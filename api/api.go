@@ -117,3 +117,11 @@ type Wrapper interface {
 // ParamAdapter maps to valid positional parameters in a DBMS.
 // For example, MySQL uses ? for every parameter, while Postgres uses $NUM and Oracle uses :NUM
 type ParamAdapter func(pos int) string
+
+// QueryMapper maps from a query name to an actual query
+// It is used to support the proq struct tag, when it contains q:name
+type QueryMapper interface {
+	// Maps the supplied name to a query string
+	// returns an empty string if there is no query associated with the supplied name
+	Map(name string) string
+}
