@@ -1,6 +1,8 @@
 # Proteus
 [![Go Report Card](https://goreportcard.com/badge/github.com/jonbodner/proteus)](https://goreportcard.com/report/github.com/jonbodner/proteus)
+[![Sourcegraph](https://sourcegraph.com/github.com/jonbodner/proteus/-/badge.svg)](https://sourcegraph.com/github.com/jonbodner/proteus?badge)
 [![Join the chat at https://gitter.im/jonbodner/proteus](https://badges.gitter.im/jonbodner/proteus.svg)](https://gitter.im/jonbodner/proteus?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 A simple tool for generating an application's data access layer.
 
 ## Purpose
