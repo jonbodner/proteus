@@ -6,24 +6,20 @@ import (
 	"github.com/jonbodner/proteus"
 	"github.com/jonbodner/proteus/adapter"
 	"github.com/jonbodner/proteus/api"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mutecomm/go-sqlcipher"
 	"github.com/pkg/profile"
-	"log"
+	log "github.com/Sirupsen/logrus"
 	"time"
+	"os"
 )
 
-func SelectProteus() {
+func SelectProteus(db *sql.DB) {
 	var productDao BenchProductDao
 
 	err := proteus.Build(&productDao, adapter.Sqlite)
 	if err != nil {
 		panic(err)
 	}
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
 	tx, err := db.Begin()
 	if err != nil {
 		panic(err)
@@ -66,17 +62,12 @@ func validate(i int, p BenchProduct) {
 	}
 }
 
-func SelectNative() {
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
-	if err != nil {
-		log.Fatal(err)
-	}
+func SelectNative(db *sql.DB) {
 	tx, err := db.Begin()
 	if err != nil {
 		panic(err)
 	}
 	defer tx.Commit()
-	defer db.Close()
 	start := time.Now()
 	for i := 0; i < 1000; i++ {
 		var id int
@@ -109,17 +100,67 @@ type BenchProduct struct {
 }
 
 type BenchProductDao struct {
-	FindById func(e api.Executor, id int) (BenchProduct, error) `proq:"select id, name, cost from Product where id = :id:" prop:"id"`
+	FindById func(e api.Querier, id int) (BenchProduct, error) `proq:"select id, name, cost from Product where id = :id:" prop:"id"`
+	Insert                        func(e api.Executor, id int, name string, cost *float64) (int64, error)          `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
 }
 
 func main() {
+	db := setupDbSqlite()
 	defer profile.Start().Stop()
+	defer db.Close()
+
 	for i := 0; i < 5; i++ {
 		fmt.Println("round ", i+1)
-		SelectProteus()
-		SelectNative()
+		SelectProteus(db)
+		SelectNative(db)
 		fmt.Println("round ", i+2)
-		SelectNative()
-		SelectProteus()
+		SelectNative(db)
+		SelectProteus(db)
 	}
+}
+
+func setupDbSqlite() *sql.DB {
+	os.Remove("./proteus_test.db")
+
+	db, err := sql.Open("sqlite3", "./proteus_test.db")
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	sqlStmt := `
+	drop table if exists product;
+	create table product (id integer not null primary key, name text, cost real);
+	`
+	_, err = db.Exec(sqlStmt)
+	if err != nil {
+		log.Fatalf("%q: %s\n", err, sqlStmt)
+		return nil
+	}
+	populate(db)
+	return db
+}
+
+func populate(db *sql.DB) {
+	productDao := BenchProductDao{}
+	proteus.Build(&productDao, adapter.Sqlite)
+	tx, err := db.Begin()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pExec := adapter.Sql(tx)
+
+	for i := 0; i < 100; i++ {
+		var cost *float64
+		if i%2 == 0 {
+			c := 1.1 * float64(i)
+			cost = &c
+		}
+		rowCount, err := productDao.Insert(pExec, i, fmt.Sprintf("person%d", i), cost)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Debug(rowCount)
+	}
+	tx.Commit()
 }

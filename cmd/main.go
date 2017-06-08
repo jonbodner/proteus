@@ -10,7 +10,7 @@ import (
 	"github.com/jonbodner/proteus/adapter"
 	"github.com/jonbodner/proteus/api"
 	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mutecomm/go-sqlcipher"
 	"github.com/jonbodner/dbtimer"
 )
 
@@ -50,7 +50,7 @@ func init() {
 	dbtimer.SetTimerLoggerFunc(func(ti dbtimer.TimerInfo) {
 		fmt.Printf("%s %s %v %v %d\n",ti.Method, ti.Query, ti.Args, ti.Err, ti.End.Sub(ti.Start).Nanoseconds()/1000)
 	})
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.WarnLevel)
 	log.SetFormatter(&log.TextFormatter{})
 	err := proteus.Build(&productDaoPostgres, adapter.Postgres)
 	if err != nil {

@@ -288,7 +288,6 @@ loop:
 			lastPeriod = true
 			identifier += "."
 		case token.ILLEGAL:
-			fmt.Println("illegal: ", lit, []byte(lit))
 			//special case to support $N notation, only valid for first part
 			if lit == "$" && first {
 				identifier = "$"
