@@ -12,22 +12,22 @@ A simple tool for generating an application's data access layer.
 
 ```go
 type ProductDao struct {
-	FindByID                      func(e api.Querier, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
-	Update                        func(e api.Executor, p Product) (int64, error)                                   `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCost             func(e api.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
-	FindByIDMap                   func(e api.Querier, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
-	UpdateMap                     func(e api.Executor, p map[string]interface{}) (int64, error)                    `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCostMap          func(e api.Querier, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
-	Insert                        func(e api.Executor, id int, name string, cost *float64) (int64, error)          `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
-	FindByIDSlice                 func(e api.Querier, ids []int) ([]Product, error)                                `proq:"select * from Product where id in (:ids:)" prop:"ids"`
-	FindByIDSliceAndName          func(e api.Querier, ids []int, name string) ([]Product, error)                   `proq:"select * from Product where name = :name: and id in (:ids:)" prop:"ids,name"`
-	FindByIDSliceNameAndCost      func(e api.Querier, ids []int, name string, cost *float64) ([]Product, error)    `proq:"select * from Product where name = :name: and id in (:ids:) and (cost is null or cost = :cost:)" prop:"ids,name,cost"`
-	FindByIDSliceCostAndNameSlice func(e api.Querier, ids []int, names []string, cost *float64) ([]Product, error) `proq:"select * from Product where id in (:ids:) and (cost is null or cost = :cost:) and name in (:names:)" prop:"ids,names,cost"`
-	FindByNameAndCostUnlabeled    func(e api.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
+	FindByID                      func(e proteus.Querier, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
+	Update                        func(e proteus.Executor, p Product) (int64, error)                                   `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCost             func(e proteus.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindByIDMap                   func(e proteus.Querier, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
+	UpdateMap                     func(e proteus.Executor, p map[string]interface{}) (int64, error)                    `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCostMap          func(e proteus.Querier, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	Insert                        func(e proteus.Executor, id int, name string, cost *float64) (int64, error)          `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
+	FindByIDSlice                 func(e proteus.Querier, ids []int) ([]Product, error)                                `proq:"select * from Product where id in (:ids:)" prop:"ids"`
+	FindByIDSliceAndName          func(e proteus.Querier, ids []int, name string) ([]Product, error)                   `proq:"select * from Product where name = :name: and id in (:ids:)" prop:"ids,name"`
+	FindByIDSliceNameAndCost      func(e proteus.Querier, ids []int, name string, cost *float64) ([]Product, error)    `proq:"select * from Product where name = :name: and id in (:ids:) and (cost is null or cost = :cost:)" prop:"ids,name,cost"`
+	FindByIDSliceCostAndNameSlice func(e proteus.Querier, ids []int, names []string, cost *float64) ([]Product, error) `proq:"select * from Product where id in (:ids:) and (cost is null or cost = :cost:) and name in (:names:)" prop:"ids,names,cost"`
+	FindByNameAndCostUnlabeled    func(e proteus.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
 }
 ```
 
-The first input parameter is either of type api.Executor or api.Querier:
+The first input parameter is either of type proteus.Executor or proteus.Querier:
 ```go
 // Executor runs queries that modify the data store.
 type Executor interface {
@@ -75,7 +75,7 @@ type Product struct {
 var productDao = ProductDao{}
 
 func init() {
-	err := proteus.Build(&productDao, adapter.Sqlite)
+	err := proteus.Build(&productDao, proteus.Sqlite)
 	if err != nil {
 		panic(err)
 	}
@@ -87,7 +87,7 @@ func init() {
 ```go
 	db := setupDb()
 	defer db.Close()
-	exec := adapter.Sql(db)
+	exec := proteus.Wrap(db)
 ```
 
 5\. Make calls to the function fields in your Proteus-populated struct:
@@ -132,9 +132,9 @@ of named parameters. For example:
 
 ```go
 type ProductDaoS struct {
-	FindById             func(e api.Querier, id int) (Product, error)                                     `proq:"select * from Product where id = :$1:"`
-	Update               func(e api.Executor, p Product) (int64, error)                                   `proq:"update Product set name = :$1.Name:, cost = :$1.Cost: where id = :$1.Id:"`
-	FindByNameAndCost    func(e api.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
+	FindById             func(e proteus.Querier, id int) (Product, error)                                     `proq:"select * from Product where id = :$1:"`
+	Update               func(e proteus.Executor, p Product) (int64, error)                                   `proq:"update Product set name = :$1.Name:, cost = :$1.Cost: where id = :$1.Id:"`
+	FindByNameAndCost    func(e proteus.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
 }
 ```
 
@@ -144,8 +144,8 @@ If you want to map the output of a DAO with a `proq` tag to a struct, then creat
 
 ## Storing queries outside of struct tags
 Struct tags are cumbersome for all but the shortest queries. In order to allow a more natural way to store longer queries,
-one or more instances of the `api.QueryMapper` interface can be passed into the `proteus.Build` function. In order to 
-reference a query stored in an `api.QueryMapper`, you should put `q:name` as the value of the `proq` struct tag, where
+one or more instances of the `proteus.QueryMapper` interface can be passed into the `proteus.Build` function. In order to 
+reference a query stored in an `proteus.QueryMapper`, you should put `q:name` as the value of the `proq` struct tag, where
 `name` is the name for the query.
 
 For example:
@@ -157,12 +157,12 @@ For example:
 	}
 
 	type s struct {
-		GetF func(e api.Querier, id string) (f, error) `proq:"q:q1" prop:"id"`
-		Update func(e api.Executor, id string, x string) (int64, error) `proq:"q:q2" prop:"id,x"`
+		GetF func(e proteus.Querier, id string) (f, error) `proq:"q:q1" prop:"id"`
+		Update func(e proteus.Executor, id string, x string) (int64, error) `proq:"q:q2" prop:"id,x"`
 	}
 	
 	sImpl := s{}
-	err := proteus.Build(&sImpl, adapter.Sqlite, m)
+	err := proteus.Build(&sImpl, proteus.Sqlite, m)
 ```
 
 Out of the box, you can use either a `map[string]string` or a unix properties file to store your queries. In order
@@ -190,36 +190,36 @@ Given these limitations, Proteus uses structs to hold the generated functions. I
 the functionality provided by the struct, you can do something like this:
 ```go
 type ProductDaoS struct {
-	FindById             func(e api.Executor, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
-	Update               func(e api.Executor, p Product) (int64, error)                                    `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCost    func(e api.Executor, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindById             func(e proteus.Executor, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
+	Update               func(e proteus.Executor, p Product) (int64, error)                                    `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCost    func(e proteus.Executor, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
 }
 
 type ProductDao interface {
-    FindById(api.Executor, int) (Product, error)
-    Update(api.Executor, Product) (int64, error)
-    FindByNameAndCost(api.Executor, string, float64) ([]Product, error)
+    FindById(proteus.Executor, int) (Product, error)
+    Update(proteus.Executor, Product) (int64, error)
+    FindByNameAndCost(proteus.Executor, string, float64) ([]Product, error)
 }
 
 type productWrapper struct {
     ProductDaoS
 }
 
-func (pw productWrapper) FindById(exec api.Executor, id int) (Product, error) {
+func (pw productWrapper) FindById(exec proteus.Executor, id int) (Product, error) {
     return pw.ProductDaoS.FindById(exec, id)
 }
 
-func (pw productWrapper) Update(exec api.Executor, p Product) (int64, error) {
+func (pw productWrapper) Update(exec proteus.Executor, p Product) (int64, error) {
     return pw.ProductDaoS.Update(exec, p)
 }
 
-func (pw productWrapper) FindByNameAndCost(exec api.Executor, n string, c float64) ([]Product, error) {
+func (pw productWrapper) FindByNameAndCost(exec proteus.Executor, n string, c float64) ([]Product, error) {
     return pw.ProductDaoS.FindByNameAndCost(exec, n, c)
 }
 
 func NewProductDao() ProductDao {
     p := ProductDaoS{}
-    proteus.Build(&p,adapter.Sqlite)
+    proteus.Build(&p,proteus.Sqlite)
     return productWrapper{p}
 }
 ```
@@ -232,15 +232,12 @@ This is another limitation of go's reflection API. The names of parameters are n
 and must be supplied by another way in order to be referenced in a query. If you do not want to use a prop struct tag, you
 can use positional parameters ($1, $2, etc.) instead.
 
-3\. Why do I need to use the `adapter.Sql` function to wrap a `sql.DB` or `sql.Tx` from the standard library?
+3\. Why do I need to use the `proteus.Wrap` function to wrap a `sql.DB` or `sql.Tx` from the standard library?
 
 The `Query` method defined on `sql.DB` and `sql.Tx` returns a `*sql.Rows` type. Unfortunately, `sql.Rows` is a struct, not an interface. 
 While Proteus takes advantage of interfaces in the `sql` packages, it is not tied to SQL and cannot depend on the concrete `sql.Rows` type. 
-To replace it, an interface, `api.Rows`, is defined within Proteus. This has the side-effect of making the method signature of a standard SQL Query incompatible
- with the `api.Querier` interface definition. The `adapter.Sql` function fixes this incompatibility.
-
-IMHO, this is a bug in the implementation of Go. There's a ticket to track this issue, https://github.com/golang/go/issues/8082 . If you 
-are interested in seeing Go changed to use structual equality for interfaces in all situations, please comment on the ticket.
+To replace it, an interface, `proteus.Rows`, is defined within Proteus. This has the side-effect of making the method signature of a standard SQL Query incompatible
+ with the `proteus.Querier` interface definition. The `proteus.Wrap` function fixes this incompatibility.
 
 ## Future Directions
 
