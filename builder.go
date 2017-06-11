@@ -2,7 +2,6 @@ package proteus
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"go/scanner"
 	"go/token"
@@ -11,68 +10,16 @@ import (
 	"text/template"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/jonbodner/proteus/api"
 	"github.com/jonbodner/proteus/mapper"
 )
 
-func validateFunction(funcType reflect.Type) (bool, error) {
-	//first parameter is Executor
-	if funcType.NumIn() == 0 {
-		return false, errors.New("need to supply an Executor or Querier parameter")
+func buildNameOrderMap(paramOrder string) map[string]int {
+	out := map[string]int{}
+	params := strings.Split(paramOrder, ",")
+	for k, v := range params {
+		out[v] = k + 1
 	}
-	exType := reflect.TypeOf((*api.Executor)(nil)).Elem()
-	qType := reflect.TypeOf((*api.Querier)(nil)).Elem()
-	var isExec bool
-	switch fType := funcType.In(0); {
-	case fType.Implements(exType):
-		isExec = true
-	case fType.Implements(qType):
-		isExec = false
-	default:
-		return false, errors.New("first parameter must be of type api.Executor or api.Querier")
-	}
-	//no in parameter can be a channel
-	for i := 1; i < funcType.NumIn(); i++ {
-		if funcType.In(i).Kind() == reflect.Chan {
-			return false, errors.New("no input parameter can be a channel")
-		}
-	}
-
-	//has 0, 1, or 2 return values
-	if funcType.NumOut() > 2 {
-		return false, errors.New("must return 0, 1, or 2 values")
-	}
-
-	//if 2 return values, second is error
-	if funcType.NumOut() == 2 {
-		errType := reflect.TypeOf((*error)(nil)).Elem()
-		if !funcType.Out(1).Implements(errType) {
-			return false, errors.New("2nd output parameter must be of type error")
-		}
-	}
-
-	//if 1 or 2, 1st param is not a channel (handle map, I guess)
-	if funcType.NumOut() > 0 {
-		if funcType.Out(0).Kind() == reflect.Chan {
-			return false, errors.New("1st output parameter cannot be a channel")
-		}
-		if isExec && funcType.Out(0).Kind() != reflect.Int64 {
-			return false, errors.New("the 1st output parameter of an Executor must be int64")
-		}
-	}
-	return isExec, nil
-}
-
-func buildParamMap(prop string, paramCount int) map[string]int {
-	if len(prop) == 0 {
-		return buildDummyParameters(paramCount)
-	}
-	queryParams := strings.Split(prop, ",")
-	m := map[string]int{}
-	for k, v := range queryParams {
-		m[v] = k + 1
-	}
-	return m
+	return out
 }
 
 func buildDummyParameters(paramCount int) map[string]int {
@@ -83,23 +30,31 @@ func buildDummyParameters(paramCount int) map[string]int {
 	return m
 }
 
-type kind int
-
-const (
-	simple kind = iota
-	templ
-)
-
-type processedQuery struct {
-	kind   kind
-	simple string
-	temp   *template.Template
+// template slice support
+type queryHolder interface {
+	finalize(args []reflect.Value) (string, error)
 }
 
-func convertToPositionalParameters(query string, paramMap map[string]int, funcType reflect.Type, pa api.ParamAdapter) (processedQuery, queryParams, error) {
+type simpleQueryHolder string
+
+func (sq simpleQueryHolder) finalize(args []reflect.Value) (string, error) {
+	return string(sq), nil
+}
+
+type templateQueryHolder struct {
+	queryString string
+	pa          ParamAdapter
+	paramOrder  []paramInfo
+}
+
+func (tq templateQueryHolder) finalize(args []reflect.Value) (string, error) {
+	return doFinalize(tq.queryString, tq.paramOrder, tq.pa, args)
+}
+
+func buildFixedQueryAndParamOrder(query string, nameOrderMap map[string]int, funcType reflect.Type, pa ParamAdapter) (queryHolder, []paramInfo, error) {
 	var out bytes.Buffer
 
-	var qps queryParams
+	var paramOrder []paramInfo
 
 	// escapes:
 	// \ (any character), that character literally (meant for escaping : and \)
@@ -107,7 +62,7 @@ func convertToPositionalParameters(query string, paramMap map[string]int, funcTy
 	inEscape := false
 	inVar := false
 	curVar := []rune{}
-	queryKind := simple
+	hasSlice := false
 	for k, v := range query {
 		if inEscape {
 			out.WriteRune(v)
@@ -121,13 +76,13 @@ func convertToPositionalParameters(query string, paramMap map[string]int, funcTy
 			if inVar {
 				if len(curVar) == 0 {
 					//error! must have a something
-					return processedQuery{}, nil, fmt.Errorf("empty variable declaration at position %d", k)
+					return nil, nil, fmt.Errorf("empty variable declaration at position %d", k)
 				}
 				curVarS := string(curVar)
 				id, err := validIdentifier(curVarS)
 				if err != nil {
 					//error, identifier must be valid go identifier with . for path
-					return processedQuery{}, nil, err
+					return nil, nil, err
 				}
 				//it's a valid identifier, but now we need to know if it's a slice or a scalar.
 				//all we have is the name, not the mapping of the name to the position in the in parameters for the function.
@@ -139,7 +94,7 @@ func convertToPositionalParameters(query string, paramMap map[string]int, funcTy
 				//get just the first part of the name, before any .
 				path := strings.SplitN(id, ".", 2)
 				paramName := path[0]
-				if paramPos, ok := paramMap[paramName]; ok {
+				if paramPos, ok := nameOrderMap[paramName]; ok {
 					//if the path has more than one part, make sure that the type of the function parameter is map or struct
 					paramType := funcType.In(paramPos)
 					if len(path) > 1 {
@@ -147,22 +102,22 @@ func convertToPositionalParameters(query string, paramMap map[string]int, funcTy
 						case reflect.Map, reflect.Struct:
 							//do nothing
 						default:
-							return processedQuery{}, nil, fmt.Errorf("query Parameter %s has a path, but the incoming parameter is not a map or a struct", paramName)
+							return nil, nil, fmt.Errorf("query Parameter %s has a path, but the incoming parameter is not a map or a struct", paramName)
 						}
 					}
 					pathType, err := mapper.ExtractType(paramType, path)
 					if err != nil {
-						return processedQuery{}, nil, err
+						return nil, nil, err
 					}
 					out.WriteString(addSlice(id))
 					isSlice := false
 					if pathType != nil && pathType.Kind() == reflect.Slice {
-						queryKind = templ
+						hasSlice = true
 						isSlice = true
 					}
-					qps = append(qps, paramInfo{id, paramPos, isSlice})
+					paramOrder = append(paramOrder, paramInfo{id, paramPos, isSlice})
 				} else {
-					return processedQuery{}, nil, fmt.Errorf("query Parameter %s cannot be found in the incoming parameters", paramName)
+					return nil, nil, fmt.Errorf("query Parameter %s cannot be found in the incoming parameters", paramName)
 				}
 
 				inVar = false
@@ -179,29 +134,49 @@ func convertToPositionalParameters(query string, paramMap map[string]int, funcTy
 		}
 	}
 	if inVar {
-		return processedQuery{}, nil, fmt.Errorf("missing a closing : somewhere: %s", query)
+		return nil, nil, fmt.Errorf("missing a closing : somewhere: %s", query)
 	}
 
 	queryString := out.String()
+
+	if !hasSlice {
+		//no slices, so last param is never going to be referenced in doFinalize
+		queryString, err := doFinalize(queryString, paramOrder, pa, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		return simpleQueryHolder(queryString), paramOrder, nil
+	}
+	return templateQueryHolder{queryString: queryString, pa: pa, paramOrder: paramOrder}, paramOrder, nil
+}
+
+func doFinalize(queryString string, paramOrder []paramInfo, pa ParamAdapter, args []reflect.Value) (string, error) {
 	temp, err := template.New("query").Funcs(template.FuncMap{"join": joinFactory(1, pa)}).Parse(queryString)
 	if err != nil {
-		return processedQuery{}, nil, err
+		return "", err
 	}
-	if queryKind == simple {
-		//can evaluate the template now, with 1 for the length for each item
-		m := map[string]interface{}{}
-		for _, v := range qps {
-			m[fixNameForTemplate(v.name)] = 1
+
+	//can evaluate the template now, with 1 for the length for each item
+	sliceMap := map[string]interface{}{}
+	for _, v := range paramOrder {
+		if v.isSlice {
+			var val interface{}
+			val, err = mapper.Extract(args[v.posInParams].Interface(), strings.Split(v.name, "."))
+			if err != nil {
+				break
+			}
+			valV := reflect.ValueOf(val)
+			sliceMap[fixNameForTemplate(v.name)] = valV.Len()
+		} else {
+			sliceMap[fixNameForTemplate(v.name)] = 1
 		}
-		var b bytes.Buffer
-		err = temp.Execute(&b, m)
-		if err != nil {
-			return processedQuery{}, nil, err
-		}
-		queryString = b.String()
-		temp = nil
 	}
-	return processedQuery{kind: queryKind, simple: queryString, temp: temp}, qps, nil
+	var b bytes.Buffer
+	err = temp.Execute(&b, sliceMap)
+	if err != nil {
+		return "", err
+	}
+	return b.String(), err
 }
 
 type paramInfo struct {
@@ -210,15 +185,11 @@ type paramInfo struct {
 	isSlice     bool
 }
 
-// key == position in query
-// value == name to evaluate & position in function in parameters
-type queryParams []paramInfo
-
 const (
 	sliceTemplate = `{{.%s | join}}`
 )
 
-func joinFactory(startPos int, paramAdapter api.ParamAdapter) func(int) string {
+func joinFactory(startPos int, paramAdapter ParamAdapter) func(int) string {
 	return func(total int) string {
 		var b bytes.Buffer
 		for i := 0; i < total; i++ {

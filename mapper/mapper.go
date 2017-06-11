@@ -5,55 +5,10 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"github.com/jonbodner/proteus/api"
 	"reflect"
 	"strings"
 	"unsafe"
 )
-
-// Map takes the next value from Rows and uses it to create a new instance of the specified type
-// If the type is a primitive and there are more than 1 values in the current row, only the first value is used.
-// If the type is a map of string to interface, then the column names are the keys in the map and the values are assigned
-// If the type is a struct that has prop tags on its fields, then any matching tags will be associated with values with the associate columns
-// Any non-associated values will be set to the zero value
-// If any columns cannot be assigned to any types, then an error is returned
-// If next returns false, then nil is returned for both the interface and the error
-// If an error occurs while processing the current row, nil is returned for the interface and the error is non-nil
-// If a value is successfuly extracted from the current row, the instance is returned and the error is nil
-func Map(rows api.Rows, builder Builder) (interface{}, error) {
-	//fmt.Println(sType)
-	if rows == nil {
-		return nil, errors.New("rows must be non-nil")
-	}
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	}
-
-	cols, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-
-	if len(cols) == 0 {
-		return nil, errors.New("No values returned from query")
-	}
-
-	vals := make([]interface{}, len(cols))
-	for i := 0; i < len(vals); i++ {
-		vals[i] = new(interface{})
-	}
-
-	err = rows.Scan(vals...)
-	if err != nil {
-		log.Warnln("scan failed")
-		return nil, err
-	}
-
-	return builder(cols, vals)
-}
 
 func ptrConverter(isPtr bool, sType reflect.Type, out reflect.Value, err error) (interface{}, error) {
 	if err != nil {

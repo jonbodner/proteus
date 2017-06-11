@@ -7,8 +7,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/jonbodner/proteus"
-	"github.com/jonbodner/proteus/adapter"
-	"github.com/jonbodner/proteus/api"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -28,10 +26,10 @@ func (p Product2) String() string {
 }
 
 type Product2Dao struct {
-	FindByID          func(e api.Querier, id int) (Product2, error)                           `proq:"select * from Product where id = :id:" prop:"id"`
-	Update            func(e api.Executor, p Product2) (int64, error)                         `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCost func(e api.Querier, name string, cost float64) ([]Product2, error)      `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
-	Insert            func(e api.Executor, id int, name string, cost *float64) (int64, error) `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
+	FindByID          func(e proteus.Querier, id int) (Product2, error)                           `proq:"select * from Product where id = :id:" prop:"id"`
+	Update            func(e proteus.Executor, p Product2) (int64, error)                         `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCost func(e proteus.Querier, name string, cost float64) ([]Product2, error)      `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	Insert            func(e proteus.Executor, id int, name string, cost *float64) (int64, error) `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
 }
 
 var product2DaoSqlite = Product2Dao{}
@@ -39,7 +37,7 @@ var product2DaoSqlite = Product2Dao{}
 func init() {
 	log.SetLevel(log.DebugLevel)
 	log.SetFormatter(&log.TextFormatter{})
-	err := proteus.Build(&product2DaoSqlite, adapter.Sqlite)
+	err := proteus.Build(&product2DaoSqlite, proteus.Sqlite)
 	if err != nil {
 		panic(err)
 	}
@@ -59,7 +57,7 @@ func run(setupDb setupDb, productDao Product2Dao) {
 		panic(err)
 	}
 
-	pExec := adapter.Sql(exec)
+	pExec := proteus.Wrap(exec)
 
 	log.Debug(productDao.FindByID(pExec, 10))
 	cost := sql.NullFloat64{
@@ -102,7 +100,7 @@ func populate(db *sql.DB, productDao Product2Dao) {
 		log.Fatal(err)
 	}
 
-	pExec := adapter.Sql(tx)
+	pExec := proteus.Wrap(tx)
 
 	for i := 0; i < 100; i++ {
 		var cost *float64

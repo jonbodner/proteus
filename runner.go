@@ -1,108 +1,83 @@
 package proteus
 
 import (
-	"bytes"
 	"errors"
 	"reflect"
 	"strings"
 
 	"database/sql"
+
 	log "github.com/Sirupsen/logrus"
-	"github.com/jonbodner/proteus/api"
 	"github.com/jonbodner/proteus/mapper"
 )
 
-func getExecAndQArgs(args []reflect.Value, qps queryParams) (api.Executor, []interface{}, error) {
-	//pull out that first input parameter as an Executor
-	exec := args[0].Interface().(api.Executor)
-	qArgs, err := getQArgs(args, qps)
-
-	return exec, qArgs, err
-}
-
-func getQuerierAndQArgs(args []reflect.Value, qps queryParams) (api.Querier, []interface{}, error) {
-	//pull out that first input parameter as an Querier
-	exec := args[0].Interface().(api.Querier)
-	qArgs, err := getQArgs(args, qps)
-
-	return exec, qArgs, err
-}
-
-func getQArgs(args []reflect.Value, qps queryParams) ([]interface{}, error) {
+func buildQueryArgs(funcArgs []reflect.Value, paramOrder []paramInfo) ([]interface{}, error) {
 
 	//walk through the rest of the input parameters and build a slice for args
-	var qArgs []interface{}
-	for _, v := range qps {
-		val, err := mapper.Extract(args[v.posInParams].Interface(), strings.Split(v.name, "."))
+	var out []interface{}
+	for _, v := range paramOrder {
+		val, err := mapper.Extract(funcArgs[v.posInParams].Interface(), strings.Split(v.name, "."))
 		if err != nil {
 			return nil, err
 		}
 		if v.isSlice {
-			valV := reflect.ValueOf(val)
-			for i := 0; i < valV.Len(); i++ {
-				qArgs = append(qArgs, valV.Index(i).Interface())
+			curSlice := reflect.ValueOf(val)
+			for i := 0; i < curSlice.Len(); i++ {
+				out = append(out, curSlice.Index(i).Interface())
 			}
 		} else {
-			qArgs = append(qArgs, val)
+			out = append(out, val)
 		}
 	}
 
-	return qArgs, nil
+	return out, nil
 }
 
-func finalizeQuery(positionalQuery processedQuery, qps queryParams, args []reflect.Value) (string, error) {
-	queryToRun := positionalQuery.simple
-	var err error
-	if positionalQuery.kind == templ {
-		log.Debugf("Processing template query with qps %#v\n", qps)
-		var b bytes.Buffer
-		sliceMap := map[string]interface{}{}
-		for _, v := range qps {
-			if v.isSlice {
-				var val interface{}
-				val, err = mapper.Extract(args[v.posInParams].Interface(), strings.Split(v.name, "."))
-				if err != nil {
-					break
-				}
-				valV := reflect.ValueOf(val)
-				sliceMap[fixNameForTemplate(v.name)] = valV.Len()
-			} else {
-				sliceMap[fixNameForTemplate(v.name)] = 1
-			}
-		}
-		if err == nil {
-			err = positionalQuery.temp.Execute(&b, sliceMap)
-		}
-		if err == nil {
-			queryToRun = b.String()
-		}
-	}
-	return queryToRun, err
-}
+var (
+	errType = reflect.TypeOf((*error)(nil)).Elem()
+	errZero = reflect.Zero(errType)
+	zero    = reflect.ValueOf(int64(0))
+)
 
-func buildExec(funcType reflect.Type, qps queryParams, positionalQuery processedQuery) (func(args []reflect.Value) []reflect.Value, error) {
-	numOut := funcType.NumOut()
+func makeExecutorImplementation(funcType reflect.Type, query queryHolder, paramOrder []paramInfo) func(args []reflect.Value) []reflect.Value {
+	buildRetVals := makeExecutorReturnVals(funcType)
 	return func(args []reflect.Value) []reflect.Value {
-		exec, qArgs, err := getExecAndQArgs(args, qps)
+
+		executor := args[0].Interface().(Executor)
+
 		var result sql.Result
-		if err == nil {
-			//call executor.Exec with query and parameters
-			var queryToRun string
-			queryToRun, err = finalizeQuery(positionalQuery, qps, args)
-			if err == nil {
-				log.Debugln("calling", queryToRun, "with params", qArgs)
-				result, err = exec.Exec(queryToRun, qArgs...)
-			}
+		finalQuery, err := query.finalize(args)
+
+		if err != nil {
+			return buildRetVals(result, err)
 		}
 
-		//handle the 0,1,2 out parameter cases
-		if numOut == 0 {
+		queryArgs, err := buildQueryArgs(args, paramOrder)
+
+		if err != nil {
+			return buildRetVals(result, err)
+		}
+
+		log.Debugln("calling", finalQuery, "with params", queryArgs)
+		result, err = executor.Exec(finalQuery, queryArgs...)
+
+		return buildRetVals(result, err)
+	}
+}
+
+func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []reflect.Value {
+	numOut := funcType.NumOut()
+
+	//handle the 0,1,2 out parameter cases
+	if numOut == 0 {
+		return func(sql.Result, error) []reflect.Value {
 			return []reflect.Value{}
 		}
+	}
 
-		zero := reflect.ValueOf(int64(0))
-		sType := funcType.Out(0)
-		if numOut == 1 {
+	sType := funcType.Out(0)
+	if numOut == 1 {
+		return func(result sql.Result, err error) []reflect.Value {
 			if err != nil {
 				return []reflect.Value{zero}
 			}
@@ -112,7 +87,9 @@ func buildExec(funcType reflect.Type, qps queryParams, positionalQuery processed
 			}
 			return []reflect.Value{reflect.ValueOf(val).Convert(sType)}
 		}
-		if numOut == 2 {
+	}
+	if numOut == 2 {
+		return func(result sql.Result, err error) []reflect.Value {
 			eType := funcType.Out(1)
 			if err != nil {
 				return []reflect.Value{zero, reflect.ValueOf(err).Convert(eType)}
@@ -123,11 +100,15 @@ func buildExec(funcType reflect.Type, qps queryParams, positionalQuery processed
 			}
 			return []reflect.Value{reflect.ValueOf(val).Convert(sType), errZero}
 		}
+	}
+
+	// impossible case since validation should happen first, but be safe
+	return func(result sql.Result, err error) []reflect.Value {
 		return []reflect.Value{zero, reflect.ValueOf(errors.New("should never get here!"))}
-	}, nil
+	}
 }
 
-func buildQuery(funcType reflect.Type, qps queryParams, positionalQuery processedQuery) (func(args []reflect.Value) []reflect.Value, error) {
+func makeQuerierImplementation(funcType reflect.Type, query queryHolder, paramOrder []paramInfo) (func(args []reflect.Value) []reflect.Value, error) {
 	numOut := funcType.NumOut()
 	var builder mapper.Builder
 	var err error
@@ -137,45 +118,61 @@ func buildQuery(funcType reflect.Type, qps queryParams, positionalQuery processe
 			return nil, err
 		}
 	}
+	buildRetVals := makeQuerierReturnVals(funcType, builder)
 	return func(args []reflect.Value) []reflect.Value {
-		exec, qArgs, err := getQuerierAndQArgs(args, qps)
+		querier := args[0].Interface().(Querier)
 
-		var rows api.Rows
-		//call executor.Query with query and parameters
-		if err == nil {
-			var queryToRun string
-			queryToRun, err = finalizeQuery(positionalQuery, qps, args)
-			if err == nil {
-				log.Debugln("calling", queryToRun, "with params", qArgs)
-				rows, err = exec.Query(queryToRun, qArgs...)
-			}
+		var rows Rows
+		finalQuery, err := query.finalize(args)
+		if err != nil {
+			return buildRetVals(rows, err)
 		}
 
-		//handle the 0,1,2 out parameter cases
-		if numOut == 0 {
+		queryArgs, err := buildQueryArgs(args, paramOrder)
+		if err != nil {
+			return buildRetVals(rows, err)
+		}
+
+		log.Debugln("calling", finalQuery, "with params", queryArgs)
+		rows, err = querier.Query(finalQuery, queryArgs...)
+
+		return buildRetVals(rows, err)
+	}, nil
+}
+
+func makeQuerierReturnVals(funcType reflect.Type, builder mapper.Builder) func(Rows, error) []reflect.Value {
+	numOut := funcType.NumOut()
+
+	//handle the 0,1,2 out parameter cases
+	if numOut == 0 {
+		return func(Rows, error) []reflect.Value {
 			return []reflect.Value{}
 		}
+	}
 
-		sType := funcType.Out(0)
-		zero := reflect.Zero(sType)
-		if numOut == 1 {
+	sType := funcType.Out(0)
+	qZero := reflect.Zero(sType)
+	if numOut == 1 {
+		return func(rows Rows, err error) []reflect.Value {
 			if err != nil {
-				return []reflect.Value{zero}
+				return []reflect.Value{qZero}
 			}
 			// handle mapping
 			val, err := handleMapping(sType, rows, builder)
 			if err != nil {
-				return []reflect.Value{zero}
+				return []reflect.Value{qZero}
 			}
 			if val == nil {
-				return []reflect.Value{reflect.Zero(sType)}
+				return []reflect.Value{qZero}
 			}
 			return []reflect.Value{reflect.ValueOf(val).Convert(sType)}
 		}
-		if numOut == 2 {
+	}
+	if numOut == 2 {
+		return func(rows Rows, err error) []reflect.Value {
 			eType := funcType.Out(1)
 			if err != nil {
-				return []reflect.Value{zero, reflect.ValueOf(err).Convert(eType)}
+				return []reflect.Value{qZero, reflect.ValueOf(err).Convert(eType)}
 			}
 			// handle mapping
 			val, err := handleMapping(sType, rows, builder)
@@ -186,24 +183,26 @@ func buildQuery(funcType reflect.Type, qps queryParams, positionalQuery processe
 				eVal = reflect.ValueOf(err).Convert(eType)
 			}
 			if val == nil {
-				return []reflect.Value{reflect.Zero(sType), eVal}
+				return []reflect.Value{qZero, eVal}
 			}
 			return []reflect.Value{reflect.ValueOf(val).Convert(sType), eVal}
 		}
-		return []reflect.Value{zero, reflect.ValueOf(errors.New("should never get here!"))}
-	}, nil
+	}
+
+	// impossible case since validation should happen first, but be safe
+	return func(Rows, error) []reflect.Value {
+		return []reflect.Value{qZero, reflect.ValueOf(errors.New("should never get here!"))}
+	}
 }
 
-var errZero = reflect.Zero(reflect.TypeOf((*error)(nil)).Elem())
-
-func handleMapping(sType reflect.Type, rows api.Rows, builder mapper.Builder) (interface{}, error) {
+func handleMapping(sType reflect.Type, rows Rows, builder mapper.Builder) (interface{}, error) {
 	var val interface{}
 	var err error
 	if sType.Kind() == reflect.Slice {
 		s := reflect.MakeSlice(sType, 0, 0)
 		var result interface{}
 		for {
-			result, err = mapper.Map(rows, builder)
+			result, err = mapRows(rows, builder)
 			if result == nil {
 				break
 			}
@@ -211,8 +210,52 @@ func handleMapping(sType reflect.Type, rows api.Rows, builder mapper.Builder) (i
 		}
 		val = s.Interface()
 	} else {
-		val, err = mapper.Map(rows, builder)
+		val, err = mapRows(rows, builder)
 	}
 	rows.Close()
 	return val, err
+}
+
+// Map takes the next value from Rows and uses it to create a new instance of the specified type
+// If the type is a primitive and there are more than 1 values in the current row, only the first value is used.
+// If the type is a map of string to interface, then the column names are the keys in the map and the values are assigned
+// If the type is a struct that has prop tags on its fields, then any matching tags will be associated with values with the associate columns
+// Any non-associated values will be set to the zero value
+// If any columns cannot be assigned to any types, then an error is returned
+// If next returns false, then nil is returned for both the interface and the error
+// If an error occurs while processing the current row, nil is returned for the interface and the error is non-nil
+// If a value is successfuly extracted from the current row, the instance is returned and the error is nil
+func mapRows(rows Rows, builder mapper.Builder) (interface{}, error) {
+	//fmt.Println(sType)
+	if rows == nil {
+		return nil, errors.New("rows must be non-nil")
+	}
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+
+	cols, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(cols) == 0 {
+		return nil, errors.New("No values returned from query")
+	}
+
+	vals := make([]interface{}, len(cols))
+	for i := 0; i < len(vals); i++ {
+		vals[i] = new(interface{})
+	}
+
+	err = rows.Scan(vals...)
+	if err != nil {
+		log.Warnln("scan failed")
+		return nil, err
+	}
+
+	return builder(cols, vals)
 }

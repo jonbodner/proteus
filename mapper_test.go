@@ -1,21 +1,23 @@
-package mapper
+package proteus
 
 import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/jonbodner/proteus/cmp"
-	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/jonbodner/proteus/cmp"
+	"github.com/jonbodner/proteus/mapper"
+	_ "github.com/mattn/go-sqlite3"
 )
 
-func TestBuild(t *testing.T) {
+func TestMapRows(t *testing.T) {
 	//todo
-	b, _ := MakeBuilder(reflect.TypeOf(10))
-	v, err := Map(nil, b)
+	b, _ := mapper.MakeBuilder(reflect.TypeOf(10))
+	v, err := mapRows(nil, b)
 	if v != nil {
 		t.Error("Expected nil when passing in nil rows")
 	}
@@ -85,9 +87,9 @@ func TestBuildSqliteStruct(t *testing.T) {
 	}
 	defer rows.Close()
 	pType := reflect.TypeOf((*Product)(nil)).Elem()
-	b, _ := MakeBuilder(pType)
+	b, _ := mapper.MakeBuilder(pType)
 	for i := 0; i < 5; i++ {
-		prod, err := Map(rows, b)
+		prod, err := mapRows(rows, b)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -120,7 +122,7 @@ func TestBuildSqliteStruct(t *testing.T) {
 	if rows.Next() {
 		t.Error("Expected no more rows, but had some")
 	}
-	prod, err := Map(rows, b)
+	prod, err := mapRows(rows, b)
 	if prod != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
@@ -142,8 +144,8 @@ func TestBuildSqlitePrimitive(t *testing.T) {
 		log.Fatal(err)
 	}
 	sType := reflect.TypeOf("")
-	b, _ := MakeBuilder(sType)
-	s, err := Map(rows, b)
+	b, _ := mapper.MakeBuilder(sType)
+	s, err := mapRows(rows, b)
 	if err != nil {
 		t.Error(err)
 	}
@@ -158,7 +160,7 @@ func TestBuildSqlitePrimitive(t *testing.T) {
 		t.Errorf("Expected %s, got %s", "person4", s2)
 	}
 
-	s, err = Map(rows, b)
+	s, err = mapRows(rows, b)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
@@ -185,8 +187,8 @@ func TestBuildSqlitePrimitiveNilFail(t *testing.T) {
 		log.Fatal(err)
 	}
 	sType := reflect.TypeOf("")
-	b, _ := MakeBuilder(sType)
-	s, err := Map(rows, b)
+	b, _ := mapper.MakeBuilder(sType)
+	s, err := mapRows(rows, b)
 	if err == nil {
 		t.Error("Expected error didn't get one")
 	}
@@ -194,7 +196,7 @@ func TestBuildSqlitePrimitiveNilFail(t *testing.T) {
 		t.Errorf("Expected error message '%s', got '%s'", "Attempting to return nil for non-pointer type string", err.Error())
 	}
 
-	s, err = Map(rows, b)
+	s, err = mapRows(rows, b)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
@@ -221,8 +223,8 @@ func TestBuildSqlitePrimitivePtr(t *testing.T) {
 		log.Fatal(err)
 	}
 	sType := reflect.TypeOf((*string)(nil))
-	b, _ := MakeBuilder(sType)
-	s, err := Map(rows, b)
+	b, _ := mapper.MakeBuilder(sType)
+	s, err := mapRows(rows, b)
 	if err != nil {
 		t.Error(err)
 	}
@@ -238,7 +240,7 @@ func TestBuildSqlitePrimitivePtr(t *testing.T) {
 		}
 	}
 
-	s, err = Map(rows, b)
+	s, err = mapRows(rows, b)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
@@ -265,8 +267,8 @@ func TestBuildSqlitePrimitivePtrNil(t *testing.T) {
 		log.Fatal(err)
 	}
 	sType := reflect.TypeOf((*string)(nil))
-	b, _ := MakeBuilder(sType)
-	s, err := Map(rows, b)
+	b, _ := mapper.MakeBuilder(sType)
+	s, err := mapRows(rows, b)
 	if err != nil {
 		t.Error(err)
 	}
@@ -279,7 +281,7 @@ func TestBuildSqlitePrimitivePtrNil(t *testing.T) {
 		}
 	}
 
-	s, err = Map(rows, b)
+	s, err = mapRows(rows, b)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
@@ -303,9 +305,9 @@ func TestBuildSqliteMap(t *testing.T) {
 	var m map[string]interface{}
 
 	mType := reflect.TypeOf(m)
-	b, _ := MakeBuilder(mType)
+	b, _ := mapper.MakeBuilder(mType)
 	for i := 0; i < 5; i++ {
-		prod, err := Map(rows, b)
+		prod, err := mapRows(rows, b)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -353,7 +355,7 @@ func TestBuildSqliteMap(t *testing.T) {
 	if rows.Next() {
 		t.Error("Expected no more rows, but had some")
 	}
-	prod, err := Map(rows, b)
+	prod, err := mapRows(rows, b)
 	if prod != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}

@@ -6,12 +6,10 @@ import (
 	"os"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/jonbodner/dbtimer"
 	"github.com/jonbodner/proteus"
-	"github.com/jonbodner/proteus/adapter"
-	"github.com/jonbodner/proteus/api"
 	_ "github.com/lib/pq"
 	_ "github.com/mutecomm/go-sqlcipher"
-	"github.com/jonbodner/dbtimer"
 )
 
 type Product struct {
@@ -29,18 +27,18 @@ func (p Product) String() string {
 }
 
 type ProductDao struct {
-	FindByID                      func(e api.Querier, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
-	Update                        func(e api.Executor, p Product) (int64, error)                                   `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCost             func(e api.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
-	FindByIDMap                   func(e api.Querier, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
-	UpdateMap                     func(e api.Executor, p map[string]interface{}) (int64, error)                    `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCostMap          func(e api.Querier, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
-	Insert                        func(e api.Executor, id int, name string, cost *float64) (int64, error)          `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
-	FindByIDSlice                 func(e api.Querier, ids []int) ([]Product, error)                                `proq:"select * from Product where id in (:ids:)" prop:"ids"`
-	FindByIDSliceAndName          func(e api.Querier, ids []int, name string) ([]Product, error)                   `proq:"select * from Product where name = :name: and id in (:ids:)" prop:"ids,name"`
-	FindByIDSliceNameAndCost      func(e api.Querier, ids []int, name string, cost *float64) ([]Product, error)    `proq:"select * from Product where name = :name: and id in (:ids:) and (cost is null or cost = :cost:)" prop:"ids,name,cost"`
-	FindByIDSliceCostAndNameSlice func(e api.Querier, ids []int, names []string, cost *float64) ([]Product, error) `proq:"select * from Product where id in (:ids:) and (cost is null or cost = :cost:) and name in (:names:)" prop:"ids,names,cost"`
-	FindByNameAndCostUnlabeled    func(e api.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
+	FindByID                      func(e proteus.Querier, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
+	Update                        func(e proteus.Executor, p Product) (int64, error)                                   `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCost             func(e proteus.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindByIDMap                   func(e proteus.Querier, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
+	UpdateMap                     func(e proteus.Executor, p map[string]interface{}) (int64, error)                    `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCostMap          func(e proteus.Querier, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	Insert                        func(e proteus.Executor, id int, name string, cost *float64) (int64, error)          `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
+	FindByIDSlice                 func(e proteus.Querier, ids []int) ([]Product, error)                                `proq:"select * from Product where id in (:ids:)" prop:"ids"`
+	FindByIDSliceAndName          func(e proteus.Querier, ids []int, name string) ([]Product, error)                   `proq:"select * from Product where name = :name: and id in (:ids:)" prop:"ids,name"`
+	FindByIDSliceNameAndCost      func(e proteus.Querier, ids []int, name string, cost *float64) ([]Product, error)    `proq:"select * from Product where name = :name: and id in (:ids:) and (cost is null or cost = :cost:)" prop:"ids,name,cost"`
+	FindByIDSliceCostAndNameSlice func(e proteus.Querier, ids []int, names []string, cost *float64) ([]Product, error) `proq:"select * from Product where id in (:ids:) and (cost is null or cost = :cost:) and name in (:names:)" prop:"ids,names,cost"`
+	FindByNameAndCostUnlabeled    func(e proteus.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
 }
 
 var productDaoSqlite = ProductDao{}
@@ -48,16 +46,16 @@ var productDaoPostgres = ProductDao{}
 
 func init() {
 	dbtimer.SetTimerLoggerFunc(func(ti dbtimer.TimerInfo) {
-		fmt.Printf("%s %s %v %v %d\n",ti.Method, ti.Query, ti.Args, ti.Err, ti.End.Sub(ti.Start).Nanoseconds()/1000)
+		fmt.Printf("%s %s %v %v %d\n", ti.Method, ti.Query, ti.Args, ti.Err, ti.End.Sub(ti.Start).Nanoseconds()/1000)
 	})
-	log.SetLevel(log.WarnLevel)
+	log.SetLevel(log.DebugLevel)
 	log.SetFormatter(&log.TextFormatter{})
-	err := proteus.Build(&productDaoPostgres, adapter.Postgres)
+	err := proteus.Build(&productDaoPostgres, proteus.Postgres)
 	if err != nil {
 		panic(err)
 	}
 
-	err = proteus.Build(&productDaoSqlite, adapter.Sqlite)
+	err = proteus.Build(&productDaoSqlite, proteus.Sqlite)
 	if err != nil {
 		panic(err)
 	}
@@ -78,7 +76,7 @@ func run(setupDb setupDb, productDao ProductDao) {
 		panic(err)
 	}
 
-	pExec := adapter.Sql(exec)
+	pExec := proteus.Wrap(exec)
 
 	log.Debug(productDao.FindByID(pExec, 10))
 	cost := new(float64)
@@ -117,7 +115,6 @@ func run(setupDb setupDb, productDao ProductDao) {
 func setupDbPostgres() *sql.DB {
 	//db, err := sql.Open("postgres", "postgres://jon:jon@localhost/jon?sslmode=disable")
 	db, err := sql.Open("timer", "postgres postgres://jon:jon@localhost/jon?sslmode=disable")
-
 
 	if err != nil {
 		log.Fatal(err)
@@ -163,7 +160,7 @@ func populate(db *sql.DB, productDao ProductDao) {
 		log.Fatal(err)
 	}
 
-	pExec := adapter.Sql(tx)
+	pExec := proteus.Wrap(tx)
 
 	for i := 0; i < 100; i++ {
 		var cost *float64

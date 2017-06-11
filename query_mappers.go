@@ -3,11 +3,11 @@ package proteus
 import (
 	"github.com/rickar/props"
 	"os"
-	"github.com/jonbodner/proteus/api"
 )
+
 type MapMapper map[string]string
 
-func(mm MapMapper) Map(name string) string {
+func (mm MapMapper) Map(name string) string {
 	return mm[name]
 }
 
@@ -15,11 +15,11 @@ type propFileMapper struct {
 	properties *props.Properties
 }
 
-func(pm propFileMapper) Map(name string) string {
+func (pm propFileMapper) Map(name string) string {
 	return pm.properties.Get(name)
 }
 
-func PropFileToQueryMapper(name string) (api.QueryMapper, error) {
+func PropFileToQueryMapper(name string) (QueryMapper, error) {
 	file, err := os.Open(name)
 	if err != nil {
 		return nil, err

@@ -1,4 +1,4 @@
-package api
+package proteus
 
 import (
 	"database/sql"

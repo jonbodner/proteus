@@ -3,20 +3,19 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"time"
+
+	log "github.com/Sirupsen/logrus"
 	"github.com/jonbodner/proteus"
-	"github.com/jonbodner/proteus/adapter"
-	"github.com/jonbodner/proteus/api"
 	_ "github.com/mutecomm/go-sqlcipher"
 	"github.com/pkg/profile"
-	log "github.com/Sirupsen/logrus"
-	"time"
-	"os"
 )
 
 func SelectProteus(db *sql.DB) {
 	var productDao BenchProductDao
 
-	err := proteus.Build(&productDao, adapter.Sqlite)
+	err := proteus.Build(&productDao, proteus.Sqlite)
 	if err != nil {
 		panic(err)
 	}
@@ -26,7 +25,7 @@ func SelectProteus(db *sql.DB) {
 	}
 	defer tx.Commit()
 	start := time.Now()
-	pExec := adapter.Sql(tx)
+	pExec := proteus.Wrap(tx)
 	for i := 0; i < 1000; i++ {
 		for j := 0; j < 10; j++ {
 			p, err := productDao.FindById(pExec, j)
@@ -100,8 +99,8 @@ type BenchProduct struct {
 }
 
 type BenchProductDao struct {
-	FindById func(e api.Querier, id int) (BenchProduct, error) `proq:"select id, name, cost from Product where id = :id:" prop:"id"`
-	Insert                        func(e api.Executor, id int, name string, cost *float64) (int64, error)          `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
+	FindById func(e proteus.Querier, id int) (BenchProduct, error)                       `proq:"select id, name, cost from Product where id = :id:" prop:"id"`
+	Insert   func(e proteus.Executor, id int, name string, cost *float64) (int64, error) `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
 }
 
 func main() {
@@ -142,13 +141,13 @@ func setupDbSqlite() *sql.DB {
 
 func populate(db *sql.DB) {
 	productDao := BenchProductDao{}
-	proteus.Build(&productDao, adapter.Sqlite)
+	proteus.Build(&productDao, proteus.Sqlite)
 	tx, err := db.Begin()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	pExec := adapter.Sql(tx)
+	pExec := proteus.Wrap(tx)
 
 	for i := 0; i < 100; i++ {
 		var cost *float64

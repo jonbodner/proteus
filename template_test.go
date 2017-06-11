@@ -5,15 +5,13 @@ import (
 	"fmt"
 	"html/template"
 	"testing"
-
-	"github.com/jonbodner/proteus/adapter"
 )
 
 func TestTemplate(t *testing.T) {
 	tpl := addSlice("vals")
 
 	funcMap := template.FuncMap{
-		"join": joinFactory(1, adapter.Postgres),
+		"join": joinFactory(1, Postgres),
 	}
 
 	tmpl, err := template.New("template_test").Funcs(funcMap).Parse(tpl)

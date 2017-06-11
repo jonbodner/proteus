@@ -2,18 +2,17 @@ package proteus
 
 import (
 	"database/sql"
-	"github.com/jonbodner/proteus"
-	"github.com/jonbodner/proteus/adapter"
-	"github.com/jonbodner/proteus/api"
-	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"testing"
+
+	"github.com/jonbodner/proteus"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func BenchmarkSelectProteus(b *testing.B) {
 	var productDao BenchProductDao
 
-	err := proteus.Build(&productDao, adapter.Sqlite)
+	err := proteus.Build(&productDao, proteus.Sqlite)
 	if err != nil {
 		panic(err)
 	}
@@ -28,7 +27,7 @@ func BenchmarkSelectProteus(b *testing.B) {
 	}
 	defer tx.Commit()
 	b.ResetTimer()
-	pExec := adapter.Sql(tx)
+	pExec := proteus.Wrap(tx)
 	for i := 0; i < b.N; i++ {
 		p, err := productDao.FindById(pExec, 4)
 		if err != nil {
@@ -102,5 +101,5 @@ type BenchProduct struct {
 }
 
 type BenchProductDao struct {
-	FindById func(e api.Executor, id int) (BenchProduct, error) `proq:"select id, name, cost from Product where id = :id:" prop:"id"`
+	FindById func(e proteus.Executor, id int) (BenchProduct, error) `proq:"select id, name, cost from Product where id = :id:" prop:"id"`
 }

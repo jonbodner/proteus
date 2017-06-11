@@ -4,10 +4,9 @@ import (
 	"errors"
 	"reflect"
 
-	log "github.com/Sirupsen/logrus"
-	"github.com/jonbodner/proteus/api"
-	"strings"
 	"fmt"
+	log "github.com/Sirupsen/logrus"
+	"strings"
 )
 
 /*
@@ -49,72 +48,137 @@ If the entity is a primitive, then the first value returned for a row must be of
 */
 
 // Build is the main entry point into Proteus
-func Build(dao interface{}, pa api.ParamAdapter, mappers ...api.QueryMapper) error {
-	t := reflect.TypeOf(dao)
+func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
+	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
-	if t.Kind() != reflect.Ptr {
+	if daoPointerType.Kind() != reflect.Ptr {
 		return errors.New("Not a pointer")
 	}
-	t2 := t.Elem()
+	daoType := daoPointerType.Elem()
 	//if not a struct, error out
-	if t2.Kind() != reflect.Struct {
+	if daoType.Kind() != reflect.Struct {
 		return errors.New("Not a pointer to struct")
 	}
-	svp := reflect.ValueOf(dao)
-	sv := reflect.Indirect(svp)
+	daoPointerValue := reflect.ValueOf(dao)
+	daoValue := reflect.Indirect(daoPointerValue)
 	//for each field in ProductDao that is of type func and has a proteus struct tag, assign it a func
-	for i := 0; i < t2.NumField(); i++ {
-		curField := t2.Field(i)
-		query := curField.Tag.Get("proq")
-		prop := curField.Tag.Get("prop")
-		if curField.Type.Kind() == reflect.Func && query != "" {
-			funcType := curField.Type
-			//validate to make sure that the function matches what we expect
-			isExec, err := validateFunction(funcType)
-			if err != nil {
-				log.Warnln("skipping function", curField.Name, "due to error:", err.Error())
-				continue
-			}
+	for i := 0; i < daoType.NumField(); i++ {
+		curField := daoType.Field(i)
+		query, ok := curField.Tag.Lookup("proq")
+		if curField.Type.Kind() != reflect.Func || !ok {
+			continue
+		}
+		funcType := curField.Type
 
-			paramMap := buildParamMap(prop, funcType.NumIn())
+		//validate to make sure that the function matches what we expect
+		err := validateFunction(funcType)
+		if err != nil {
+			log.Warnln("skipping function", curField.Name, "due to error:", err.Error())
+			continue
+		}
 
-			if strings.HasPrefix(query, "q:") {
-				name := query[2:]
-				found := false
-				for _, v := range mappers {
-					if q := v.Map(name); q != "" {
-						query = q
-						found = true
-						break
-					}
-				}
-				if !found {
-					return fmt.Errorf("skipping function %s because no query could be found for name %s", curField.Name, name)
-				}
-			}
+		paramOrder := curField.Tag.Get("prop")
+		var nameOrderMap map[string]int
+		if len(paramOrder) == 0 {
+			nameOrderMap = buildDummyParameters(funcType.NumIn())
+		} else {
+			nameOrderMap = buildNameOrderMap(paramOrder)
+		}
 
-			positionalQuery, qps, err := convertToPositionalParameters(query, paramMap, funcType, pa)
-			if err != nil {
-				return err
-			}
+		//check to see if the query is in a QueryMapper
+		query, err = lookupQuery(query, mappers)
+		if err != nil {
+			log.Warnln("skipping function", curField.Name, "due to error:", err.Error())
+			continue
+		}
 
-			var toFunc func(args []reflect.Value) []reflect.Value
+		implementation, err := makeImplementation(funcType, query, paramAdapter, nameOrderMap)
+		if err != nil {
+			log.Warnln("skipping function", curField.Name, "due to error:", err.Error())
+			continue
+		}
+		fieldValue := daoValue.Field(i)
+		fieldValue.Set(reflect.MakeFunc(funcType, implementation))
+	}
+	return nil
+}
 
-			if isExec {
-				toFunc, err = buildExec(funcType, qps, positionalQuery)
-			} else {
-				toFunc, err = buildQuery(funcType, qps, positionalQuery)
-			}
+var (
+	exType = reflect.TypeOf((*Executor)(nil)).Elem()
+	qType  = reflect.TypeOf((*Querier)(nil)).Elem()
+)
 
-			if err != nil {
-				log.Warnln("skipping function", curField.Name, "due to error:", err.Error())
-				continue
-			}
-			fv := sv.FieldByName(curField.Name)
-			fv.Set(reflect.MakeFunc(funcType, toFunc))
+func validateFunction(funcType reflect.Type) error {
+	//first parameter is Executor
+	if funcType.NumIn() == 0 {
+		return errors.New("need to supply an Executor or Querier parameter")
+	}
+	var isExec bool
+	switch fType := funcType.In(0); {
+	case fType.Implements(exType):
+		isExec = true
+	case fType.Implements(qType):
+		//do nothing isExec is false
+	default:
+		return errors.New("first parameter must be of type Executor or Querier")
+	}
+	//no in parameter can be a channel
+	for i := 1; i < funcType.NumIn(); i++ {
+		if funcType.In(i).Kind() == reflect.Chan {
+			return errors.New("no input parameter can be a channel")
+		}
+	}
+
+	//has 0, 1, or 2 return values
+	if funcType.NumOut() > 2 {
+		return errors.New("must return 0, 1, or 2 values")
+	}
+
+	//if 2 return values, second is error
+	if funcType.NumOut() == 2 {
+		errType := reflect.TypeOf((*error)(nil)).Elem()
+		if !funcType.Out(1).Implements(errType) {
+			return errors.New("2nd output parameter must be of type error")
+		}
+	}
+
+	//if 1 or 2, 1st param is not a channel (handle map, I guess)
+	if funcType.NumOut() > 0 {
+		if funcType.Out(0).Kind() == reflect.Chan {
+			return errors.New("1st output parameter cannot be a channel")
+		}
+		if isExec && funcType.Out(0).Kind() != reflect.Int64 {
+			return errors.New("the 1st output parameter of an Executor must be int64")
 		}
 	}
 	return nil
 }
 
-type funcBuilder func(reflect.Type, queryParams, processedQuery) (func([]reflect.Value) []reflect.Value, error)
+func makeImplementation(funcType reflect.Type, query string, paramAdapter ParamAdapter, nameOrderMap map[string]int) (func([]reflect.Value) []reflect.Value, error) {
+	fixedQuery, paramOrder, err := buildFixedQueryAndParamOrder(query, nameOrderMap, funcType, paramAdapter)
+	if err != nil {
+		return nil, err
+	}
+
+	switch fType := funcType.In(0); {
+	case fType.Implements(exType):
+		return makeExecutorImplementation(funcType, fixedQuery, paramOrder), nil
+	case fType.Implements(qType):
+		return makeQuerierImplementation(funcType, fixedQuery, paramOrder)
+	}
+	//this should impossible, since we already validated that the first parameter is either an executor or a querier
+	return nil, errors.New("first parameter must be of type Executor or Querier")
+}
+
+func lookupQuery(query string, mappers []QueryMapper) (string, error) {
+	if !strings.HasPrefix(query, "q:") {
+		return query, nil
+	}
+	name := query[2:]
+	for _, v := range mappers {
+		if q := v.Map(name); q != "" {
+			return q, nil
+		}
+	}
+	return "", fmt.Errorf("no query found for name %s", name)
+}

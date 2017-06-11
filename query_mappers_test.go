@@ -1,14 +1,11 @@
 package proteus
 
 import (
-	"testing"
-	"github.com/jonbodner/proteus/api"
-	"github.com/jonbodner/proteus/adapter"
 	"database/sql"
-	"fmt"
 	"errors"
+	"fmt"
+	"testing"
 )
-
 
 type NoErrType string
 
@@ -16,13 +13,13 @@ func (NoErrType) Error() string {
 	return "NOERR"
 }
 
-type DummyDB struct{
-	pos int
+type DummyDB struct {
+	pos     int
 	Queries []string
-	Args [][]interface{}
+	Args    [][]interface{}
 }
 
-func (dd *DummyDB) Query(query string, args ...interface{}) (api.Rows, error) {
+func (dd *DummyDB) Query(query string, args ...interface{}) (Rows, error) {
 	return nil, dd.checkExpectedData(query, args...)
 }
 
@@ -31,7 +28,7 @@ func (dd *DummyDB) Exec(query string, args ...interface{}) (sql.Result, error) {
 }
 
 func (dd *DummyDB) checkExpectedData(query string, args ...interface{}) error {
-	if dd.pos >= len(dd.Queries) || dd.pos >=len(dd.Args) {
+	if dd.pos >= len(dd.Queries) || dd.pos >= len(dd.Args) {
 		return fmt.Errorf("Expected at least %d queries and args, only have %d queries and %d args", dd.pos, len(dd.Queries), len(dd.Args))
 	}
 	var msg string
@@ -71,28 +68,28 @@ func TestPropMapper(t *testing.T) {
 	runMapper(m, t)
 }
 
-func runMapper(m api.QueryMapper, t *testing.T) {
+func runMapper(m QueryMapper, t *testing.T) {
 
 	type f struct {
 		Id string
-		X string
+		X  string
 	}
 	type s struct {
-		GetF func(e api.Querier, id string) (f, error) `proq:"q:q1" prop:"id"`
-		Update func(e api.Executor, id string, x string) (int64, error) `proq:"q:q2" prop:"id,x"`
+		GetF   func(e Querier, id string) (f, error)                `proq:"q:q1" prop:"id"`
+		Update func(e Executor, id string, x string) (int64, error) `proq:"q:q2" prop:"id,x"`
 	}
 	sImpl := s{}
-	err := Build(&sImpl, adapter.Sqlite, m)
+	err := Build(&sImpl, Sqlite, m)
 	if err != nil {
 		t.Error("error while building", err)
 	}
 
-	dummyDB := &DummyDB {
-		Queries: []string {
+	dummyDB := &DummyDB{
+		Queries: []string{
 			"select * from foo where id = ?",
 			"update foo set x=? where id = ?",
 		},
-		Args: [][]interface{} {
+		Args: [][]interface{}{
 			[]interface{}{"1"},
 			[]interface{}{"Hello", "2"},
 		},
