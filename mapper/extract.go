@@ -5,7 +5,7 @@ import (
 	"reflect"
 
 	"database/sql/driver"
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 func ExtractType(curType reflect.Type, path []string) (reflect.Type, error) {
