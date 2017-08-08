@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/jonbodner/proteus"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"

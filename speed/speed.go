@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/jonbodner/proteus"
 	_ "github.com/mutecomm/go-sqlcipher"
 	"github.com/pkg/profile"
