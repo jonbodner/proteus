@@ -7,7 +7,7 @@ import (
 )
 
 type CreateProductDao struct {
-	Insert func(e Executor, id int, name string, cost float64) (int64, error) `proe:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
+	Insert func(e Executor, id int, name string, cost float64) (int64, error) `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
 }
 
 func Example_create() {

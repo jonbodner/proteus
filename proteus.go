@@ -11,8 +11,9 @@ import (
 
 /*
 struct tags:
-proq - Query run by Executor.Query. Returns single entity or list of entities
-proe - Query run by Executor.Exec. Returns new id (if sql.Result has a non-zero value for LastInsertId) or number of rows changed
+proq - SQL code to execute
+	If the first parameter is an Executor, returns new id (if sql.Result has a non-zero value for LastInsertId) or number of rows changed.
+	If the first parameter is a Querier, returns single entity or list of entities.
 prop - The parameter names. Should be in order for the function parameters (skipping over the first Executor parameter)
 prof - The fields on the dto that are mapped to select parameters in a query
 next:
