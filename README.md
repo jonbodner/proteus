@@ -191,7 +191,7 @@ the functionality provided by the struct, you can do something like this:
 ```go
 type ProductDaoS struct {
 	FindById             func(e proteus.Executor, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
-	Update               func(e proteus.Executor, p Product) (int64, error)                                    `proe:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	Update               func(e proteus.Executor, p Product) (int64, error)                                    `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
 	FindByNameAndCost    func(e proteus.Executor, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
 }
 
