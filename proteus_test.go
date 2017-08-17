@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jonbodner/proteus/cmp"
+	"database/sql"
 )
 
 func TestValidIdentifier(t *testing.T) {
@@ -226,5 +227,57 @@ func TestBuild(t *testing.T) {
 		if err := Build(tt.args.dao, tt.args.pa); (err != nil) != tt.wantErr {
 			t.Errorf("%q. Build() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 		}
+	}
+}
+
+func TestNilScanner(t *testing.T) {
+	type ScannerProduct struct {
+		Id        int            `prof:"id"`
+		Name      sql.NullString `prof:"name"`
+		NullField sql.NullString `prof:"null_field"`
+	}
+
+	type ScannerProductDao struct {
+		Insert   func(e Executor, p ScannerProduct) (int64, error) `proq:"insert into Product(name) values(:p.Name:)" prop:"p"`
+		FindById func(e Querier, id int64) (ScannerProduct, error) `proq:"select * from Product where id = :id:" prop:"id"`
+	}
+
+	productDao := ScannerProductDao{}
+	err := Build(&productDao, Sqlite)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exec, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gExec := Wrap(exec)
+
+	p := ScannerProduct{
+		Name: sql.NullString{String: "hi", Valid: true},
+	}
+
+	rowId, err := productDao.Insert(gExec, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roundTrip, err := productDao.FindById(gExec, rowId)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if roundTrip.Id != 1 || roundTrip.Name.String != "hi" || roundTrip.Name.Valid != true || roundTrip.NullField.String != "" || roundTrip.NullField.Valid != false {
+		t.Errorf("Expected {1 {hi true} { false}}, got %v", roundTrip)
 	}
 }

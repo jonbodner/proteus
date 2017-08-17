@@ -4,10 +4,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"reflect"
 	"strings"
 	"unsafe"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func ptrConverter(isPtr bool, sType reflect.Type, out reflect.Value, err error) (interface{}, error) {
@@ -140,17 +141,16 @@ func buildStruct(sType reflect.Type, cols []string, vals []interface{}, colField
 					return out, fmt.Errorf("Unable to assign pointer to value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name, sf.fieldType)
 				}
 			} else {
-				if rv.Elem().IsNil() {
-					log.Warnln("Attempting to assign a nil to a non-pointer field")
-					return out, fmt.Errorf("Unable to assign nil value to non-pointer struct field %s of type %v", sf.name, sf.fieldType)
-				}
 				if reflect.PtrTo(sf.fieldType).Implements(scannerType) {
 					toScan := (reflect.New(sf.fieldType).Interface()).(sql.Scanner)
-					err := toScan.Scan(rv.Elem().Elem().Interface())
+					err := toScan.Scan(rv.Elem().Interface())
 					if err != nil {
 						return out, err
 					}
 					out.Field(sf.pos).Set(reflect.ValueOf(toScan).Elem())
+				} else if rv.Elem().IsNil() {
+					log.Warnln("Attempting to assign a nil to a non-pointer field")
+					return out, fmt.Errorf("Unable to assign nil value to non-pointer struct field %s of type %v", sf.name, sf.fieldType)
 				} else if rv.Elem().Elem().Type().ConvertibleTo(sf.fieldType) {
 					out.Field(sf.pos).Set(rv.Elem().Elem().Convert(sf.fieldType))
 				} else {
