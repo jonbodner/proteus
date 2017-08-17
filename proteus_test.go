@@ -8,6 +8,7 @@ import (
 
 	"github.com/jonbodner/proteus/cmp"
 	"database/sql"
+	"os"
 )
 
 func TestValidIdentifier(t *testing.T) {
@@ -231,6 +232,8 @@ func TestBuild(t *testing.T) {
 }
 
 func TestNilScanner(t *testing.T) {
+	os.Remove("./proteus_test.db")
+
 	type ScannerProduct struct {
 		Id        int            `prof:"id"`
 		Name      sql.NullString `prof:"name"`
