@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/jonbodner/dbtimer"
 	"github.com/jonbodner/proteus"
 	_ "github.com/lib/pq"
 	_ "github.com/mutecomm/go-sqlcipher"
+	log "github.com/sirupsen/logrus"
 )
 
 type Product struct {

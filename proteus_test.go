@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/jonbodner/proteus/cmp"
 	"database/sql"
+	"github.com/jonbodner/proteus/cmp"
 	"os"
 )
 

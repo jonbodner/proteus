@@ -9,8 +9,8 @@ import (
 	"strings"
 	"text/template"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/jonbodner/proteus/mapper"
+	log "github.com/sirupsen/logrus"
 )
 
 func buildNameOrderMap(paramOrder string) map[string]int {
