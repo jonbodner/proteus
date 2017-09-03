@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/jonbodner/proteus"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mutecomm/go-sqlcipher"
 )
 
 func BenchmarkSelectProteus(b *testing.B) {
