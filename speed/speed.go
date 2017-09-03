@@ -6,10 +6,10 @@ import (
 	"os"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/jonbodner/proteus"
 	_ "github.com/mutecomm/go-sqlcipher"
 	"github.com/pkg/profile"
+	log "github.com/sirupsen/logrus"
 )
 
 func SelectProteus(db *sql.DB) {

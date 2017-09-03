@@ -11,7 +11,7 @@ import (
 
 	"github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/mapper"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mutecomm/go-sqlcipher"
 )
 
 func TestMapRows(t *testing.T) {

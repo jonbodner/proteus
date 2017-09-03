@@ -5,8 +5,9 @@ import (
 	"reflect"
 
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 /*
@@ -65,6 +66,19 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 	//for each field in ProductDao that is of type func and has a proteus struct tag, assign it a func
 	for i := 0; i < daoType.NumField(); i++ {
 		curField := daoType.Field(i)
+
+		//Implement embedded fields -- if we have a field of type struct and it's anonymous,
+		//recurse
+		if curField.Type.Kind() == reflect.Struct && curField.Anonymous {
+			pv := reflect.New(curField.Type)
+			fmt.Println(pv)
+			Build(pv.Interface(), paramAdapter, mappers...)
+			fmt.Println(pv)
+			daoValue.Field(i).Set(pv.Elem())
+			fmt.Println(daoValue.Field(i))
+			continue
+		}
+
 		query, ok := curField.Tag.Lookup("proq")
 		if curField.Type.Kind() != reflect.Func || !ok {
 			continue

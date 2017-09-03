@@ -7,8 +7,8 @@ import (
 
 	"database/sql"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/jonbodner/proteus/mapper"
+	log "github.com/sirupsen/logrus"
 )
 
 func buildQueryArgs(funcArgs []reflect.Value, paramOrder []paramInfo) ([]interface{}, error) {

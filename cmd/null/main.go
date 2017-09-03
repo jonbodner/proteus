@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/jonbodner/proteus"
 	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mutecomm/go-sqlcipher"
+	log "github.com/sirupsen/logrus"
 )
 
 type Product2 struct {
