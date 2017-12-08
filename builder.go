@@ -11,6 +11,7 @@ import (
 
 	"github.com/jonbodner/proteus/mapper"
 	log "github.com/sirupsen/logrus"
+	"database/sql/driver"
 )
 
 func buildNameOrderMap(paramOrder string) map[string]int {
@@ -50,6 +51,10 @@ type templateQueryHolder struct {
 func (tq templateQueryHolder) finalize(args []reflect.Value) (string, error) {
 	return doFinalize(tq.queryString, tq.paramOrder, tq.pa, args)
 }
+
+var (
+	valueType = reflect.TypeOf((*driver.Valuer)(nil)).Elem()
+)
 
 func buildFixedQueryAndParamOrder(query string, nameOrderMap map[string]int, funcType reflect.Type, pa ParamAdapter) (queryHolder, []paramInfo, error) {
 	var out bytes.Buffer
@@ -111,7 +116,7 @@ func buildFixedQueryAndParamOrder(query string, nameOrderMap map[string]int, fun
 					}
 					out.WriteString(addSlice(id))
 					isSlice := false
-					if pathType != nil && pathType.Kind() == reflect.Slice {
+					if pathType != nil && pathType.Kind() == reflect.Slice && !pathType.Implements(valueType) {
 						hasSlice = true
 						isSlice = true
 					}
