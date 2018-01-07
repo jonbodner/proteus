@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jonbodner/multierr"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -49,6 +50,96 @@ If the entity is a primitive, then the first value returned for a row must be of
 
 */
 
+type ProteusError struct {
+	FuncName        string
+	FieldOrder      int
+	OriginalMessage string
+}
+
+func (pe ProteusError) Error() string {
+	return fmt.Sprint("error in field #", pe.FieldOrder, " (", pe.FuncName, "): ", pe.OriginalMessage)
+}
+
+// ShouldBuild works like Build, except it will not populate any function fields if there are errors. All errors
+// found during building will be reported back
+func ShouldBuild(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
+	daoPointerType := reflect.TypeOf(dao)
+	//must be a pointer to struct
+	if daoPointerType.Kind() != reflect.Ptr {
+		return errors.New("Not a pointer")
+	}
+	daoType := daoPointerType.Elem()
+	//if not a struct, error out
+	if daoType.Kind() != reflect.Struct {
+		return errors.New("Not a pointer to struct")
+	}
+	var out error
+	funcs := make([]reflect.Value, daoType.NumField())
+	daoPointerValue := reflect.ValueOf(dao)
+	daoValue := reflect.Indirect(daoPointerValue)
+	//for each field in ProductDao that is of type func and has a proteus struct tag, assign it a func
+	for i := 0; i < daoType.NumField(); i++ {
+		curField := daoType.Field(i)
+
+		//Implement embedded fields -- if we have a field of type struct and it's anonymous,
+		//recurse
+		if curField.Type.Kind() == reflect.Struct && curField.Anonymous {
+			pv := reflect.New(curField.Type)
+			embeddedErrs := ShouldBuild(pv.Interface(), paramAdapter, mappers...)
+			if embeddedErrs != nil {
+				out = multierr.Append(out, embeddedErrs)
+			} else {
+				funcs[i] = pv.Elem()
+			}
+			continue
+		}
+
+		query, ok := curField.Tag.Lookup("proq")
+		if curField.Type.Kind() != reflect.Func || !ok {
+			continue
+		}
+		funcType := curField.Type
+
+		//validate to make sure that the function matches what we expect
+		err := validateFunction(funcType)
+		if err != nil {
+			out = multierr.Append(out, ProteusError{FuncName: curField.Name, FieldOrder: i, OriginalMessage: err.Error()})
+			continue
+		}
+
+		paramOrder := curField.Tag.Get("prop")
+		var nameOrderMap map[string]int
+		if len(paramOrder) == 0 {
+			nameOrderMap = buildDummyParameters(funcType.NumIn())
+		} else {
+			nameOrderMap = buildNameOrderMap(paramOrder)
+		}
+
+		//check to see if the query is in a QueryMapper
+		query, err = lookupQuery(query, mappers)
+		if err != nil {
+			out = multierr.Append(out, ProteusError{FuncName: curField.Name, FieldOrder: i, OriginalMessage: err.Error()})
+			continue
+		}
+
+		implementation, err := makeImplementation(funcType, query, paramAdapter, nameOrderMap)
+		if err != nil {
+			out = multierr.Append(out, ProteusError{FuncName: curField.Name, FieldOrder: i, OriginalMessage: err.Error()})
+			continue
+		}
+		funcs[i] = reflect.MakeFunc(funcType, implementation)
+	}
+	if out == nil {
+		for i, v := range funcs {
+			if v.IsValid() {
+				fieldValue := daoValue.Field(i)
+				fieldValue.Set(v)
+			}
+		}
+	}
+	return out
+}
+
 // Build is the main entry point into Proteus
 func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 	daoPointerType := reflect.TypeOf(dao)
@@ -71,11 +162,8 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 		//recurse
 		if curField.Type.Kind() == reflect.Struct && curField.Anonymous {
 			pv := reflect.New(curField.Type)
-			fmt.Println(pv)
 			Build(pv.Interface(), paramAdapter, mappers...)
-			fmt.Println(pv)
 			daoValue.Field(i).Set(pv.Elem())
-			fmt.Println(daoValue.Field(i))
 			continue
 		}
 

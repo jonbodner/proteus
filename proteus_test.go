@@ -7,8 +7,10 @@ import (
 	"testing"
 
 	"database/sql"
-	"github.com/jonbodner/proteus/cmp"
 	"os"
+
+	"github.com/jonbodner/proteus/cmp"
+	"github.com/sirupsen/logrus"
 )
 
 func TestValidIdentifier(t *testing.T) {
@@ -334,5 +336,73 @@ func TestEmbedded(t *testing.T) {
 	}
 	if roundTrip.Id != 1 || roundTrip.Name != "Bob" {
 		t.Errorf("Expected {1 Bob}, got %v", roundTrip)
+	}
+}
+
+func TestPositionalVariables(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetOutput(os.Stdout)
+
+	type PProduct struct {
+		Name string
+		E6   string
+		Egg  string
+	}
+
+	// should be valid
+	type ProductDao struct {
+		Insert  func(e Executor, p PProduct) (int64, error) `proq:"insert into Product(name) values(:$1.Name:)"`
+		Insert2 func(e Executor, p PProduct) (int64, error) `proq:"insert into Product(name) values(:$1.E6:)"`
+		Insert3 func(e Executor, p PProduct) (int64, error) `proq:"insert into Product(name) values(:$1.Egg:)"`
+	}
+
+	productDao := ProductDao{}
+	err := ShouldBuild(&productDao, Sqlite)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestShouldBuild(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetOutput(os.Stdout)
+	//test single problem, invalid query (missing closing :)
+	type ProductDao struct {
+		Insert func(e Executor, p Product) (int64, error) `proq:"insert into Product(name) values(:p.Name)" prop:"p"`
+	}
+
+	productDao := ProductDao{}
+	err := ShouldBuild(&productDao, Sqlite)
+	if err == nil {
+		t.Fatal("This should have errors")
+	}
+	if err.Error() != "error in field #0 (Insert): missing a closing : somewhere: insert into Product(name) values(:p.Name)" {
+		t.Error(err)
+	}
+
+	// test three problems, invalid query (missing closing :)
+	//invalid function
+	//no query for query mapper
+	type ProductDao2 struct {
+		Insert      func(e Executor, p Product) (int64, error) `proq:"insert into Product(name) values(:p.Name)" prop:"p"`
+		Insert2     func(p Product) (int64, error)             `proq:"insert into Product(name) values(:p.Name:)" prop:"p"`
+		I           int
+		Insert3     func(e Executor, p Product) (int64, error) `proq:"q:nope" prop:"p"`
+		InsertNoQ   func(e Executor, p Product) (int64, error)
+		InsertNoP   func(e Executor, p Product) (int64, error) `proq:"insert into Product(name) values(:p.Name:)"`
+		InsertOK    func(e Executor, p Product) (int64, error) `proq:"insert into Product(name) values(:p.Name:)" prop:"p"`
+		InsertOKNoP func(e Executor, p Product) (int64, error) `proq:"insert into Product(name) values(:$1.Name:)"`
+	}
+
+	productDao2 := ProductDao2{}
+	err2 := ShouldBuild(&productDao2, Sqlite)
+	if err2 == nil {
+		t.Error(err2)
+	}
+	if err2.Error() != `error in field #0 (Insert): missing a closing : somewhere: insert into Product(name) values(:p.Name)
+error in field #1 (Insert2): first parameter must be of type Executor or Querier
+error in field #3 (Insert3): no query found for name nope
+error in field #5 (InsertNoP): query Parameter p cannot be found in the incoming parameters` {
+		t.Error(err2)
 	}
 }
