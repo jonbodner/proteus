@@ -287,6 +287,59 @@ func TestNilScanner(t *testing.T) {
 	}
 }
 
+func TestUnnamedStructs(t *testing.T) {
+	os.Remove("./proteus_test.db")
+
+	type ScannerProduct struct {
+		Id   int    `prof:"id"`
+		Name string `prof:"name"`
+	}
+
+	type ScannerProductDao struct {
+		Insert   func(e Executor, p ScannerProduct) (int64, error) `proq:"insert into Product(name) values(:$1.Name:)"`
+		FindById func(e Querier, id int64) (ScannerProduct, error) `proq:"select * from Product where id = :id:" prop:"id"`
+	}
+
+	productDao := ScannerProductDao{}
+	err := Build(&productDao, Sqlite)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exec, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100))")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gExec := Wrap(exec)
+
+	p := ScannerProduct{
+		Name: "bob",
+	}
+
+	rowId, err := productDao.Insert(gExec, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roundTrip, err := productDao.FindById(gExec, rowId)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if roundTrip.Id != 1 || roundTrip.Name != "bob" {
+		t.Errorf("Expected {1 bob}, got %v", roundTrip)
+	}
+}
+
 func TestEmbedded(t *testing.T) {
 	os.Remove("./proteus_test.db")
 
