@@ -9,9 +9,10 @@ import (
 	"strings"
 	"text/template"
 
+	"database/sql/driver"
+
 	"github.com/jonbodner/proteus/mapper"
 	log "github.com/sirupsen/logrus"
-	"database/sql/driver"
 )
 
 func buildNameOrderMap(paramOrder string) map[string]int {
@@ -236,6 +237,7 @@ func validIdentifier(curVar string) (string, error) {
 	first := true
 	identifier := ""
 	dollar := false
+	lastFloat := false
 loop:
 	for {
 		pos, tok, lit := s.Scan()
@@ -251,11 +253,12 @@ loop:
 			//any explicit semicolons are illegal and handled earlier
 			continue
 		case token.IDENT:
-			if !first && !lastPeriod {
+			if !first && !lastPeriod && !lastFloat {
 				return "", fmt.Errorf(". missing between parts of an identifier: %s", curVar)
 			}
 			first = false
 			lastPeriod = false
+			lastFloat = false
 			identifier += lit
 		case token.PERIOD:
 			if first || lastPeriod {
@@ -278,6 +281,19 @@ loop:
 			}
 			identifier += lit
 			dollar = false
+		case token.FLOAT:
+			//this is weird. If we have $1.NAME, it will think that there's a FLOAT token with value 1.
+			//due to float support for exponents, if we have an E after the decimal point, the FLOAT token
+			//will include the E and any subsequent digits. Obviously, only valid for $ notation
+			if !dollar {
+				return "", fmt.Errorf("invalid character found in identifier: %s", curVar)
+			}
+			identifier += lit
+			dollar = false
+			lastFloat = true
+			if lit[len(lit)-1] == '.' {
+				lastPeriod = true
+			}
 		default:
 			return "", fmt.Errorf("invalid character found in identifier: %s", curVar)
 		}
