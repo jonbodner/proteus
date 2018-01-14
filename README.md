@@ -82,6 +82,8 @@ func init() {
 }
 ```
 
+The proteus.Build factory function only returns errors if the wrong data type is passed in for the first parameter. If you want errors returned when there is a failure to generate a function field, use proteus.ShouldBuild instead.
+
 4\. Open a connection to a data store that meets the Proteus interface:
 
 ```go
