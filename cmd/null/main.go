@@ -1,14 +1,15 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
 
 	"github.com/jonbodner/proteus"
+	"github.com/jonbodner/proteus/logger"
 	_ "github.com/lib/pq"
 	_ "github.com/mutecomm/go-sqlcipher"
-	log "github.com/sirupsen/logrus"
 )
 
 type Product2 struct {
@@ -35,22 +36,25 @@ type Product2Dao struct {
 var product2DaoSqlite = Product2Dao{}
 
 func init() {
-	log.SetLevel(log.DebugLevel)
-	log.SetFormatter(&log.TextFormatter{})
+	proteus.SetLogLevel(logger.DEBUG)
+	logger.Config(logger.FormatterFunc(func(vals ...interface{}) {
+		fmt.Printf("%s: (%s) - %s\n", vals[1], vals[3], vals[5])
+	}))
 	err := proteus.Build(&product2DaoSqlite, proteus.Sqlite)
 	if err != nil {
 		panic(err)
 	}
 }
 
-type setupDb func() *sql.DB
+type setupDb func(c context.Context) *sql.DB
 
 func main() {
 	run(setupDbSqlite, product2DaoSqlite)
 }
 
 func run(setupDb setupDb, productDao Product2Dao) {
-	db := setupDb()
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	db := setupDb(c)
 	defer db.Close()
 	exec, err := db.Begin()
 	if err != nil {
@@ -59,27 +63,28 @@ func run(setupDb setupDb, productDao Product2Dao) {
 
 	pExec := proteus.Wrap(exec)
 
-	log.Debug(productDao.FindByID(pExec, 10))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln(productDao.FindByID(pExec, 10)))
 	cost := sql.NullFloat64{
 		Float64: 56.23,
 		Valid:   true,
 	}
 	p := Product2{10, "Thingie", cost}
-	log.Debug(productDao.Update(pExec, p))
-	log.Debug(productDao.FindByID(pExec, 10))
-	log.Debug(productDao.FindByNameAndCost(pExec, "fred", 54.10))
-	log.Debug(productDao.FindByNameAndCost(pExec, "Thingie", 56.23))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln(productDao.Update(pExec, p)))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln(productDao.FindByID(pExec, 10)))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln(productDao.FindByNameAndCost(pExec, "fred", 54.10)))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln(productDao.FindByNameAndCost(pExec, "Thingie", 56.23)))
 
 	exec.Commit()
 }
 
-func setupDbSqlite() *sql.DB {
+func setupDbSqlite(c context.Context) *sql.DB {
 	os.Remove("./proteus_test.db")
 
 	db, err := sql.Open("sqlite3", "./proteus_test.db")
 
 	if err != nil {
-		log.Fatal(err)
+		logger.Log(c, logger.FATAL, fmt.Sprintln(err))
+		os.Exit(1)
 	}
 	sqlStmt := `
 	drop table if exists product;
@@ -87,17 +92,18 @@ func setupDbSqlite() *sql.DB {
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		log.Fatalf("%q: %s\n", err, sqlStmt)
+		logger.Log(c, logger.FATAL, fmt.Sprintf("%q: %s\n", err, sqlStmt))
 		return nil
 	}
-	populate(db, product2DaoSqlite)
+	populate(c, db, product2DaoSqlite)
 	return db
 }
 
-func populate(db *sql.DB, productDao Product2Dao) {
+func populate(c context.Context, db *sql.DB, productDao Product2Dao) {
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		logger.Log(c, logger.FATAL, fmt.Sprintln(err))
+		os.Exit(1)
 	}
 
 	pExec := proteus.Wrap(tx)
@@ -110,9 +116,10 @@ func populate(db *sql.DB, productDao Product2Dao) {
 		}
 		rowCount, err := productDao.Insert(pExec, i, fmt.Sprintf("person%d", i), cost)
 		if err != nil {
-			log.Fatal(err)
+			logger.Log(c, logger.FATAL, fmt.Sprintln(err))
+			os.Exit(1)
 		}
-		log.Debug(rowCount)
+		logger.Log(c, logger.DEBUG, fmt.Sprintln(rowCount))
 	}
 	tx.Commit()
 }

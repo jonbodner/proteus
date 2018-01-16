@@ -1,6 +1,7 @@
 package proteus
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -10,6 +11,7 @@ import (
 	"os"
 
 	"github.com/jonbodner/proteus/cmp"
+	"github.com/jonbodner/proteus/logger"
 	"github.com/sirupsen/logrus"
 )
 
@@ -110,11 +112,12 @@ func TestConvertToPositionalParameters(t *testing.T) {
 		},
 	}
 
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for k, v := range values {
-		q, qps, err := buildFixedQueryAndParamOrder(k, v.paramMap, v.funcType, MySQL)
+		q, qps, err := buildFixedQueryAndParamOrder(c, k, v.paramMap, v.funcType, MySQL)
 		var qSimple string
 		if err == nil {
-			qSimple, _ = q.finalize(nil)
+			qSimple, _ = q.finalize(c, nil)
 		}
 		if qSimple != v.query || !reflect.DeepEqual(qps, v.qps) || !cmp.Errors(err, v.err) {
 			t.Errorf("failed for %s -> %#v: %v", k, v, err)
@@ -410,7 +413,8 @@ func TestPositionalVariables(t *testing.T) {
 	}
 
 	productDao := ProductDao{}
-	err := ShouldBuild(&productDao, Sqlite)
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	err := ShouldBuild(c, &productDao, Sqlite)
 	if err != nil {
 		t.Error(err)
 	}
@@ -425,7 +429,8 @@ func TestShouldBuild(t *testing.T) {
 	}
 
 	productDao := ProductDao{}
-	err := ShouldBuild(&productDao, Sqlite)
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	err := ShouldBuild(c, &productDao, Sqlite)
 	if err == nil {
 		t.Fatal("This should have errors")
 	}
@@ -448,7 +453,7 @@ func TestShouldBuild(t *testing.T) {
 	}
 
 	productDao2 := ProductDao2{}
-	err2 := ShouldBuild(&productDao2, Sqlite)
+	err2 := ShouldBuild(c, &productDao2, Sqlite)
 	if err2 == nil {
 		t.Error(err2)
 	}

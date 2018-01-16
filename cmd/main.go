@@ -1,15 +1,16 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
 
 	"github.com/jonbodner/dbtimer"
 	"github.com/jonbodner/proteus"
+	"github.com/jonbodner/proteus/logger"
 	_ "github.com/lib/pq"
 	_ "github.com/mutecomm/go-sqlcipher"
-	log "github.com/sirupsen/logrus"
 )
 
 type Product struct {
@@ -48,8 +49,9 @@ func init() {
 	dbtimer.SetTimerLoggerFunc(func(ti dbtimer.TimerInfo) {
 		fmt.Printf("%s %s %v %v %d\n", ti.Method, ti.Query, ti.Args, ti.Err, ti.End.Sub(ti.Start).Nanoseconds()/1000)
 	})
-	log.SetLevel(log.DebugLevel)
-	log.SetFormatter(&log.TextFormatter{})
+	logger.Config(logger.FormatterFunc(func(vals ...interface{}) {
+		fmt.Printf("%s: (%s) - %s\n", vals[1], vals[3], vals[5])
+	}))
 	err := proteus.Build(&productDaoPostgres, proteus.Postgres)
 	if err != nil {
 		panic(err)
@@ -61,7 +63,7 @@ func init() {
 	}
 }
 
-type setupDb func() *sql.DB
+type setupDb func(c context.Context) *sql.DB
 
 func main() {
 	run(setupDbSqlite, productDaoSqlite)
@@ -69,7 +71,8 @@ func main() {
 }
 
 func run(setupDb setupDb, productDao ProductDao) {
-	db := setupDb()
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	db := setupDb(c)
 	defer db.Close()
 	exec, err := db.Begin()
 	if err != nil {
@@ -78,46 +81,46 @@ func run(setupDb setupDb, productDao ProductDao) {
 
 	pExec := proteus.Wrap(exec)
 
-	log.Debug(productDao.FindByID(pExec, 10))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln(productDao.FindByID(pExec, 10)))
 	cost := new(float64)
 	*cost = 56.23
 	p := Product{10, "Thingie", cost}
-	log.Debug(productDao.Update(pExec, p))
-	log.Debug(productDao.FindByID(pExec, 10))
-	log.Debug(productDao.FindByNameAndCost(pExec, "fred", 54.10))
-	log.Debug(productDao.FindByNameAndCost(pExec, "Thingie", 56.23))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln(productDao.Update(pExec, p)))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln(productDao.FindByID(pExec, 10)))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln(productDao.FindByNameAndCost(pExec, "fred", 54.10)))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln(productDao.FindByNameAndCost(pExec, "Thingie", 56.23)))
 
 	//using a map of [string]interface{} works too!
-	log.Debug(productDao.FindByIDMap(pExec, 10))
-	log.Debug(productDao.FindByNameAndCostMap(pExec, "Thingie", 56.23))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln((productDao.FindByIDMap(pExec, 10))))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln((productDao.FindByNameAndCostMap(pExec, "Thingie", 56.23))))
 
-	log.Debug(productDao.FindByID(pExec, 11))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln((productDao.FindByID(pExec, 11))))
 	m := map[string]interface{}{
 		"Id":   11,
 		"Name": "bobbo",
 		"Cost": 12.94,
 	}
-	log.Debug(productDao.UpdateMap(pExec, m))
-	log.Debug(productDao.FindByID(pExec, 11))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln((productDao.UpdateMap(pExec, m))))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln((productDao.FindByID(pExec, 11))))
 
 	//searching using a slice
-	log.Debug(productDao.FindByIDSlice(pExec, []int{1, 3, 5}))
-	log.Debug(productDao.FindByIDSliceAndName(pExec, []int{1, 3, 5}, "person1"))
-	log.Debug(productDao.FindByIDSliceNameAndCost(pExec, []int{1, 3, 5}, "person3", nil))
-	log.Debug(productDao.FindByIDSliceCostAndNameSlice(pExec, []int{1, 3, 5}, []string{"person3", "person5"}, nil))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln((productDao.FindByIDSlice(pExec, []int{1, 3, 5}))))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln((productDao.FindByIDSliceAndName(pExec, []int{1, 3, 5}, "person1"))))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln((productDao.FindByIDSliceNameAndCost(pExec, []int{1, 3, 5}, "person3", nil))))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln((productDao.FindByIDSliceCostAndNameSlice(pExec, []int{1, 3, 5}, []string{"person3", "person5"}, nil))))
 
 	//using positional parameters instead of names
-	log.Debug(productDao.FindByNameAndCostUnlabeled(pExec, "Thingie", 56.23))
+	logger.Log(c, logger.DEBUG, fmt.Sprintln((productDao.FindByNameAndCostUnlabeled(pExec, "Thingie", 56.23))))
 
 	exec.Commit()
 }
 
-func setupDbPostgres() *sql.DB {
+func setupDbPostgres(c context.Context) *sql.DB {
 	//db, err := sql.Open("postgres", "postgres://jon:jon@localhost/jon?sslmode=disable")
 	db, err := sql.Open("timer", "postgres postgres://jon:jon@localhost/jon?sslmode=disable")
 
 	if err != nil {
-		log.Fatal(err)
+		logger.Log(c, logger.FATAL, fmt.Sprintln(err))
 	}
 	sqlStmt := `
 	drop table if exists product;
@@ -125,21 +128,21 @@ func setupDbPostgres() *sql.DB {
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		log.Fatalf("%q: %s\n", err, sqlStmt)
+		logger.Log(c, logger.FATAL, fmt.Sprintf("%q: %s\n", err, sqlStmt))
 		return nil
 	}
-	populate(db, productDaoPostgres)
+	populate(c, db, productDaoPostgres)
 	return db
 }
 
-func setupDbSqlite() *sql.DB {
+func setupDbSqlite(c context.Context) *sql.DB {
 	os.Remove("./proteus_test.db")
 
 	//db, err := sql.Open("sqlite3", "./proteus_test.db")
 	db, err := sql.Open("timer", "sqlite3 ./proteus_test.db")
 
 	if err != nil {
-		log.Fatal(err)
+		logger.Log(c, logger.FATAL, fmt.Sprintln(err))
 	}
 	sqlStmt := `
 	drop table if exists product;
@@ -147,17 +150,17 @@ func setupDbSqlite() *sql.DB {
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		log.Fatalf("%q: %s\n", err, sqlStmt)
+		logger.Log(c, logger.FATAL, fmt.Sprintf("%q: %s\n", err, sqlStmt))
 		return nil
 	}
-	populate(db, productDaoSqlite)
+	populate(c, db, productDaoSqlite)
 	return db
 }
 
-func populate(db *sql.DB, productDao ProductDao) {
+func populate(c context.Context, db *sql.DB, productDao ProductDao) {
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		logger.Log(c, logger.FATAL, fmt.Sprintln(err))
 	}
 
 	pExec := proteus.Wrap(tx)
@@ -170,9 +173,9 @@ func populate(db *sql.DB, productDao ProductDao) {
 		}
 		rowCount, err := productDao.Insert(pExec, i, fmt.Sprintf("person%d", i), cost)
 		if err != nil {
-			log.Fatal(err)
+			logger.Log(c, logger.FATAL, fmt.Sprintln(err))
 		}
-		log.Debug(rowCount)
+		logger.Log(c, logger.DEBUG, fmt.Sprintln(rowCount))
 	}
 	tx.Commit()
 }

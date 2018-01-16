@@ -1,14 +1,17 @@
 package mapper
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	"database/sql/driver"
-	log "github.com/sirupsen/logrus"
+
+	"github.com/jonbodner/proteus/logger"
 )
 
-func ExtractType(curType reflect.Type, path []string) (reflect.Type, error) {
+func ExtractType(c context.Context, curType reflect.Type, path []string) (reflect.Type, error) {
 	// error case path length == 0
 	if len(path) == 0 {
 		return nil, errors.New("cannot extract type; no path remaining")
@@ -28,12 +31,12 @@ func ExtractType(curType reflect.Type, path []string) (reflect.Type, error) {
 	}
 	//make sure the field exists
 	if f, exists := ss.FieldByName(path[1]); exists {
-		return ExtractType(f.Type, path[1:])
+		return ExtractType(c, f.Type, path[1:])
 	}
 	return nil, errors.New("cannot find the type; no such field " + path[1])
 }
 
-func Extract(s interface{}, path []string) (interface{}, error) {
+func Extract(c context.Context, s interface{}, path []string) (interface{}, error) {
 	// error case path length == 0
 	if len(path) == 0 {
 		return nil, errors.New("cannot extract value; no path remaining")
@@ -53,14 +56,14 @@ func Extract(s interface{}, path []string) (interface{}, error) {
 		if sv.Type().Key().Kind() != reflect.String {
 			return nil, errors.New("cannot extract value; map does not have a string key")
 		}
-		log.Debugln(path[1])
-		log.Debugln(sv.MapKeys())
+		logger.Log(c, logger.DEBUG, fmt.Sprintln(path[1]))
+		logger.Log(c, logger.DEBUG, fmt.Sprintln(sv.MapKeys()))
 		v := sv.MapIndex(reflect.ValueOf(path[1]))
-		log.Debugln(v)
+		logger.Log(c, logger.DEBUG, fmt.Sprintln(v))
 		if !v.IsValid() {
 			return nil, errors.New("cannot extract value; no such map key " + path[1])
 		}
-		return Extract(v.Interface(), path[1:])
+		return Extract(c, v.Interface(), path[1:])
 	}
 	if sv.Kind() == reflect.Struct {
 		//make sure the field exists
@@ -69,7 +72,7 @@ func Extract(s interface{}, path []string) (interface{}, error) {
 		}
 
 		v := sv.FieldByName(path[1])
-		return Extract(v.Interface(), path[1:])
+		return Extract(c, v.Interface(), path[1:])
 	}
 	return nil, errors.New("cannot extract value; only maps and structs can have contained values")
 }

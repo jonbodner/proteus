@@ -1,6 +1,7 @@
 package proteus
 
 import (
+	"context"
 	"errors"
 	"reflect"
 
@@ -8,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/jonbodner/multierr"
-	log "github.com/sirupsen/logrus"
+	"github.com/jonbodner/proteus/logger"
 )
 
 /*
@@ -60,9 +61,20 @@ func (pe ProteusError) Error() string {
 	return fmt.Sprint("error in field #", pe.FieldOrder, " (", pe.FuncName, "): ", pe.OriginalMessage)
 }
 
+var l = logger.INVALID
+
+func SetLogLevel(ll logger.Level) {
+	l = ll
+}
+
 // ShouldBuild works like Build, except it will not populate any function fields if there are errors. All errors
 // found during building will be reported back
-func ShouldBuild(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
+func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
+	//if log level is set, then override the log level specified here
+	if l != logger.INVALID {
+		c = logger.WithLevel(c, l)
+	}
+
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
 	if daoPointerType.Kind() != reflect.Ptr {
@@ -85,7 +97,7 @@ func ShouldBuild(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMap
 		//recurse
 		if curField.Type.Kind() == reflect.Struct && curField.Anonymous {
 			pv := reflect.New(curField.Type)
-			embeddedErrs := ShouldBuild(pv.Interface(), paramAdapter, mappers...)
+			embeddedErrs := ShouldBuild(c, pv.Interface(), paramAdapter, mappers...)
 			if embeddedErrs != nil {
 				out = multierr.Append(out, embeddedErrs)
 			} else {
@@ -122,7 +134,7 @@ func ShouldBuild(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMap
 			continue
 		}
 
-		implementation, err := makeImplementation(funcType, query, paramAdapter, nameOrderMap)
+		implementation, err := makeImplementation(c, funcType, query, paramAdapter, nameOrderMap)
 		if err != nil {
 			out = multierr.Append(out, ProteusError{FuncName: curField.Name, FieldOrder: i, OriginalMessage: err.Error()})
 			continue
@@ -142,6 +154,7 @@ func ShouldBuild(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMap
 
 // Build is the main entry point into Proteus
 func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
+	c := logger.WithLevel(context.Background(), l)
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
 	if daoPointerType.Kind() != reflect.Ptr {
@@ -176,7 +189,7 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 		//validate to make sure that the function matches what we expect
 		err := validateFunction(funcType)
 		if err != nil {
-			log.Warnln("skipping function", curField.Name, "due to error:", err.Error())
+			logger.Log(c, logger.WARN, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
 			continue
 		}
 
@@ -191,13 +204,13 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 		//check to see if the query is in a QueryMapper
 		query, err = lookupQuery(query, mappers)
 		if err != nil {
-			log.Warnln("skipping function", curField.Name, "due to error:", err.Error())
+			logger.Log(c, logger.WARN, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
 			continue
 		}
 
-		implementation, err := makeImplementation(funcType, query, paramAdapter, nameOrderMap)
+		implementation, err := makeImplementation(c, funcType, query, paramAdapter, nameOrderMap)
 		if err != nil {
-			log.Warnln("skipping function", curField.Name, "due to error:", err.Error())
+			logger.Log(c, logger.WARN, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
 			continue
 		}
 		fieldValue := daoValue.Field(i)
@@ -257,17 +270,17 @@ func validateFunction(funcType reflect.Type) error {
 	return nil
 }
 
-func makeImplementation(funcType reflect.Type, query string, paramAdapter ParamAdapter, nameOrderMap map[string]int) (func([]reflect.Value) []reflect.Value, error) {
-	fixedQuery, paramOrder, err := buildFixedQueryAndParamOrder(query, nameOrderMap, funcType, paramAdapter)
+func makeImplementation(c context.Context, funcType reflect.Type, query string, paramAdapter ParamAdapter, nameOrderMap map[string]int) (func([]reflect.Value) []reflect.Value, error) {
+	fixedQuery, paramOrder, err := buildFixedQueryAndParamOrder(c, query, nameOrderMap, funcType, paramAdapter)
 	if err != nil {
 		return nil, err
 	}
 
 	switch fType := funcType.In(0); {
 	case fType.Implements(exType):
-		return makeExecutorImplementation(funcType, fixedQuery, paramOrder), nil
+		return makeExecutorImplementation(c, funcType, fixedQuery, paramOrder), nil
 	case fType.Implements(qType):
-		return makeQuerierImplementation(funcType, fixedQuery, paramOrder)
+		return makeQuerierImplementation(c, funcType, fixedQuery, paramOrder)
 	}
 	//this should impossible, since we already validated that the first parameter is either an executor or a querier
 	return nil, errors.New("first parameter must be of type Executor or Querier")
