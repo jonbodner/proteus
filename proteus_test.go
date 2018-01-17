@@ -16,6 +16,7 @@ import (
 )
 
 func TestValidIdentifier(t *testing.T) {
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	values := map[string]bool{
 		"a":             true,
 		"main":          true,
@@ -32,7 +33,7 @@ func TestValidIdentifier(t *testing.T) {
 		"a.b //comment": true, //yeah, we can do comments
 	}
 	for k, v := range values {
-		if _, err := validIdentifier(k); v != (err == nil) {
+		if _, err := validIdentifier(c, k); v != (err == nil) {
 			t.Errorf("failed for %s == %v ", k, v)
 		}
 	}

@@ -181,8 +181,9 @@ func Test_validIdentifier(t *testing.T) {
 	}{
 	// TODO: Add test cases.
 	}
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
-		got, err := validIdentifier(tt.args.curVar)
+		got, err := validIdentifier(c, tt.args.curVar)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. validIdentifier() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue

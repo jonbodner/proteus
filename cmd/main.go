@@ -49,8 +49,8 @@ func init() {
 	dbtimer.SetTimerLoggerFunc(func(ti dbtimer.TimerInfo) {
 		fmt.Printf("%s %s %v %v %d\n", ti.Method, ti.Query, ti.Args, ti.Err, ti.End.Sub(ti.Start).Nanoseconds()/1000)
 	})
-	logger.Config(logger.FormatterFunc(func(vals ...interface{}) {
-		fmt.Printf("%s: (%s) - %s\n", vals[1], vals[3], vals[5])
+	logger.Config(logger.LoggerFunc(func(vals ...interface{}) {
+		fmt.Printf("%s: (%s) - %+v\n", vals[1], vals[3], vals[5])
 	}))
 	err := proteus.Build(&productDaoPostgres, proteus.Postgres)
 	if err != nil {

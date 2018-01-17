@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"sync"
 
 	"fmt"
 	"strings"
@@ -61,17 +62,29 @@ func (pe ProteusError) Error() string {
 	return fmt.Sprint("error in field #", pe.FieldOrder, " (", pe.FuncName, "): ", pe.OriginalMessage)
 }
 
-var l = logger.INVALID
+var l = logger.OFF
+var rw sync.RWMutex
 
 func SetLogLevel(ll logger.Level) {
+	rw.Lock()
+	defer rw.Unlock()
 	l = ll
 }
 
-// ShouldBuild works like Build, except it will not populate any function fields if there are errors. All errors
-// found during building will be reported back
+// ShouldBuild works like Build, with two differences:
+//
+// 1. It will not populate any function fields if there are errors.
+//
+// 2. All errors found during building will be reported back
+//
+// 3. The context passed in to ShouldBuild can be used to specify the logging level used during ShouldBuild and
+// when the generated functions are invoked. If a logging level was specified using the SetLogLevel function,
+// the log level specifed will override any log level in the context.
 func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 	//if log level is set, then override the log level specified here
-	if l != logger.INVALID {
+	rw.RLock()
+	defer rw.RUnlock()
+	if l != logger.OFF {
 		c = logger.WithLevel(c, l)
 	}
 
@@ -154,6 +167,8 @@ func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, 
 
 // Build is the main entry point into Proteus
 func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
+	rw.RLock()
+	defer rw.RUnlock()
 	c := logger.WithLevel(context.Background(), l)
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
