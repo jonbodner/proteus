@@ -1,22 +1,24 @@
 package proteus
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 
 	"database/sql"
 
+	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
-	log "github.com/sirupsen/logrus"
 )
 
-func buildQueryArgs(funcArgs []reflect.Value, paramOrder []paramInfo) ([]interface{}, error) {
+func buildQueryArgs(c context.Context, funcArgs []reflect.Value, paramOrder []paramInfo) ([]interface{}, error) {
 
 	//walk through the rest of the input parameters and build a slice for args
 	var out []interface{}
 	for _, v := range paramOrder {
-		val, err := mapper.Extract(funcArgs[v.posInParams].Interface(), strings.Split(v.name, "."))
+		val, err := mapper.Extract(c, funcArgs[v.posInParams].Interface(), strings.Split(v.name, "."))
 		if err != nil {
 			return nil, err
 		}
@@ -39,26 +41,26 @@ var (
 	zero    = reflect.ValueOf(int64(0))
 )
 
-func makeExecutorImplementation(funcType reflect.Type, query queryHolder, paramOrder []paramInfo) func(args []reflect.Value) []reflect.Value {
+func makeExecutorImplementation(c context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) func(args []reflect.Value) []reflect.Value {
 	buildRetVals := makeExecutorReturnVals(funcType)
 	return func(args []reflect.Value) []reflect.Value {
 
 		executor := args[0].Interface().(Executor)
 
 		var result sql.Result
-		finalQuery, err := query.finalize(args)
+		finalQuery, err := query.finalize(c, args)
 
 		if err != nil {
 			return buildRetVals(result, err)
 		}
 
-		queryArgs, err := buildQueryArgs(args, paramOrder)
+		queryArgs, err := buildQueryArgs(c, args, paramOrder)
 
 		if err != nil {
 			return buildRetVals(result, err)
 		}
 
-		log.Debugln("calling", finalQuery, "with params", queryArgs)
+		logger.Log(c, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 		result, err = executor.Exec(finalQuery, queryArgs...)
 
 		return buildRetVals(result, err)
@@ -108,39 +110,39 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 	}
 }
 
-func makeQuerierImplementation(funcType reflect.Type, query queryHolder, paramOrder []paramInfo) (func(args []reflect.Value) []reflect.Value, error) {
+func makeQuerierImplementation(c context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) (func(args []reflect.Value) []reflect.Value, error) {
 	numOut := funcType.NumOut()
 	var builder mapper.Builder
 	var err error
 	if numOut > 0 {
-		builder, err = mapper.MakeBuilder(funcType.Out(0))
+		builder, err = mapper.MakeBuilder(c, funcType.Out(0))
 		if err != nil {
 			return nil, err
 		}
 	}
-	buildRetVals := makeQuerierReturnVals(funcType, builder)
+	buildRetVals := makeQuerierReturnVals(c, funcType, builder)
 	return func(args []reflect.Value) []reflect.Value {
 		querier := args[0].Interface().(Querier)
 
 		var rows Rows
-		finalQuery, err := query.finalize(args)
+		finalQuery, err := query.finalize(c, args)
 		if err != nil {
 			return buildRetVals(rows, err)
 		}
 
-		queryArgs, err := buildQueryArgs(args, paramOrder)
+		queryArgs, err := buildQueryArgs(c, args, paramOrder)
 		if err != nil {
 			return buildRetVals(rows, err)
 		}
 
-		log.Debugln("calling", finalQuery, "with params", queryArgs)
+		logger.Log(c, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 		rows, err = querier.Query(finalQuery, queryArgs...)
 
 		return buildRetVals(rows, err)
 	}, nil
 }
 
-func makeQuerierReturnVals(funcType reflect.Type, builder mapper.Builder) func(Rows, error) []reflect.Value {
+func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder mapper.Builder) func(Rows, error) []reflect.Value {
 	numOut := funcType.NumOut()
 
 	//handle the 0,1,2 out parameter cases
@@ -158,7 +160,7 @@ func makeQuerierReturnVals(funcType reflect.Type, builder mapper.Builder) func(R
 				return []reflect.Value{qZero}
 			}
 			// handle mapping
-			val, err := handleMapping(sType, rows, builder)
+			val, err := handleMapping(c, sType, rows, builder)
 			if err != nil {
 				return []reflect.Value{qZero}
 			}
@@ -175,7 +177,7 @@ func makeQuerierReturnVals(funcType reflect.Type, builder mapper.Builder) func(R
 				return []reflect.Value{qZero, reflect.ValueOf(err).Convert(eType)}
 			}
 			// handle mapping
-			val, err := handleMapping(sType, rows, builder)
+			val, err := handleMapping(c, sType, rows, builder)
 			var eVal reflect.Value
 			if err == nil {
 				eVal = errZero
@@ -195,14 +197,14 @@ func makeQuerierReturnVals(funcType reflect.Type, builder mapper.Builder) func(R
 	}
 }
 
-func handleMapping(sType reflect.Type, rows Rows, builder mapper.Builder) (interface{}, error) {
+func handleMapping(c context.Context, sType reflect.Type, rows Rows, builder mapper.Builder) (interface{}, error) {
 	var val interface{}
 	var err error
 	if sType.Kind() == reflect.Slice {
 		s := reflect.MakeSlice(sType, 0, 0)
 		var result interface{}
 		for {
-			result, err = mapRows(rows, builder)
+			result, err = mapRows(c, rows, builder)
 			if result == nil {
 				break
 			}
@@ -210,7 +212,7 @@ func handleMapping(sType reflect.Type, rows Rows, builder mapper.Builder) (inter
 		}
 		val = s.Interface()
 	} else {
-		val, err = mapRows(rows, builder)
+		val, err = mapRows(c, rows, builder)
 	}
 	rows.Close()
 	return val, err
@@ -225,7 +227,7 @@ func handleMapping(sType reflect.Type, rows Rows, builder mapper.Builder) (inter
 // If next returns false, then nil is returned for both the interface and the error
 // If an error occurs while processing the current row, nil is returned for the interface and the error is non-nil
 // If a value is successfuly extracted from the current row, the instance is returned and the error is nil
-func mapRows(rows Rows, builder mapper.Builder) (interface{}, error) {
+func mapRows(c context.Context, rows Rows, builder mapper.Builder) (interface{}, error) {
 	//fmt.Println(sType)
 	if rows == nil {
 		return nil, errors.New("rows must be non-nil")
@@ -253,7 +255,7 @@ func mapRows(rows Rows, builder mapper.Builder) (interface{}, error) {
 
 	err = rows.Scan(vals...)
 	if err != nil {
-		log.Warnln("scan failed")
+		logger.Log(c, logger.WARN, "scan failed")
 		return nil, err
 	}
 

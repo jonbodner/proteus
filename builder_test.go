@@ -1,8 +1,11 @@
 package proteus
 
 import (
+	"context"
 	"reflect"
 	"testing"
+
+	"github.com/jonbodner/proteus/logger"
 )
 
 func TestFixNameForTemplate(t *testing.T) {
@@ -95,8 +98,9 @@ func Test_convertToPositionalParameters(t *testing.T) {
 	}{
 	// TODO: Add test cases.
 	}
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
-		got, got1, err := buildFixedQueryAndParamOrder(tt.args.query, tt.args.paramMap, tt.args.funcType, tt.args.pa)
+		got, got1, err := buildFixedQueryAndParamOrder(c, tt.args.query, tt.args.paramMap, tt.args.funcType, tt.args.pa)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. buildFixedQueryAndParamOrder() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
@@ -177,8 +181,9 @@ func Test_validIdentifier(t *testing.T) {
 	}{
 	// TODO: Add test cases.
 	}
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
-		got, err := validIdentifier(tt.args.curVar)
+		got, err := validIdentifier(c, tt.args.curVar)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. validIdentifier() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue

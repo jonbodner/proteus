@@ -1,9 +1,11 @@
 package proteus
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
+	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
 )
 
@@ -20,8 +22,9 @@ func Test_getQArgs(t *testing.T) {
 	}{
 	// TODO: Add test cases.
 	}
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
-		got, err := buildQueryArgs(tt.args.args, tt.args.qps)
+		got, err := buildQueryArgs(c, tt.args.args, tt.args.qps)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. buildQueryArgs() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
@@ -46,8 +49,9 @@ func Test_buildExec(t *testing.T) {
 	}{
 	// TODO: Add test cases.
 	}
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
-		got := makeExecutorImplementation(tt.args.funcType, tt.args.positionalQuery, tt.args.qps)
+		got := makeExecutorImplementation(c, tt.args.funcType, tt.args.positionalQuery, tt.args.qps)
 		if !reflect.DeepEqual(got, tt.want) {
 			t.Errorf("%q. makeExecutorImplementation() = %v, want %v", tt.name, got, tt.want)
 		}
@@ -68,8 +72,9 @@ func Test_buildQuery(t *testing.T) {
 	}{
 	// TODO: Add test cases.
 	}
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
-		got, err := makeQuerierImplementation(tt.args.funcType, tt.args.positionalQuery, tt.args.qps)
+		got, err := makeQuerierImplementation(c, tt.args.funcType, tt.args.positionalQuery, tt.args.qps)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. makeQuerierImplementation() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
@@ -94,8 +99,9 @@ func Test_handleMapping(t *testing.T) {
 	}{
 	// TODO: Add test cases.
 	}
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
-		got, err := handleMapping(tt.args.sType, tt.args.rows, tt.args.builder)
+		got, err := handleMapping(c, tt.args.sType, tt.args.rows, tt.args.builder)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. handleMapping() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue

@@ -241,9 +241,70 @@ While Proteus takes advantage of interfaces in the `sql` packages, it is not tie
 To replace it, an interface, `proteus.Rows`, is defined within Proteus. This has the side-effect of making the method signature of a standard SQL Query incompatible
  with the `proteus.Querier` interface definition. The `proteus.Wrap` function fixes this incompatibility.
 
+## Logging
+
+In order to avoid tying the client code to one particular implementation, Proteus includes its own logger that can be bridged to any other Go logger.
+
+By default, Proteus will log nothing. The simplest way to change the amount of information logged by Proteus is by calling the function `proteus.SetLogLevel`.
+This function takes in a value of type `logger.Level`.
+
+If you are using the `proteus.ShouldBuild` function to generate your DAOs, you can supply a logging level by passing in the context returned by the function `logger.WithLevel` .
+This value is overridden by the logging level set by `proteus.SetLogLevel`.
+
+You can also include additional values in the logs by passing in the context returned by the function `logger.WithValues`. This function adds one or more `logger.Pair` values to the context.
+
+All Proteus logging output include 3 default fields (in order):
+
+- time (value is a `time.Time` in UTC)
+- level (the level of the log as a `logger.Level`)
+- message (the message supplied with the log
+
+The default logger provided with the Proteus logging package outputs to `os.Stdout` in a JSON format. The default logger implementation is configurable; you can
+specify a different `io.Writer` by using the call:
+
+```go
+    logger.Config(logger.DefaultLogger{
+        Writer: myWriterImpl,
+    })
+```
+
+The format of the output of the DefaultLogger can be configured by supplying a `logger.Formatter`:
+
+```go
+    logger.Config(logger.DefaultLogger{
+        Writer: myWriterImpl,
+        Formatter: myFormatter,
+    })
+```
+
+A helper type `logger.FormatterFunc` will turn any function with the signature `func(vals ...interface{}) string` into a `logger.Formatter`.
+
+The first 6 values passed to the `Format` method are:
+
+|position|value|
+|--------|------|
+|0 | "time"|
+|1 | a `time.Time` in UTC |
+|2 | "level"|
+|3 | a `logger.Level`|
+|4 | "message"|
+|5 | the message for the log|
+
+
+If you want to supply your own logger implementation, pass an implementation
+of `logger.Logger` into `logger.Config`. This interface matches the definition used by go-kit. The default parameters are in the
+order specified above. There is a `logger.LoggerFunc` helper type to convert
+any function with the signature of `func(vals ...interface{}) error` into a `logger.Logger`.
+
+Feel free to use this logger within your own code. If this logger proves to be useful, it might be broken into its own top-level package.
+
 ## Future Directions
 
 There are more interesting features coming to Proteus. They are (in likely order of implementation):
+
+- support for the context SQL calls and Proteus-generated function with a context as a first parameter
+
+- more expansive performance measurement support and per-request logging control
 
 - go generate tool to create a wrapper struct and interface for a Proteus DAO
 
