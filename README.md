@@ -292,10 +292,9 @@ The first 6 values passed to the `Format` method are:
 
 
 If you want to supply your own logger implementation, pass an implementation
-of `logger.Logger` into `logger.Config`. The default parameters are in the
+of `logger.Logger` into `logger.Config`. This interface matches the definition used by go-kit. The default parameters are in the
 order specified above. There is a `logger.LoggerFunc` helper type to convert
-any function with the signature of `func(vals ...interface{})` into a `logger.Logger`.
-
+any function with the signature of `func(vals ...interface{}) error` into a `logger.Logger`.
 
 Feel free to use this logger within your own code. If this logger proves to be useful, it might be broken into its own top-level package.
 

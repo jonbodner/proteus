@@ -61,13 +61,13 @@ type Pair struct {
 }
 
 type Logger interface {
-	Log(vals ...interface{})
+	Log(vals ...interface{}) error
 }
 
-type LoggerFunc func(vals ...interface{})
+type LoggerFunc func(vals ...interface{}) error
 
-func (lf LoggerFunc) Log(vals ...interface{}) {
-	lf(vals...)
+func (lf LoggerFunc) Log(vals ...interface{}) error {
+	return lf(vals...)
 }
 
 var impl Logger = DefaultLogger{Writer: os.Stdout}
@@ -132,9 +132,9 @@ type DefaultLogger struct {
 	Formatter Formatter
 }
 
-func (dl DefaultLogger) Log(vals ...interface{}) {
+func (dl DefaultLogger) Log(vals ...interface{}) error {
 	if dl.Writer == nil {
-		return
+		return nil
 	}
 	var out string
 	if dl.Formatter == nil {
@@ -142,7 +142,8 @@ func (dl DefaultLogger) Log(vals ...interface{}) {
 	} else {
 		out = dl.Formatter.Format(vals...)
 	}
-	dl.Writer.Write([]byte(out))
+	_, err := dl.Writer.Write([]byte(out))
+	return err
 }
 
 func jsonOutput(vals ...interface{}) string {

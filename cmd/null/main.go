@@ -37,8 +37,9 @@ var product2DaoSqlite = Product2Dao{}
 
 func init() {
 	proteus.SetLogLevel(logger.DEBUG)
-	logger.Config(logger.LoggerFunc(func(vals ...interface{}) {
+	logger.Config(logger.LoggerFunc(func(vals ...interface{}) error {
 		fmt.Printf("%s: (%s) - %s\n", vals[1], vals[3], vals[5])
+		return nil
 	}))
 	err := proteus.Build(&product2DaoSqlite, proteus.Sqlite)
 	if err != nil {
