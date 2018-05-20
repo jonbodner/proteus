@@ -511,3 +511,55 @@ func TestShouldBuildEmbedded(t *testing.T) {
 		t.Fatal(fmt.Sprintf("Expected prod with name, got %+v", prod))
 	}
 }
+
+func TestShouldBinaryColumn(t *testing.T) {
+	type MyProduct struct {
+		Id   int    `prof:"id"`
+		Name string `prof:"name"`
+		Data []byte `prof:"data"`
+	}
+
+	type ProductDao struct {
+		Insert func(e Executor, p MyProduct) (int64, error)    `proq:"insert into product(name, data) values(:p.Name:, :p.Data:)" prop:"p"`
+		Get    func(q Querier, name string) (MyProduct, error) `proq:"select * from product where name=:name:" prop:"name"`
+	}
+
+	productDao := ProductDao{}
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	err := ShouldBuild(c, &productDao, Sqlite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exec, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), data blob)")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, err := productDao.Insert(Wrap(exec), MyProduct{Name: "Foo", Data: []byte("Hello")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatal("Should have modified 1 row")
+	}
+	prod, err := productDao.Get(Wrap(exec), "Foo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prod.Name != "Foo" {
+		t.Fatal(fmt.Sprintf("Expected prod with name, got %+v", prod))
+	}
+	if string(prod.Data) != "Hello" {
+		t.Fatal(fmt.Sprintf("Expected prod with data, got %+v", prod))
+	}
+}
