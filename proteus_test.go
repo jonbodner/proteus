@@ -12,7 +12,6 @@ import (
 
 	"github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/logger"
-	"github.com/sirupsen/logrus"
 )
 
 func TestValidIdentifier(t *testing.T) {
@@ -252,7 +251,8 @@ func TestNilScanner(t *testing.T) {
 	}
 
 	productDao := ScannerProductDao{}
-	err := Build(&productDao, Sqlite)
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	err := ShouldBuild(c, &productDao, Sqlite)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,8 +397,6 @@ func TestEmbedded(t *testing.T) {
 }
 
 func TestPositionalVariables(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetOutput(os.Stdout)
 
 	type PProduct struct {
 		Name string
@@ -422,8 +420,6 @@ func TestPositionalVariables(t *testing.T) {
 }
 
 func TestShouldBuild(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetOutput(os.Stdout)
 	//test single problem, invalid query (missing closing :)
 	type ProductDao struct {
 		Insert func(e Executor, p Product) (int64, error) `proq:"insert into Product(name) values(:p.Name)" prop:"p"`
@@ -463,5 +459,55 @@ error in field #1 (Insert2): first parameter must be of type Executor or Querier
 error in field #3 (Insert3): no query found for name nope
 error in field #5 (InsertNoP): query Parameter p cannot be found in the incoming parameters` {
 		t.Error(err2)
+	}
+}
+
+func TestShouldBuildEmbedded(t *testing.T) {
+	type Inner struct {
+		Name string `prof:"name"`
+	}
+	type MyProduct struct {
+		Inner
+		Id int `prof:"id"`
+	}
+	type ProductDao struct {
+		Insert func(e Executor, p MyProduct) (int64, error)    `proq:"insert into product(name) values(:p.Name:)" prop:"p"`
+		Get    func(q Querier, name string) (MyProduct, error) `proq:"select * from product where name=:name:" prop:"name"`
+	}
+
+	productDao := ProductDao{}
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	err := ShouldBuild(c, &productDao, Sqlite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exec, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, err := productDao.Insert(Wrap(exec), MyProduct{Inner: Inner{Name: "foo"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatal("Should have modified 1 row")
+	}
+	prod, err := productDao.Get(Wrap(exec), "foo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prod.Name != "foo" {
+		t.Fatal(fmt.Sprintf("Expected prod with name, got %+v", prod))
 	}
 }
