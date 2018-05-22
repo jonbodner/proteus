@@ -118,7 +118,8 @@ func buildFixedQueryAndParamOrder(c context.Context, query string, nameOrderMap 
 					}
 					out.WriteString(addSlice(id))
 					isSlice := false
-					if pathType != nil && pathType.Kind() == reflect.Slice && !pathType.Implements(valueType) {
+					//special case -- slice of bytes is never expanded out into a comma-separated list
+					if pathType != nil && pathType.Kind() == reflect.Slice && !pathType.Implements(valueType) && pathType.Elem().Kind() != reflect.Uint8 {
 						hasSlice = true
 						isSlice = true
 					}
