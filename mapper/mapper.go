@@ -94,7 +94,10 @@ func buildColFieldMap(sType reflect.Type, parentFieldInfo fieldInfo, colFieldMap
 			// if any of them aren't structs and have prof tags, we
 			// prepend the parent struct and store off a fieldi
 			// only if this doesn't implement a scanner. If it does, then go with the scanner
-			if sf.Type.Kind() == reflect.Struct && !reflect.PtrTo(sf.Type).Implements(scannerType) {
+			// another special case: time.Time isn't recursed into
+			fmt.Println(sf.Type.Name())
+			fmt.Println(sf.Type.PkgPath())
+			if sf.Type.Kind() == reflect.Struct && !reflect.PtrTo(sf.Type).Implements(scannerType) && sf.Type.Name() != "Time" && sf.Type.PkgPath() != "time"  {
 				buildColFieldMap(sf.Type, childFieldInfo, colFieldMap)
 			} else {
 				colFieldMap[strings.SplitN(tagVal, ",", 2)[0]] = childFieldInfo
@@ -197,7 +200,7 @@ func buildStructInner(c context.Context, sType reflect.Type, out reflect.Value, 
 		} else if rv.Elem().IsNil() {
 			logger.Log(c, logger.ERROR, fmt.Sprintln("Attempting to assign a nil to a non-pointer field"))
 			return fmt.Errorf("Unable to assign nil value to non-pointer struct field %s of type %v", sf.name[depth], curFieldType)
-		} else if field.Kind() == reflect.Struct {
+		} else if field.Kind() == reflect.Struct && field.Type().Name() != "Time" && field.Type().PkgPath() != "time" {
 			err := buildStructInner(c, field.Type(), field, sf, curVal, rv, depth+1)
 			if err != nil {
 				return err

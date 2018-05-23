@@ -12,6 +12,7 @@ import (
 
 	"github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/logger"
+	"time"
 )
 
 func TestValidIdentifier(t *testing.T) {
@@ -561,5 +562,67 @@ func TestShouldBinaryColumn(t *testing.T) {
 	}
 	if string(prod.Data) != "Hello" {
 		t.Fatal(fmt.Sprintf("Expected prod with data, got %+v", prod))
+	}
+}
+
+func TestShouldTimeColumn(t *testing.T) {
+	type MyProduct struct {
+		Id   int    `prof:"id"`
+		Name string `prof:"name"`
+		Timestamp time.Time `prof:"timestamp"`
+	}
+
+	type ProductDao struct {
+		Insert func(e Executor, p MyProduct) (int64, error)    `proq:"insert into product(name, timestamp) values(:p.Name:, :p.Timestamp:)" prop:"p"`
+		Get    func(q Querier, name string) (MyProduct, error) `proq:"select * from product where name=:name:" prop:"name"`
+	}
+
+	productDao := ProductDao{}
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	err := ShouldBuild(c, &productDao, Sqlite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exec, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), timestamp datetime)")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	timestamp := time.Now()
+	count, err := productDao.Insert(Wrap(exec), MyProduct{Name: "Foo", Timestamp: timestamp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatal("Should have modified 1 row")
+	}
+	prod, err := productDao.Get(Wrap(exec), "Foo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prod.Name != "Foo" {
+		t.Fatal(fmt.Sprintf("Expected prod with name, got %+v", prod))
+	}
+
+	// crazy but true: intermediate formats can create different format outputs.
+	// using a -07:00 for the time zone here, and then turning it back into a time, and then formatting it with
+	// time.UnixDate produces different output than if you formatted with UnixDate, parsed it, and then formatted it again.
+	// WAT
+	s := timestamp.Format("2006-01-02 15:04:05.999999999-07:00")
+	t2, _ := time.ParseInLocation("2006-01-02 15:04:05.999999999-07:00", s, time.UTC)
+	fmt.Println(prod.Timestamp.Location(), prod.Timestamp.Format(time.UnixDate))
+	fmt.Println(t2.Location(), t2.Format(time.UnixDate))
+	if prod.Timestamp.Format(time.UnixDate) != t2.Format(time.UnixDate) {
+		t.Fatal(fmt.Sprintf("Expected prod with timestamp, got %+v", prod))
 	}
 }
