@@ -95,8 +95,6 @@ func buildColFieldMap(sType reflect.Type, parentFieldInfo fieldInfo, colFieldMap
 			// prepend the parent struct and store off a fieldi
 			// only if this doesn't implement a scanner. If it does, then go with the scanner
 			// another special case: time.Time isn't recursed into
-			fmt.Println(sf.Type.Name())
-			fmt.Println(sf.Type.PkgPath())
 			if sf.Type.Kind() == reflect.Struct && !reflect.PtrTo(sf.Type).Implements(scannerType) && sf.Type.Name() != "Time" && sf.Type.PkgPath() != "time"  {
 				buildColFieldMap(sf.Type, childFieldInfo, colFieldMap)
 			} else {
