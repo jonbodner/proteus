@@ -20,7 +20,7 @@ func buildNameOrderMap(paramOrder string) map[string]int {
 	out := map[string]int{}
 	params := strings.Split(paramOrder, ",")
 	for k, v := range params {
-		out[v] = k + 1
+		out[strings.TrimSpace(v)] = k + 1
 	}
 	return out
 }
