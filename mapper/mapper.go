@@ -95,7 +95,7 @@ func buildColFieldMap(sType reflect.Type, parentFieldInfo fieldInfo, colFieldMap
 			// prepend the parent struct and store off a fieldi
 			// only if this doesn't implement a scanner. If it does, then go with the scanner
 			// another special case: time.Time isn't recursed into
-			if sf.Type.Kind() == reflect.Struct && !reflect.PtrTo(sf.Type).Implements(scannerType) && sf.Type.Name() != "Time" && sf.Type.PkgPath() != "time"  {
+			if sf.Type.Kind() == reflect.Struct && !reflect.PtrTo(sf.Type).Implements(scannerType) && sf.Type.Name() != "Time" && sf.Type.PkgPath() != "time" {
 				buildColFieldMap(sf.Type, childFieldInfo, colFieldMap)
 			} else {
 				colFieldMap[strings.SplitN(tagVal, ",", 2)[0]] = childFieldInfo
@@ -166,6 +166,7 @@ func buildStruct(c context.Context, sType reflect.Type, cols []string, vals []in
 func buildStructInner(c context.Context, sType reflect.Type, out reflect.Value, sf fieldInfo, curVal interface{}, rv reflect.Value, depth int) error {
 	field := out.Field(sf.pos[depth])
 	curFieldType := sf.fieldType[depth]
+	fmt.Printf("sf==%+v, depth==%d, field == %+v, curFieldType == %+v, curVal == %+v\n", sf, depth, field, curFieldType, curVal)
 	if curFieldType.Kind() == reflect.Ptr {
 		logger.Log(c, logger.DEBUG, fmt.Sprintln("isPtr", sf, rv, rv.Type(), rv.Elem(), curVal, sType))
 		if rv.Elem().IsNil() {
@@ -195,14 +196,14 @@ func buildStructInner(c context.Context, sType reflect.Type, out reflect.Value, 
 				return err
 			}
 			field.Set(reflect.ValueOf(toScan).Elem())
-		} else if rv.Elem().IsNil() {
-			logger.Log(c, logger.ERROR, fmt.Sprintln("Attempting to assign a nil to a non-pointer field"))
-			return fmt.Errorf("Unable to assign nil value to non-pointer struct field %s of type %v", sf.name[depth], curFieldType)
 		} else if field.Kind() == reflect.Struct && field.Type().Name() != "Time" && field.Type().PkgPath() != "time" {
 			err := buildStructInner(c, field.Type(), field, sf, curVal, rv, depth+1)
 			if err != nil {
 				return err
 			}
+		} else if rv.Elem().IsNil() {
+			logger.Log(c, logger.ERROR, fmt.Sprintln("Attempting to assign a nil to a non-pointer field"))
+			return fmt.Errorf("Unable to assign nil value to non-pointer struct field %s of type %v", sf.name[depth], curFieldType)
 		} else if rv.Elem().Elem().Type().ConvertibleTo(curFieldType) {
 			field.Set(rv.Elem().Elem().Convert(curFieldType))
 		} else {

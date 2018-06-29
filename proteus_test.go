@@ -402,6 +402,7 @@ func TestEmbedded(t *testing.T) {
 }
 
 func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
+	os.Remove("./proteus_test.db")
 
 	type MyProduct struct {
 		Id         int            `prof:"id"`
@@ -467,6 +468,10 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 		t.Fatal(fmt.Sprintf("Expected prod with name of foo, got %+v", prod))
 	}
 
+	if prod.EmptyField.Valid {
+		t.Fatal("emptyField shouldn't be valid")
+	}
+
 	// This is currently failing
 	nestedProd, err := productDao.GetNested(Wrap(exec), "foo")
 	if err != nil {
@@ -474,6 +479,10 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 	}
 	if nestedProd.Name != "foo" {
 		t.Fatal(fmt.Sprintf("Expected nested product name of foo, got %+v", prod))
+	}
+
+	if prod.EmptyField.Valid {
+		t.Fatal("emptyField shouldn't be valid")
 	}
 
 }
