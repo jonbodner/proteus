@@ -243,7 +243,7 @@ func validIdentifier(c context.Context, curVar string) (string, error) {
 loop:
 	for {
 		pos, tok, lit := s.Scan()
-		logger.Log(c, logger.DEBUG, fmt.Sprintln("%s\t%s\t%q\n", fset.Position(pos), tok, lit))
+		logger.Log(c, logger.DEBUG, fmt.Sprintf("%s\t%s\t%q\n", fset.Position(pos), tok, lit))
 		switch tok {
 		case token.EOF:
 			if first || lastPeriod {

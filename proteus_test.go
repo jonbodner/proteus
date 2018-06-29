@@ -10,9 +10,10 @@ import (
 	"database/sql"
 	"os"
 
+	"time"
+
 	"github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/logger"
-	"time"
 )
 
 func TestValidIdentifier(t *testing.T) {
@@ -228,7 +229,7 @@ func TestBuild(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if err := Build(tt.args.dao, tt.args.pa); (err != nil) != tt.wantErr {
@@ -262,6 +263,7 @@ func TestNilScanner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
 
 	exec, err := db.Begin()
 	if err != nil {
@@ -315,6 +317,7 @@ func TestUnnamedStructs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
 
 	exec, err := db.Begin()
 	if err != nil {
@@ -367,6 +370,7 @@ func TestEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
 
 	exec, err := db.Begin()
 	if err != nil {
@@ -398,6 +402,7 @@ func TestEmbedded(t *testing.T) {
 }
 
 func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
+	os.Remove("./proteus_test.db")
 
 	type MyProduct struct {
 		Id         int            `prof:"id"`
@@ -463,6 +468,10 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 		t.Fatal(fmt.Sprintf("Expected prod with name of foo, got %+v", prod))
 	}
 
+	if prod.EmptyField.Valid {
+		t.Fatal("emptyField shouldn't be valid")
+	}
+
 	// This is currently failing
 	nestedProd, err := productDao.GetNested(Wrap(exec), "foo")
 	if err != nil {
@@ -470,6 +479,10 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 	}
 	if nestedProd.Name != "foo" {
 		t.Fatal(fmt.Sprintf("Expected nested product name of foo, got %+v", prod))
+	}
+
+	if prod.EmptyField.Valid {
+		t.Fatal("emptyField shouldn't be valid")
 	}
 
 }
@@ -541,6 +554,8 @@ error in field #5 (InsertNoP): query Parameter p cannot be found in the incoming
 }
 
 func TestShouldBuildEmbedded(t *testing.T) {
+	os.Remove("./proteus_test.db")
+
 	type Inner struct {
 		Name string `prof:"name"`
 	}
@@ -563,6 +578,7 @@ func TestShouldBuildEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
 
 	exec, err := db.Begin()
 	if err != nil {
@@ -591,6 +607,8 @@ func TestShouldBuildEmbedded(t *testing.T) {
 }
 
 func TestShouldBinaryColumn(t *testing.T) {
+	os.Remove("./proteus_test.db")
+
 	type MyProduct struct {
 		Id   int    `prof:"id"`
 		Name string `prof:"name"`
@@ -612,6 +630,7 @@ func TestShouldBinaryColumn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
 
 	exec, err := db.Begin()
 	if err != nil {
@@ -643,6 +662,8 @@ func TestShouldBinaryColumn(t *testing.T) {
 }
 
 func TestShouldTimeColumn(t *testing.T) {
+	os.Remove("./proteus_test.db")
+
 	type MyProduct struct {
 		Id        int       `prof:"id"`
 		Name      string    `prof:"name"`
@@ -664,6 +685,7 @@ func TestShouldTimeColumn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
 
 	exec, err := db.Begin()
 	if err != nil {

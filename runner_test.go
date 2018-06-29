@@ -20,7 +20,7 @@ func Test_getQArgs(t *testing.T) {
 		want    []interface{}
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
@@ -47,13 +47,13 @@ func Test_buildExec(t *testing.T) {
 		want    func(args []reflect.Value) []reflect.Value
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
 		got := makeExecutorImplementation(c, tt.args.funcType, tt.args.positionalQuery, tt.args.qps)
 		if !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. makeExecutorImplementation() = %v, want %v", tt.name, got, tt.want)
+			t.Errorf("%q. makeExecutorImplementation() = %T, want %T", tt.name, got, tt.want)
 		}
 	}
 }
@@ -70,7 +70,7 @@ func Test_buildQuery(t *testing.T) {
 		want    func(args []reflect.Value) []reflect.Value
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
@@ -80,7 +80,7 @@ func Test_buildQuery(t *testing.T) {
 			continue
 		}
 		if !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. makeQuerierImplementation() = %v, want %v", tt.name, got, tt.want)
+			t.Errorf("%q. makeQuerierImplementation() = %T, want %T", tt.name, got, tt.want)
 		}
 	}
 }
@@ -97,7 +97,7 @@ func Test_handleMapping(t *testing.T) {
 		want    interface{}
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
