@@ -166,7 +166,6 @@ func buildStruct(c context.Context, sType reflect.Type, cols []string, vals []in
 func buildStructInner(c context.Context, sType reflect.Type, out reflect.Value, sf fieldInfo, curVal interface{}, rv reflect.Value, depth int) error {
 	field := out.Field(sf.pos[depth])
 	curFieldType := sf.fieldType[depth]
-	fmt.Printf("sf==%+v, depth==%d, field == %+v, curFieldType == %+v, curVal == %+v\n", sf, depth, field, curFieldType, curVal)
 	if curFieldType.Kind() == reflect.Ptr {
 		logger.Log(c, logger.DEBUG, fmt.Sprintln("isPtr", sf, rv, rv.Type(), rv.Elem(), curVal, sType))
 		if rv.Elem().IsNil() {
