@@ -79,7 +79,7 @@ func TestBuildSqliteStruct(t *testing.T) {
 
 	//struct
 	type Product struct {
-		Id   int     `prof:"id,pk"`
+		ID   int     `prof:"id,pk"`
 		Name *string `prof:"name"`
 		Cost float64 `prof:"cost"`
 	}
@@ -101,8 +101,8 @@ func TestBuildSqliteStruct(t *testing.T) {
 		if !ok {
 			t.Error("wrong type")
 		} else {
-			if p2.Id != i {
-				t.Errorf("Wrong id, expected %d, got %d", i, p2.Id)
+			if p2.ID != i {
+				t.Errorf("Wrong id, expected %d, got %d", i, p2.ID)
 			}
 			if i%2 == 0 {
 				if *p2.Name != fmt.Sprintf("person%d", i) {
@@ -243,7 +243,7 @@ func TestBuildSqlitePrimitivePtr(t *testing.T) {
 		t.Error("Wrong type")
 	} else {
 		if *s2 != "person4" {
-			t.Errorf("Expected %s, got %s", "person4", s2)
+			t.Errorf("Expected %s, got %s", "person4", *s2)
 		}
 	}
 

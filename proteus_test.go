@@ -10,9 +10,10 @@ import (
 	"database/sql"
 	"os"
 
+	"time"
+
 	"github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/logger"
-	"time"
 )
 
 func TestValidIdentifier(t *testing.T) {
@@ -228,7 +229,7 @@ func TestBuild(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if err := Build(tt.args.dao, tt.args.pa); (err != nil) != tt.wantErr {
@@ -262,6 +263,7 @@ func TestNilScanner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
 
 	exec, err := db.Begin()
 	if err != nil {
@@ -315,6 +317,7 @@ func TestUnnamedStructs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
 
 	exec, err := db.Begin()
 	if err != nil {
@@ -367,6 +370,7 @@ func TestEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
 
 	exec, err := db.Begin()
 	if err != nil {
@@ -464,6 +468,8 @@ error in field #5 (InsertNoP): query Parameter p cannot be found in the incoming
 }
 
 func TestShouldBuildEmbedded(t *testing.T) {
+	os.Remove("./proteus_test.db")
+
 	type Inner struct {
 		Name string `prof:"name"`
 	}
@@ -486,6 +492,7 @@ func TestShouldBuildEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
 
 	exec, err := db.Begin()
 	if err != nil {
@@ -514,6 +521,8 @@ func TestShouldBuildEmbedded(t *testing.T) {
 }
 
 func TestShouldBinaryColumn(t *testing.T) {
+	os.Remove("./proteus_test.db")
+
 	type MyProduct struct {
 		Id   int    `prof:"id"`
 		Name string `prof:"name"`
@@ -535,6 +544,7 @@ func TestShouldBinaryColumn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
 
 	exec, err := db.Begin()
 	if err != nil {
@@ -566,9 +576,11 @@ func TestShouldBinaryColumn(t *testing.T) {
 }
 
 func TestShouldTimeColumn(t *testing.T) {
+	os.Remove("./proteus_test.db")
+
 	type MyProduct struct {
-		Id   int    `prof:"id"`
-		Name string `prof:"name"`
+		Id        int       `prof:"id"`
+		Name      string    `prof:"name"`
 		Timestamp time.Time `prof:"timestamp"`
 	}
 
@@ -587,6 +599,7 @@ func TestShouldTimeColumn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
 
 	exec, err := db.Begin()
 	if err != nil {
