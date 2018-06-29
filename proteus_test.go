@@ -397,6 +397,83 @@ func TestEmbedded(t *testing.T) {
 	}
 }
 
+func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
+
+	type MyProduct struct {
+		Id         int            `prof:"id"`
+		Name       string         `prof:"name"`
+		EmptyField sql.NullString `prof:"empty_field"`
+	}
+
+	type Inner struct {
+		Name       string         `prof:"name"`
+		EmptyField sql.NullString `prof:"empty_field"`
+	}
+
+	type MyNestedProduct struct {
+		Inner
+		Id int `prof:"id"`
+	}
+
+	type ProductDao struct {
+		Insert    func(e Executor, p MyProduct) (int64, error)          `proq:"insert into product(name,empty_field) values(:p.Name:,:p.EmptyField:)" prop:"p"`
+		Get       func(q Querier, name string) (MyProduct, error)       `proq:"select * from product where name=:name:" prop:"name"`
+		GetNested func(q Querier, name string) (MyNestedProduct, error) `proq:"select * from product where name=:name:" prop:"name"`
+		// GetNested has the same query as "Get" but with embedded structure. Currently fails with null values
+	}
+
+	productDao := ProductDao{}
+	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	err := ShouldBuild(c, &productDao, Sqlite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exec, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100),empty_field VARCHAR(100))")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, err := productDao.Insert(Wrap(exec), MyProduct{Name: "foo", EmptyField: sql.NullString{String: "", Valid: false}})
+	// Nullable field with non-null values work fine, e.g. line below
+	//count, err := productDao.Insert(Wrap(exec), MyProduct{Name: "foo", EmptyField: sql.NullString{String:"field",Valid: true}})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatal("Should have modified 1 row")
+	}
+	prod, err := productDao.Get(Wrap(exec), "foo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if prod.Name != "foo" {
+		t.Fatal(fmt.Sprintf("Expected prod with name of foo, got %+v", prod))
+	}
+
+	// This is currently failing
+	nestedProd, err := productDao.GetNested(Wrap(exec), "foo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nestedProd.Name != "foo" {
+		t.Fatal(fmt.Sprintf("Expected nested product name of foo, got %+v", prod))
+	}
+
+}
+
 func TestPositionalVariables(t *testing.T) {
 
 	type PProduct struct {
@@ -567,8 +644,8 @@ func TestShouldBinaryColumn(t *testing.T) {
 
 func TestShouldTimeColumn(t *testing.T) {
 	type MyProduct struct {
-		Id   int    `prof:"id"`
-		Name string `prof:"name"`
+		Id        int       `prof:"id"`
+		Name      string    `prof:"name"`
 		Timestamp time.Time `prof:"timestamp"`
 	}
 
