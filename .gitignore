@@ -4,3 +4,4 @@
 .vscode
 glide.lock
 vendor
+proteus_test.db
