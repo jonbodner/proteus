@@ -21,7 +21,7 @@ type Product2 struct {
 func (p Product2) String() string {
 	c := "<nil>"
 	if p.Cost.Valid {
-		c = fmt.Sprintf("%f", p.Cost)
+		c = fmt.Sprintf("%v", p.Cost)
 	}
 	return fmt.Sprintf("%d: %s(%s)", p.Id, p.Name, c)
 }

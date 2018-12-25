@@ -34,7 +34,7 @@ func Test_validateFunction(t *testing.T) {
 		want    bool
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		err := validateFunction(tt.args.funcType)
@@ -55,7 +55,7 @@ func Test_buildParamMap(t *testing.T) {
 		args args
 		want map[string]int
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if got := buildNameOrderMap(tt.args.prop); !reflect.DeepEqual(got, tt.want) {
@@ -73,7 +73,7 @@ func Test_buildDummyParameters(t *testing.T) {
 		args args
 		want map[string]int
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if got := buildDummyParameters(tt.args.paramCount); !reflect.DeepEqual(got, tt.want) {
@@ -96,7 +96,7 @@ func Test_convertToPositionalParameters(t *testing.T) {
 		want1   []paramInfo
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
@@ -124,7 +124,7 @@ func Test_joinFactory(t *testing.T) {
 		args args
 		want func(int) string
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if got := joinFactory(tt.args.startPos, tt.args.paramAdapter); !reflect.DeepEqual(got, tt.want) {
@@ -142,7 +142,7 @@ func Test_fixNameForTemplate(t *testing.T) {
 		args args
 		want string
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if got := fixNameForTemplate(tt.args.name); got != tt.want {
@@ -160,7 +160,7 @@ func Test_addSlice(t *testing.T) {
 		args args
 		want string
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if got := addSlice(tt.args.sliceName); got != tt.want {
@@ -179,7 +179,7 @@ func Test_validIdentifier(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {

@@ -43,7 +43,7 @@ func BenchmarkSelectProteus(b *testing.B) {
 			b.Errorf("cost should have been non-nil")
 		} else {
 			if *p.Cost != 4.4 {
-				b.Errorf("should have had 4.4, had %f instead", p.Cost)
+				b.Errorf("should have had 4.4, had %v instead", *p.Cost)
 			}
 		}
 
@@ -86,7 +86,7 @@ func BenchmarkSelectNative(b *testing.B) {
 				b.Errorf("cost should have been non-nil")
 			} else {
 				if *p.Cost != 4.4 {
-					b.Errorf("should have had 4.4, had %f instead", p.Cost)
+					b.Errorf("should have had 4.4, had %v instead", *p.Cost)
 				}
 			}
 		}

@@ -95,6 +95,25 @@ type Rows interface {
 	Close() error
 }
 
+// Rows2 contains the new methods added to the sql.Rows struct.
+type Rows2 interface {
+	Rows
+
+	// ColumnTypes returns column information such as column type, length,
+	// and nullable. Some information may not be available from some drivers.
+	ColumnTypes() ([]*sql.ColumnType, error)
+
+	// NextResultSet prepares the next result set for reading. It returns true if
+	// there is further result sets, or false if there is no further result set
+	// or if there is an error advancing to it. The Err method should be consulted
+	// to distinguish between the two cases.
+	//
+	// After calling NextResultSet, the Next method should always be called before
+	// scanning. If there are further result sets they may not have rows in the result
+	// set.
+	NextResultSet() bool
+}
+
 // Executor runs queries that modify the data store.
 type Executor interface {
 	// Exec executes a query without returning any rows.

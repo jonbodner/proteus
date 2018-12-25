@@ -106,7 +106,7 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 
 	// impossible case since validation should happen first, but be safe
 	return func(result sql.Result, err error) []reflect.Value {
-		return []reflect.Value{zero, reflect.ValueOf(errors.New("should never get here!"))}
+		return []reflect.Value{zero, reflect.ValueOf(errors.New("should never get here"))}
 	}
 }
 
@@ -193,7 +193,7 @@ func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder map
 
 	// impossible case since validation should happen first, but be safe
 	return func(Rows, error) []reflect.Value {
-		return []reflect.Value{qZero, reflect.ValueOf(errors.New("should never get here!"))}
+		return []reflect.Value{qZero, reflect.ValueOf(errors.New("should never get here"))}
 	}
 }
 

@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	"database/sql"
-	"os"
 
 	"time"
 
 	"github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/logger"
+
+	sqlmock "github.com/jonbodner/go-sqlmock"
 )
 
 func TestValidIdentifier(t *testing.T) {
@@ -239,17 +240,16 @@ func TestBuild(t *testing.T) {
 }
 
 func TestNilScanner(t *testing.T) {
-	os.Remove("./proteus_test.db")
 
 	type ScannerProduct struct {
-		Id        int            `prof:"id"`
+		ID        int            `prof:"id"`
 		Name      sql.NullString `prof:"name"`
 		NullField sql.NullString `prof:"null_field"`
 	}
 
 	type ScannerProductDao struct {
 		Insert   func(e Executor, p ScannerProduct) (int64, error) `proq:"insert into Product(name) values(:p.Name:)" prop:"p"`
-		FindById func(e Querier, id int64) (ScannerProduct, error) `proq:"select * from Product where id = :id:" prop:"id"`
+		FindByID func(e Querier, id int64) (ScannerProduct, error) `proq:"select * from Product where id = :id:" prop:"id"`
 	}
 
 	productDao := ScannerProductDao{}
@@ -259,18 +259,18 @@ func TestNilScanner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
+	// set up the expectations
+	mock.ExpectBegin()
+	mock.ExpectExec(`insert into Product(name) values(?)`).WithArgs("hi").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("select * from Product where id = ?").WithArgs(1).WillReturnRows(sqlmock.NewRows([]string{"id", "name", "null_field"}).AddRow(1, `hi`, nil))
+	mock.ExpectClose()
 
 	exec, err := db.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,30 +281,28 @@ func TestNilScanner(t *testing.T) {
 		Name: sql.NullString{String: "hi", Valid: true},
 	}
 
-	rowId, err := productDao.Insert(gExec, p)
+	rowID, err := productDao.Insert(gExec, p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roundTrip, err := productDao.FindById(gExec, rowId)
+	roundTrip, err := productDao.FindByID(gExec, rowID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if roundTrip.Id != 1 || roundTrip.Name.String != "hi" || roundTrip.Name.Valid != true || roundTrip.NullField.String != "" || roundTrip.NullField.Valid != false {
+	if roundTrip.ID != 1 || roundTrip.Name.String != "hi" || roundTrip.Name.Valid != true || roundTrip.NullField.String != "" || roundTrip.NullField.Valid != false {
 		t.Errorf("Expected {1 {hi true} { false}}, got %v", roundTrip)
 	}
 }
 
 func TestUnnamedStructs(t *testing.T) {
-	os.Remove("./proteus_test.db")
-
 	type ScannerProduct struct {
-		Id   int    `prof:"id"`
+		ID   int    `prof:"id"`
 		Name string `prof:"name"`
 	}
 
 	type ScannerProductDao struct {
 		Insert   func(e Executor, p ScannerProduct) (int64, error) `proq:"insert into Product(name) values(:$1.Name:)"`
-		FindById func(e Querier, id int64) (ScannerProduct, error) `proq:"select * from Product where id = :id:" prop:"id"`
+		FindByID func(e Querier, id int64) (ScannerProduct, error) `proq:"select * from Product where id = :id:" prop:"id"`
 	}
 
 	productDao := ScannerProductDao{}
@@ -313,18 +311,19 @@ func TestUnnamedStructs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
+	// set up the expectations
+	mock.ExpectBegin()
+	mock.ExpectExec(`insert into Product(name) values(?)`).WithArgs("bob").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("select * from Product where id = ?").WithArgs(1).WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(1, `bob`))
+	mock.ExpectClose()
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100))")
+	exec, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,21 +334,24 @@ func TestUnnamedStructs(t *testing.T) {
 		Name: "bob",
 	}
 
-	rowId, err := productDao.Insert(gExec, p)
+	rowID, err := productDao.Insert(gExec, p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roundTrip, err := productDao.FindById(gExec, rowId)
+	roundTrip, err := productDao.FindByID(gExec, rowID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if roundTrip.Id != 1 || roundTrip.Name != "bob" {
+	if roundTrip.ID != 1 || roundTrip.Name != "bob" {
 		t.Errorf("Expected {1 bob}, got %v", roundTrip)
 	}
 }
 
 func TestEmbedded(t *testing.T) {
-	os.Remove("./proteus_test.db")
+	type Product struct {
+		ID   int    `prof:"id"`
+		Name string `prof:"name"`
+	}
 
 	type InnerEmbeddedProductDao struct {
 		Insert func(e Executor, p Product) (int64, error) `proq:"insert into Product(name) values(:p.Name:)" prop:"p"`
@@ -357,7 +359,7 @@ func TestEmbedded(t *testing.T) {
 
 	type OuterEmbeddedProductDao struct {
 		InnerEmbeddedProductDao
-		FindById func(e Querier, id int64) (Product, error) `proq:"select * from Product where id = :id:" prop:"id"`
+		FindByID func(e Querier, id int64) (Product, error) `proq:"select * from Product where id = :id:" prop:"id"`
 	}
 
 	productDao := OuterEmbeddedProductDao{}
@@ -366,18 +368,19 @@ func TestEmbedded(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
+	// set up the expectations
+	mock.ExpectBegin()
+	mock.ExpectExec(`insert into Product(name) values(?)`).WithArgs("Bob").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("select * from Product where id = ?").WithArgs(1).WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(1, `Bob`))
+	mock.ExpectClose()
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100))")
+	exec, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -388,24 +391,22 @@ func TestEmbedded(t *testing.T) {
 		Name: "Bob",
 	}
 
-	rowId, err := productDao.Insert(gExec, p)
+	rowID, err := productDao.Insert(gExec, p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roundTrip, err := productDao.FindById(gExec, rowId)
+	roundTrip, err := productDao.FindByID(gExec, rowID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if roundTrip.Id != 1 || roundTrip.Name != "Bob" {
+	if roundTrip.ID != 1 || roundTrip.Name != "Bob" {
 		t.Errorf("Expected {1 Bob}, got %v", roundTrip)
 	}
 }
 
 func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
-	os.Remove("./proteus_test.db")
-
 	type MyProduct struct {
-		Id         int            `prof:"id"`
+		ID         int            `prof:"id"`
 		Name       string         `prof:"name"`
 		EmptyField sql.NullString `prof:"empty_field"`
 	}
@@ -417,7 +418,7 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 
 	type MyNestedProduct struct {
 		Inner
-		Id int `prof:"id"`
+		ID int `prof:"id"`
 	}
 
 	type ProductDao struct {
@@ -433,18 +434,21 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
+
+	// set up the expectations
+	mock.ExpectBegin()
+	mock.ExpectExec(`insert into product(name,empty_field) values(?,?)`).WithArgs("foo", sql.NullString{String: "", Valid: false}).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("select * from product where name=?").WithArgs("foo").WillReturnRows(sqlmock.NewRows([]string{"id", "name", "empty_field"}).AddRow(1, `foo`, nil))
+	mock.ExpectQuery("select * from product where name=?").WithArgs("foo").WillReturnRows(sqlmock.NewRows([]string{"id", "name", "empty_field"}).AddRow(1, `foo`, nil))
+	mock.ExpectClose()
 
 	exec, err := db.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100),empty_field VARCHAR(100))")
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -554,14 +558,12 @@ error in field #5 (InsertNoP): query Parameter p cannot be found in the incoming
 }
 
 func TestShouldBuildEmbedded(t *testing.T) {
-	os.Remove("./proteus_test.db")
-
 	type Inner struct {
 		Name string `prof:"name"`
 	}
 	type MyProduct struct {
 		Inner
-		Id int `prof:"id"`
+		ID int `prof:"id"`
 	}
 	type ProductDao struct {
 		Insert func(e Executor, p MyProduct) (int64, error)    `proq:"insert into product(name) values(:p.Name:)" prop:"p"`
@@ -574,18 +576,19 @@ func TestShouldBuildEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
+	// set up the expectations
+	mock.ExpectBegin()
+	mock.ExpectExec(`insert into product(name) values(?)`).WithArgs("foo").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("select * from product where name=?").WithArgs("foo").WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(1, `foo`))
+	mock.ExpectClose()
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
+	exec, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -607,10 +610,8 @@ func TestShouldBuildEmbedded(t *testing.T) {
 }
 
 func TestShouldBinaryColumn(t *testing.T) {
-	os.Remove("./proteus_test.db")
-
 	type MyProduct struct {
-		Id   int    `prof:"id"`
+		ID   int    `prof:"id"`
 		Name string `prof:"name"`
 		Data []byte `prof:"data"`
 	}
@@ -626,18 +627,20 @@ func TestShouldBinaryColumn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
+	// set up the expectations
+	mock.ExpectBegin()
+	mock.ExpectExec(`insert into product(name, data) values(?, ?)`).WithArgs("Foo", []byte("Hello")).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("select * from product where name=?").WithArgs("Foo").WillReturnRows(sqlmock.NewRows([]string{"id", "name", "data"}).AddRow(1, `Foo`, []byte("Hello")))
+	mock.ExpectClose()
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), data blob)")
+	exec, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -662,10 +665,8 @@ func TestShouldBinaryColumn(t *testing.T) {
 }
 
 func TestShouldTimeColumn(t *testing.T) {
-	os.Remove("./proteus_test.db")
-
 	type MyProduct struct {
-		Id        int       `prof:"id"`
+		ID        int       `prof:"id"`
 		Name      string    `prof:"name"`
 		Timestamp time.Time `prof:"timestamp"`
 	}
@@ -681,23 +682,25 @@ func TestShouldTimeColumn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
+
+	timestamp := time.Now().UTC()
+
+	// set up the expectations
+	mock.ExpectBegin()
+	mock.ExpectExec(`insert into product(name, timestamp) values(?, ?)`).WithArgs("Foo", timestamp).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("select * from product where name=?").WithArgs("Foo").WillReturnRows(sqlmock.NewRows([]string{"id", "name", "timestamp"}).AddRow(1, `Foo`, timestamp))
+	mock.ExpectClose()
 
 	exec, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), timestamp datetime)")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	timestamp := time.Now()
 	count, err := productDao.Insert(Wrap(exec), MyProduct{Name: "Foo", Timestamp: timestamp})
 	if err != nil {
 		t.Fatal(err)
@@ -722,6 +725,6 @@ func TestShouldTimeColumn(t *testing.T) {
 	fmt.Println(prod.Timestamp.Location(), prod.Timestamp.Format(time.UnixDate))
 	fmt.Println(t2.Location(), t2.Format(time.UnixDate))
 	if prod.Timestamp.Format(time.UnixDate) != t2.Format(time.UnixDate) {
-		t.Fatal(fmt.Sprintf("Expected prod with timestamp, got %+v", prod))
+		t.Fatal(fmt.Sprintf("Expected prod with timestamp %v, got %+v", timestamp, prod))
 	}
 }
