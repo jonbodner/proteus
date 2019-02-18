@@ -14,7 +14,7 @@ import (
 	"github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/logger"
 
-	sqlmock "github.com/jonbodner/go-sqlmock"
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 )
 
 func TestValidIdentifier(t *testing.T) {
@@ -230,7 +230,7 @@ func TestBuild(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if err := Build(tt.args.dao, tt.args.pa); (err != nil) != tt.wantErr {

@@ -1,9 +1,9 @@
 module github.com/jonbodner/proteus
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.3.2
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/jonbodner/dbtimer v0.0.0-20170410163237-7002f3758ae1
-	github.com/jonbodner/go-sqlmock v1.3.1-0.20181221085109-2a5889fc8650
 	github.com/jonbodner/multierr v0.0.0-20180107182957-b7c888fe05b2
 	github.com/lib/pq v0.0.0-20170810061220-e42267488fe3
 	github.com/mutecomm/go-sqlcipher v0.0.0-20170509131613-eee495e76dfb

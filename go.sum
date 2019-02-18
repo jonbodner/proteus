@@ -1,3 +1,5 @@
+github.com/DATA-DOG/go-sqlmock v1.3.2 h1:2L2f5t3kKnCLxnClDD/PrDfExFFa1wjESgxHG/B1ibo=
+github.com/DATA-DOG/go-sqlmock v1.3.2/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV9I=
@@ -8,10 +10,6 @@ github.com/hpcloud/tail v1.0.0 h1:nfCOvKYfkgYP8hkirhJocXT2+zOD8yUNjXaWfTlyFKI=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/jonbodner/dbtimer v0.0.0-20170410163237-7002f3758ae1 h1:mgFL7UFb88FOlSVgVoIRGJ4yKlkfp8KcXHqy7no+lEU=
 github.com/jonbodner/dbtimer v0.0.0-20170410163237-7002f3758ae1/go.mod h1:PjOlFbeJKs+4b2CvuN9FFF8Ed8cZ6FHWPb5tLK2QKOM=
-github.com/jonbodner/go-sqlmock v1.3.0 h1:Tlx4V47rKxCUEGF6f6qYUSGYqp4dF9ek6NYF11IsS5k=
-github.com/jonbodner/go-sqlmock v1.3.0/go.mod h1:upFIja3RIvdleMwmPLkUu9fRWVzZQV5vYbzs3zBCQvE=
-github.com/jonbodner/go-sqlmock v1.3.1-0.20181221085109-2a5889fc8650 h1:SzxkdwnuTH9w6SmMwi1rztNI40vRsPG1ojAgkKxpC8s=
-github.com/jonbodner/go-sqlmock v1.3.1-0.20181221085109-2a5889fc8650/go.mod h1:upFIja3RIvdleMwmPLkUu9fRWVzZQV5vYbzs3zBCQvE=
 github.com/jonbodner/multierr v0.0.0-20180107182957-b7c888fe05b2 h1:xBwHlQLqAAHcGzAQjjyaA3zeFGdfxatPBjYWZd0elc0=
 github.com/jonbodner/multierr v0.0.0-20180107182957-b7c888fe05b2/go.mod h1:twEHki1L+NeV5wEPaqyDUwnqpFNnl1NJk0ZJEmr5Lqk=
 github.com/lib/pq v0.0.0-20170810061220-e42267488fe3 h1:2Fs7SMFLrtkGta5HodD3MRV3nIzv+6I90eSfqwPklbo=

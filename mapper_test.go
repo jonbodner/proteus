@@ -2,18 +2,16 @@ package proteus
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"reflect"
 	"testing"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
-	_ "github.com/mutecomm/go-sqlcipher"
 )
 
 func TestMapRows(t *testing.T) {
@@ -30,52 +28,22 @@ func TestMapRows(t *testing.T) {
 	}
 }
 
-func setupDb(t *testing.T) *sql.DB {
-	if testing.Short() {
-		t.Skip("skipping sqlite test in short mode")
-	}
-	os.Remove("./proteus_test.db")
-
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
-	if err != nil {
-		log.Fatal(err)
-	}
-	sqlStmt := `
-	create table product (id integer not null primary key, name text, cost real);
-	`
-	_, err = db.Exec(sqlStmt)
-	if err != nil {
-		log.Fatalf("%q: %s\n", err, sqlStmt)
-		return nil
-	}
-
-	tx, err := db.Begin()
-	if err != nil {
-		log.Fatal(err)
-	}
-	stmt, err := tx.Prepare("insert into product(id, name, cost) values(?, ?, ?)")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer stmt.Close()
-	for i := 0; i < 5; i++ {
-		var name *string
-		if i%2 == 0 {
-			n := fmt.Sprintf("person%d", i)
-			name = &n
-		}
-		_, err = stmt.Exec(i, name, 1.1*float64(i))
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-	tx.Commit()
-	return db
-}
-
 func TestBuildSqliteStruct(t *testing.T) {
-	db := setupDb(t)
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
 	defer db.Close()
+
+	mock.MatchExpectationsInOrder(true)
+	mock.ExpectQuery("select id, name, cost from product").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "cost"}).
+			AddRow(0, []byte("person0"), 1.1*float64(0)).
+			AddRow(1, nil, 1.1*float64(1)).
+			AddRow(2, []byte("person2"), 1.1*float64(2)).
+			AddRow(3, nil, 1.1*float64(3)).
+			AddRow(4, []byte("person4"), 1.1*float64(4))).
+		RowsWillBeClosed()
 
 	//struct
 	type Product struct {
@@ -130,11 +98,28 @@ func TestBuildSqliteStruct(t *testing.T) {
 	if prod != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
+
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestBuildSqlitePrimitive(t *testing.T) {
-	db := setupDb(t)
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
 	defer db.Close()
+
+	mock.MatchExpectationsInOrder(true)
+	mock.ExpectPrepare("select name from product where id = ?").
+		ExpectQuery().WithArgs(4).
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).
+			AddRow([]byte("person4"))).
+		RowsWillBeClosed()
+	mock.ExpectExec("delete from product").
+		WillReturnResult(sqlmock.NewResult(0, 5))
 
 	//primitive
 	stmt, err := db.Prepare("select name from product where id = ?")
@@ -143,7 +128,7 @@ func TestBuildSqlitePrimitive(t *testing.T) {
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query("4")
+	rows, err := stmt.Query(4)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -174,11 +159,27 @@ func TestBuildSqlitePrimitive(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestBuildSqlitePrimitiveNilFail(t *testing.T) {
-	db := setupDb(t)
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
 	defer db.Close()
+
+	mock.MatchExpectationsInOrder(true)
+	mock.ExpectPrepare("select name from product where id = ?").
+		ExpectQuery().WithArgs(3).
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).
+			AddRow(nil)).
+		RowsWillBeClosed()
+	mock.ExpectExec("delete from product").WillReturnResult(sqlmock.NewResult(0, 5))
 
 	//primitive
 	stmt, err := db.Prepare("select name from product where id = ?")
@@ -187,7 +188,7 @@ func TestBuildSqlitePrimitiveNilFail(t *testing.T) {
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query("3")
+	rows, err := stmt.Query(3)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -211,11 +212,27 @@ func TestBuildSqlitePrimitiveNilFail(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestBuildSqlitePrimitivePtr(t *testing.T) {
-	db := setupDb(t)
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
 	defer db.Close()
+
+	mock.MatchExpectationsInOrder(true)
+	mock.ExpectPrepare("select name from product where id = ?").
+		ExpectQuery().WithArgs(4).
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).
+			AddRow([]byte("person4"))).
+		RowsWillBeClosed()
+	mock.ExpectExec("delete from product").WillReturnResult(sqlmock.NewResult(0, 5))
 
 	//primitive
 	stmt, err := db.Prepare("select name from product where id = ?")
@@ -224,7 +241,7 @@ func TestBuildSqlitePrimitivePtr(t *testing.T) {
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query("4")
+	rows, err := stmt.Query(4)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -256,11 +273,27 @@ func TestBuildSqlitePrimitivePtr(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestBuildSqlitePrimitivePtrNil(t *testing.T) {
-	db := setupDb(t)
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
 	defer db.Close()
+
+	mock.MatchExpectationsInOrder(true)
+	mock.ExpectPrepare("select name from product where id = ?").
+		ExpectQuery().WithArgs(3).
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).
+			AddRow(nil)).
+		RowsWillBeClosed()
+	mock.ExpectExec("delete from product").WillReturnResult(sqlmock.NewResult(0, 5))
 
 	//primitive
 	stmt, err := db.Prepare("select name from product where id = ?")
@@ -269,7 +302,7 @@ func TestBuildSqlitePrimitivePtrNil(t *testing.T) {
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query("3")
+	rows, err := stmt.Query(3)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -298,11 +331,29 @@ func TestBuildSqlitePrimitivePtrNil(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestBuildSqliteMap(t *testing.T) {
-	db := setupDb(t)
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
 	defer db.Close()
+
+	mock.MatchExpectationsInOrder(true)
+	mock.ExpectQuery("select id, name, cost from product").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "cost"}).
+			AddRow(0, []byte("person0"), 1.1*float64(0)).
+			AddRow(1, nil, 1.1*float64(1)).
+			AddRow(2, []byte("person2"), 1.1*float64(2)).
+			AddRow(3, nil, 1.1*float64(3)).
+			AddRow(4, []byte("person4"), 1.1*float64(4))).
+		RowsWillBeClosed()
 
 	rows, err := db.Query("select id, name, cost from product")
 	if err != nil {
@@ -367,5 +418,10 @@ func TestBuildSqliteMap(t *testing.T) {
 	prod, err := mapRows(c, rows, b)
 	if prod != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
+	}
+
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Fatal(err)
 	}
 }
