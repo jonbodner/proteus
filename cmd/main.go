@@ -1,3 +1,5 @@
+// +build sqlite postgres
+
 package main
 
 import (
