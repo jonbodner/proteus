@@ -28,7 +28,7 @@ type ProductDao struct {
 }
 ```
 
-The first input parameter is either of type proteus.Executor or proteus.Querier:
+The first input parameter is either of type `proteus.Executor` or `proteus.Querier`:
 ```go
 // Executor runs queries that modify the data store.
 type Executor interface {
@@ -42,7 +42,46 @@ type Executor interface {
 type Querier interface {
 	// Query executes a query that returns rows, typically a SELECT.
 	// The args are for any placeholder parameters in the query.
-	Query(query string, args ...interface{}) (Rows, error)
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+}
+```
+
+As of Proteus 0.10.0, you can also pass a context into your SQL queries:
+
+```go
+type ProductDaoCtx struct {
+	FindByID                      func(ctx context.Context, e proteus.ContextQuerier, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
+	Update                        func(ctx context.Context, e proteus.ContextExecutor, p Product) (int64, error)                                   `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCost             func(ctx context.Context, e proteus.ContextQuerier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindByIDMap                   func(ctx context.Context, e proteus.ContextQuerier, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
+	UpdateMap                     func(ctx context.Context, e proteus.ContextExecutor, p map[string]interface{}) (int64, error)                    `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCostMap          func(ctx context.Context, e proteus.ContextQuerier, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	Insert                        func(ctx context.Context, e proteus.ContextExecutor, id int, name string, cost *float64) (int64, error)          `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
+	FindByIDSlice                 func(ctx context.Context, e proteus.ContextQuerier, ids []int) ([]Product, error)                                `proq:"select * from Product where id in (:ids:)" prop:"ids"`
+	FindByIDSliceAndName          func(ctx context.Context, e proteus.ContextQuerier, ids []int, name string) ([]Product, error)                   `proq:"select * from Product where name = :name: and id in (:ids:)" prop:"ids,name"`
+	FindByIDSliceNameAndCost      func(ctx context.Context, e proteus.ContextQuerier, ids []int, name string, cost *float64) ([]Product, error)    `proq:"select * from Product where name = :name: and id in (:ids:) and (cost is null or cost = :cost:)" prop:"ids,name,cost"`
+	FindByIDSliceCostAndNameSlice func(ctx context.Context, e proteus.ContextQuerier, ids []int, names []string, cost *float64) ([]Product, error) `proq:"select * from Product where id in (:ids:) and (cost is null or cost = :cost:) and name in (:names:)" prop:"ids,names,cost"`
+	FindByNameAndCostUnlabeled    func(ctx context.Context, e proteus.ContextQuerier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
+}
+```
+
+The first input parameter is of type `context.Context`, and the second input parameter is of type `proteus.ContextExecutor` or `proteus.ContextQuerier`:
+
+```go
+// ContextQuerier defines the interface of a type that runs a SQL query with a context
+type ContextQuerier interface {
+	// QueryContext executes a query that returns rows, typically a SELECT.
+	// The args are for any placeholder parameters in the query.
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+}
+```
+
+```go
+// ContextExecutor defines the interface of a type that runs a SQL exec with a context
+type ContextExecutor interface {
+	// ExecContext executes a query without returning any rows.
+	// The args are for any placeholder parameters in the query.
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 }
 ```
 
@@ -83,43 +122,42 @@ func init() {
 }
 ```
 
-The proteus.Build factory function only returns errors if the wrong data type is passed in for the first parameter. If you want errors returned when there is a failure to generate a function field, use proteus.ShouldBuild instead.
+The proteus.Build factory function only returns errors if the wrong data type is passed in for the first parameter. If you want errors returned when there is a failure to generate a function field, use `proteus.ShouldBuild` instead.
 
-4\. Open a connection to a data store that meets the Proteus interface:
+4\. Open a connection to a SQL database:
 
 ```go
 	db := setupDb()
 	defer db.Close()
-	exec := proteus.Wrap(db)
 ```
 
 5\. Make calls to the function fields in your Proteus-populated struct:
 
 ```go
-	fmt.Println(productDao.FindById(gExec, 10))
+	fmt.Println(productDao.FindById(db, 10))
 	p := Product{10, "Thingie", 56.23}
-	fmt.Println(productDao.Update(gExec, p))
-	fmt.Println(productDao.FindById(gExec, 10))
-	fmt.Println(productDao.FindByNameAndCost(gExec, "fred", 54.10))
-	fmt.Println(productDao.FindByNameAndCost(gExec, "Thingie", 56.23))
+	fmt.Println(productDao.Update(db, p))
+	fmt.Println(productDao.FindById(db, 10))
+	fmt.Println(productDao.FindByNameAndCost(db, "fred", 54.10))
+	fmt.Println(productDao.FindByNameAndCost(db, "Thingie", 56.23))
 
 	//using a map of [string]interface{} works too!
-	fmt.Println(productDao.FindByIdMap(gExec, 10))
-	fmt.Println(productDao.FindByNameAndCostMap(gExec, "Thingie", 56.23))
+	fmt.Println(productDao.FindByIdMap(db, 10))
+	fmt.Println(productDao.FindByNameAndCostMap(db, "Thingie", 56.23))
 
-	fmt.Println(productDao.FindById(gExec, 11))
+	fmt.Println(productDao.FindById(db, 11))
 	m := map[string]interface{}{
 		"Id":   11,
 		"Name": "bobbo",
 		"Cost": 12.94,
 	}
-	fmt.Println(productDao.UpdateMap(gExec, m))
-	fmt.Println(productDao.FindById(gExec, 11))
+	fmt.Println(productDao.UpdateMap(db, m))
+	fmt.Println(productDao.FindById(db, 11))
 
-	fmt.Println(productDao.FindByIDSlice(pExec, []int{1, 3, 5}))
-	fmt.Println(productDao.FindByIDSliceAndName(pExec, []int{1, 3, 5}, "person1"))
-	fmt.Println(productDao.FindByIDSliceNameAndCost(pExec, []int{1, 3, 5}, "person3", nil))
-	fmt.Println(productDao.FindByIDSliceCostAndNameSlice(pExec, []int{1, 3, 5}, []string{"person3", "person5"}, nil))
+	fmt.Println(productDao.FindByIDSlice(db, []int{1, 3, 5}))
+	fmt.Println(productDao.FindByIDSliceAndName(db, []int{1, 3, 5}, "person1"))
+	fmt.Println(productDao.FindByIDSliceNameAndCost(db, []int{1, 3, 5}, "person3", nil))
+	fmt.Println(productDao.FindByIDSliceCostAndNameSlice(db, []int{1, 3, 5}, []string{"person3", "person5"}, nil))
 ```
 
 ## Struct Tags
@@ -171,6 +209,15 @@ For example:
 Out of the box, you can use either a `map[string]string` or a unix properties file to store your queries. In order
 to use a `map[string]string`, cast your map to `proteus.MapMapper` (or just declare your variable to be of type `proteus.MapMapper`). To use a properties file, call the method 
 `proteus.PropFileToQueryMapper` with the name of the property file that contains your queries.
+
+## Context support
+
+As of Proteus 0.10.0, Proteus optionally builds functions that invoke the the `ExecContext` and `QueryContext` methods on `sql.DB` and `sql.Tx`. In order to do so, declare your
+function fields with a first parameter of `context.Context` and a second parameter of either `proteus.ContextQuerier` or `ContextExecutor`. You then call `proteus.Build` or 
+`proteus.ShouldBuild` as you normally would. When invoking the functions, you pass in a `context.Context` instance as the first parameter, and an instance of `sql.DB` or `sql.Tx`
+as the second parameter. 
+
+Note that if you are using the context variants, you cannot use the `proteus.Wrap` function; this is OK, as Wrap is now a no-op and is considered deprecated.
 
 ## Valid function signatures
 
@@ -237,10 +284,9 @@ can use positional parameters ($1, $2, etc.) instead.
 
 3\. Why do I need to use the `proteus.Wrap` function to wrap a `sql.DB` or `sql.Tx` from the standard library?
 
-The `Query` method defined on `sql.DB` and `sql.Tx` returns a `*sql.Rows` type. Unfortunately, `sql.Rows` is a struct, not an interface. 
-While Proteus takes advantage of interfaces in the `sql` packages, it is not tied to SQL and cannot depend on the concrete `sql.Rows` type. 
-To replace it, an interface, `proteus.Rows`, is defined within Proteus. This has the side-effect of making the method signature of a standard SQL Query incompatible
- with the `proteus.Querier` interface definition. The `proteus.Wrap` function fixes this incompatibility.
+As of Proteus 0.10.0, the `proteus.Wrap` function is no longer needed and should be considered deprecated. Proteus is no longer
+written using its own `Rows` interface. Existing code that uses `Wrap` continues to work, but the function is a no-op; it returns
+back the instance that was passed in.
 
 ## Logging
 
@@ -253,6 +299,9 @@ If you are using the `proteus.ShouldBuild` function to generate your DAOs, you c
 This value is overridden by the logging level set by `proteus.SetLogLevel`.
 
 You can also include additional values in the logs by passing in the context returned by the function `logger.WithValues`. This function adds one or more `logger.Pair` values to the context.
+
+If you are using the `context.Context` support in Proteus 0.10.0 and later, the logger level can be supplied in the context passed into the function. This will override any logger level
+specified when `proteus.ShouldBuild` was invoked. You can also supply additional logging fields for the function call by using a context returned by the `logger.WithValues` function.
 
 All Proteus logging output include 3 default fields (in order):
 
@@ -302,8 +351,6 @@ Feel free to use this logger within your own code. If this logger proves to be u
 ## Future Directions
 
 There are more interesting features coming to Proteus. They are (in likely order of implementation):
-
-- support for the context SQL calls and Proteus-generated function with a context as a first parameter
 
 - more expansive performance measurement support and per-request logging control
 

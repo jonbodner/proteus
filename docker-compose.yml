@@ -1,0 +1,15 @@
+version: "3"
+services:
+  db:
+    image: "postgres:11"
+    container_name: "my_postgres"
+    ports:
+      - "5432:5432"
+#    volumes:
+#      - my_dbdata:/var/lib/postgresql/data
+    environment:
+       POSTGRES_USER: admin
+       POSTGRES_PASSWORD: test
+       POSTGRES_DB: proteus
+#volumes:
+#  my_dbdata:

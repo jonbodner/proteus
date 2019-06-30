@@ -28,7 +28,7 @@ func buildNameOrderMap(paramOrder string, startPos int) map[string]int {
 func buildDummyParameters(paramCount int, startPos int) map[string]int {
 	m := map[string]int{}
 	for i := startPos; i < paramCount; i++ {
-		m[fmt.Sprintf("$%d", i)] = i
+		m[fmt.Sprintf("$%d", i-startPos+1)] = i
 	}
 	return m
 }

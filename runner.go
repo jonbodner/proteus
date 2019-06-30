@@ -73,7 +73,7 @@ func makeContextExecutorImplementation(c context.Context, funcType reflect.Type,
 			return buildRetVals(result, err)
 		}
 
-		logger.Log(c, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		logger.Log(ctx, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 		result, err = executor.ExecContext(ctx, finalQuery, queryArgs...)
 
 		return buildRetVals(result, err)
@@ -176,7 +176,7 @@ func makeContextQuerierImplementation(c context.Context, funcType reflect.Type, 
 			ctx = logger.WithValues(ctx, defaultVals...)
 		}
 
-		var rows Rows
+		var rows *sql.Rows
 		finalQuery, err := query.finalize(ctx, args)
 		if err != nil {
 			return buildRetVals(rows, err)
@@ -187,7 +187,7 @@ func makeContextQuerierImplementation(c context.Context, funcType reflect.Type, 
 			return buildRetVals(rows, err)
 		}
 
-		logger.Log(c, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		logger.Log(ctx, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 		rows, err = querier.QueryContext(ctx, finalQuery, queryArgs...)
 
 		return buildRetVals(rows, err)
@@ -208,7 +208,7 @@ func makeQuerierImplementation(c context.Context, funcType reflect.Type, query q
 	return func(args []reflect.Value) []reflect.Value {
 		querier := args[0].Interface().(Querier)
 
-		var rows Rows
+		var rows *sql.Rows
 		finalQuery, err := query.finalize(c, args)
 		if err != nil {
 			return buildRetVals(rows, err)
@@ -226,12 +226,12 @@ func makeQuerierImplementation(c context.Context, funcType reflect.Type, query q
 	}, nil
 }
 
-func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder mapper.Builder) func(Rows, error) []reflect.Value {
+func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder mapper.Builder) func(*sql.Rows, error) []reflect.Value {
 	numOut := funcType.NumOut()
 
 	//handle the 0,1,2 out parameter cases
 	if numOut == 0 {
-		return func(Rows, error) []reflect.Value {
+		return func(*sql.Rows, error) []reflect.Value {
 			return []reflect.Value{}
 		}
 	}
@@ -239,7 +239,7 @@ func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder map
 	sType := funcType.Out(0)
 	qZero := reflect.Zero(sType)
 	if numOut == 1 {
-		return func(rows Rows, err error) []reflect.Value {
+		return func(rows *sql.Rows, err error) []reflect.Value {
 			if err != nil {
 				return []reflect.Value{qZero}
 			}
@@ -255,7 +255,7 @@ func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder map
 		}
 	}
 	if numOut == 2 {
-		return func(rows Rows, err error) []reflect.Value {
+		return func(rows *sql.Rows, err error) []reflect.Value {
 			eType := funcType.Out(1)
 			if err != nil {
 				return []reflect.Value{qZero, reflect.ValueOf(err).Convert(eType)}
@@ -276,12 +276,12 @@ func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder map
 	}
 
 	// impossible case since validation should happen first, but be safe
-	return func(Rows, error) []reflect.Value {
+	return func(*sql.Rows, error) []reflect.Value {
 		return []reflect.Value{qZero, reflect.ValueOf(errors.New("should never get here!"))}
 	}
 }
 
-func handleMapping(c context.Context, sType reflect.Type, rows Rows, builder mapper.Builder) (interface{}, error) {
+func handleMapping(c context.Context, sType reflect.Type, rows *sql.Rows, builder mapper.Builder) (interface{}, error) {
 	var val interface{}
 	var err error
 	if sType.Kind() == reflect.Slice {
@@ -311,7 +311,7 @@ func handleMapping(c context.Context, sType reflect.Type, rows Rows, builder map
 // If next returns false, then nil is returned for both the interface and the error
 // If an error occurs while processing the current row, nil is returned for the interface and the error is non-nil
 // If a value is successfuly extracted from the current row, the instance is returned and the error is nil
-func mapRows(c context.Context, rows Rows, builder mapper.Builder) (interface{}, error) {
+func mapRows(c context.Context, rows *sql.Rows, builder mapper.Builder) (interface{}, error) {
 	//fmt.Println(sType)
 	if rows == nil {
 		return nil, errors.New("rows must be non-nil")
