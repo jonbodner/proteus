@@ -94,6 +94,20 @@ func WithValues(c context.Context, vals ...Pair) context.Context {
 	return context.WithValue(c, values, pairs)
 }
 
+func LevelFromContext(c context.Context) (Level, bool) {
+	if l := c.Value(level); l != nil {
+		return l.(Level), true
+	}
+	return 0, false
+}
+
+func ValuesFromContext(c context.Context) ([]Pair, bool) {
+	if p := c.Value(values); p != nil {
+		return p.([]Pair), true
+	}
+	return nil, false
+}
+
 func Log(c context.Context, l Level, message string, vals ...Pair) {
 	curLevelVal := c.Value(level)
 	if curLevel, ok := curLevelVal.(Level); !ok || curLevel == OFF || curLevel > l {

@@ -126,7 +126,7 @@ func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, 
 		funcType := curField.Type
 
 		//validate to make sure that the function matches what we expect
-		err := validateFunction(funcType)
+		hasCtx, err := validateFunction(funcType)
 		if err != nil {
 			out = multierr.Append(out, ProteusError{FuncName: curField.Name, FieldOrder: i, OriginalMessage: err.Error()})
 			continue
@@ -134,10 +134,14 @@ func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, 
 
 		paramOrder := curField.Tag.Get("prop")
 		var nameOrderMap map[string]int
+		startPos := 1
+		if hasCtx {
+			startPos = 2
+		}
 		if len(paramOrder) == 0 {
-			nameOrderMap = buildDummyParameters(funcType.NumIn())
+			nameOrderMap = buildDummyParameters(funcType.NumIn(), startPos)
 		} else {
-			nameOrderMap = buildNameOrderMap(paramOrder)
+			nameOrderMap = buildNameOrderMap(paramOrder, startPos)
 		}
 
 		//check to see if the query is in a QueryMapper
@@ -202,7 +206,7 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 		funcType := curField.Type
 
 		//validate to make sure that the function matches what we expect
-		err := validateFunction(funcType)
+		hasCtx, err := validateFunction(funcType)
 		if err != nil {
 			logger.Log(c, logger.WARN, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
 			continue
@@ -210,10 +214,14 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 
 		paramOrder := curField.Tag.Get("prop")
 		var nameOrderMap map[string]int
+		startPos := 1
+		if hasCtx {
+			startPos = 2
+		}
 		if len(paramOrder) == 0 {
-			nameOrderMap = buildDummyParameters(funcType.NumIn())
+			nameOrderMap = buildDummyParameters(funcType.NumIn(), startPos)
 		} else {
-			nameOrderMap = buildNameOrderMap(paramOrder)
+			nameOrderMap = buildNameOrderMap(paramOrder, startPos)
 		}
 
 		//check to see if the query is in a QueryMapper
@@ -235,54 +243,72 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 }
 
 var (
-	exType = reflect.TypeOf((*Executor)(nil)).Elem()
-	qType  = reflect.TypeOf((*Querier)(nil)).Elem()
+	exType      = reflect.TypeOf((*Executor)(nil)).Elem()
+	qType       = reflect.TypeOf((*Querier)(nil)).Elem()
+	contextType = reflect.TypeOf((*context.Context)(nil)).Elem()
+	conExType   = reflect.TypeOf((*ContextExecutor)(nil)).Elem()
+	conQType    = reflect.TypeOf((*ContextQuerier)(nil)).Elem()
 )
 
-func validateFunction(funcType reflect.Type) error {
+func validateFunction(funcType reflect.Type) (bool, error) {
 	//first parameter is Executor
 	if funcType.NumIn() == 0 {
-		return errors.New("need to supply an Executor or Querier parameter")
+		return false, errors.New("need to supply an Executor or Querier parameter")
 	}
 	var isExec bool
+	var hasContext bool
 	switch fType := funcType.In(0); {
+	case fType.Implements(contextType):
+		hasContext = true
 	case fType.Implements(exType):
 		isExec = true
 	case fType.Implements(qType):
 		//do nothing isExec is false
 	default:
-		return errors.New("first parameter must be of type Executor or Querier")
+		return false, errors.New("first parameter must be of type context.Context, Executor, or Querier")
+	}
+	start := 1
+	if hasContext {
+		start = 2
+		switch fType := funcType.In(1); {
+		case fType.Implements(conExType):
+			isExec = true
+		case fType.Implements(conQType):
+			//do nothing isExec is false
+		default:
+			return false, errors.New("first parameter must be of type context.Context, Executor, or Querier")
+		}
 	}
 	//no in parameter can be a channel
-	for i := 1; i < funcType.NumIn(); i++ {
+	for i := start; i < funcType.NumIn(); i++ {
 		if funcType.In(i).Kind() == reflect.Chan {
-			return errors.New("no input parameter can be a channel")
+			return false, errors.New("no input parameter can be a channel")
 		}
 	}
 
 	//has 0, 1, or 2 return values
 	if funcType.NumOut() > 2 {
-		return errors.New("must return 0, 1, or 2 values")
+		return false, errors.New("must return 0, 1, or 2 values")
 	}
 
 	//if 2 return values, second is error
 	if funcType.NumOut() == 2 {
 		errType := reflect.TypeOf((*error)(nil)).Elem()
 		if !funcType.Out(1).Implements(errType) {
-			return errors.New("2nd output parameter must be of type error")
+			return false, errors.New("2nd output parameter must be of type error")
 		}
 	}
 
 	//if 1 or 2, 1st param is not a channel (handle map, I guess)
 	if funcType.NumOut() > 0 {
 		if funcType.Out(0).Kind() == reflect.Chan {
-			return errors.New("1st output parameter cannot be a channel")
+			return false, errors.New("1st output parameter cannot be a channel")
 		}
 		if isExec && funcType.Out(0).Kind() != reflect.Int64 {
-			return errors.New("the 1st output parameter of an Executor must be int64")
+			return false, errors.New("the 1st output parameter of an Executor must be int64")
 		}
 	}
-	return nil
+	return hasContext, nil
 }
 
 func makeImplementation(c context.Context, funcType reflect.Type, query string, paramAdapter ParamAdapter, nameOrderMap map[string]int) (func([]reflect.Value) []reflect.Value, error) {
@@ -292,6 +318,13 @@ func makeImplementation(c context.Context, funcType reflect.Type, query string, 
 	}
 
 	switch fType := funcType.In(0); {
+	case fType.Implements(contextType):
+		switch fType2 := funcType.In(1); {
+		case fType2.Implements(conExType):
+			return makeContextExecutorImplementation(c, funcType, fixedQuery, paramOrder), nil
+		case fType2.Implements(conQType):
+			return makeContextQuerierImplementation(c, funcType, fixedQuery, paramOrder)
+		}
 	case fType.Implements(exType):
 		return makeExecutorImplementation(c, funcType, fixedQuery, paramOrder), nil
 	case fType.Implements(qType):

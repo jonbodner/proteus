@@ -33,15 +33,20 @@ func Test_validateFunction(t *testing.T) {
 		args    args
 		want    bool
 		wantErr bool
+		hasCtx  bool
 	}{
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
-		err := validateFunction(tt.args.funcType)
-		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. validateFunction() error = %v, wantErr %v", tt.name, err, tt.wantErr)
-			continue
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			hasCtx, err := validateFunction(tt.args.funcType)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateFunction() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if hasCtx != tt.hasCtx {
+				t.Errorf("validateFunction() hasCtx = %v, expected = %v", hasCtx, tt.hasCtx)
+			}
+		})
 	}
 }
 
@@ -49,6 +54,7 @@ func Test_buildParamMap(t *testing.T) {
 	type args struct {
 		prop       string
 		paramCount int
+		startPos   int
 	}
 	tests := []struct {
 		name string
@@ -58,15 +64,18 @@ func Test_buildParamMap(t *testing.T) {
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
-		if got := buildNameOrderMap(tt.args.prop); !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. buildNameOrderMap() = %v, want %v", tt.name, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := buildNameOrderMap(tt.args.prop, tt.args.startPos); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("buildNameOrderMap() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
 func Test_buildDummyParameters(t *testing.T) {
 	type args struct {
 		paramCount int
+		startPos   int
 	}
 	tests := []struct {
 		name string
@@ -76,9 +85,11 @@ func Test_buildDummyParameters(t *testing.T) {
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
-		if got := buildDummyParameters(tt.args.paramCount); !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. buildDummyParameters() = %v, want %v", tt.name, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := buildDummyParameters(tt.args.paramCount, tt.args.startPos); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("buildDummyParameters() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

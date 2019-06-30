@@ -41,6 +41,45 @@ var (
 	zero    = reflect.ValueOf(int64(0))
 )
 
+func makeContextExecutorImplementation(c context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) func(args []reflect.Value) []reflect.Value {
+	buildRetVals := makeExecutorReturnVals(funcType)
+	return func(args []reflect.Value) []reflect.Value {
+
+		executor := args[1].Interface().(ContextExecutor)
+		ctx := args[0].Interface().(context.Context)
+
+		// if the passed-in context doesn't contain any logging settings, use the one that were supplied
+		// at build time
+		if _, ok := logger.LevelFromContext(ctx); !ok {
+			if defaultLevel, ok := logger.LevelFromContext(c); ok {
+				ctx = logger.WithLevel(ctx, defaultLevel)
+			}
+		}
+		// copy over any logging values that were supplied at build time
+		if defaultVals, ok := logger.ValuesFromContext(c); ok {
+			ctx = logger.WithValues(ctx, defaultVals...)
+		}
+
+		var result sql.Result
+		finalQuery, err := query.finalize(ctx, args)
+
+		if err != nil {
+			return buildRetVals(result, err)
+		}
+
+		queryArgs, err := buildQueryArgs(ctx, args, paramOrder)
+
+		if err != nil {
+			return buildRetVals(result, err)
+		}
+
+		logger.Log(c, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		result, err = executor.ExecContext(ctx, finalQuery, queryArgs...)
+
+		return buildRetVals(result, err)
+	}
+}
+
 func makeExecutorImplementation(c context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) func(args []reflect.Value) []reflect.Value {
 	buildRetVals := makeExecutorReturnVals(funcType)
 	return func(args []reflect.Value) []reflect.Value {
@@ -106,8 +145,53 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 
 	// impossible case since validation should happen first, but be safe
 	return func(result sql.Result, err error) []reflect.Value {
-		return []reflect.Value{zero, reflect.ValueOf(errors.New("should never get here!"))}
+		return []reflect.Value{zero, reflect.ValueOf(errors.New("should never get here"))}
 	}
+}
+
+func makeContextQuerierImplementation(c context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) (func(args []reflect.Value) []reflect.Value, error) {
+	numOut := funcType.NumOut()
+	var builder mapper.Builder
+	var err error
+	if numOut > 0 {
+		builder, err = mapper.MakeBuilder(c, funcType.Out(0))
+		if err != nil {
+			return nil, err
+		}
+	}
+	buildRetVals := makeQuerierReturnVals(c, funcType, builder)
+	return func(args []reflect.Value) []reflect.Value {
+		querier := args[1].Interface().(ContextQuerier)
+		ctx := args[0].Interface().(context.Context)
+
+		// if the passed-in context doesn't contain any logging settings, use the one that were supplied
+		// at build time
+		if _, ok := logger.LevelFromContext(ctx); !ok {
+			if defaultLevel, ok := logger.LevelFromContext(c); ok {
+				ctx = logger.WithLevel(ctx, defaultLevel)
+			}
+		}
+		// copy over any logging values that were supplied at build time
+		if defaultVals, ok := logger.ValuesFromContext(c); ok {
+			ctx = logger.WithValues(ctx, defaultVals...)
+		}
+
+		var rows Rows
+		finalQuery, err := query.finalize(ctx, args)
+		if err != nil {
+			return buildRetVals(rows, err)
+		}
+
+		queryArgs, err := buildQueryArgs(ctx, args, paramOrder)
+		if err != nil {
+			return buildRetVals(rows, err)
+		}
+
+		logger.Log(c, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		rows, err = querier.QueryContext(ctx, finalQuery, queryArgs...)
+
+		return buildRetVals(rows, err)
+	}, nil
 }
 
 func makeQuerierImplementation(c context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) (func(args []reflect.Value) []reflect.Value, error) {

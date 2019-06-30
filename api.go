@@ -1,6 +1,7 @@
 package proteus
 
 import (
+	"context"
 	"database/sql"
 )
 
@@ -124,4 +125,14 @@ type QueryMapper interface {
 	// Maps the supplied name to a query string
 	// returns an empty string if there is no query associated with the supplied name
 	Map(name string) string
+}
+
+// ContextQuerier defines the interface of a type that runs a SQL query with a context
+type ContextQuerier interface {
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+}
+
+// ContextExecutor defines the interface of a type that runs a SQL exec with a context
+type ContextExecutor interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 }
