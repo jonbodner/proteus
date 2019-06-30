@@ -29,12 +29,12 @@ func BenchmarkSelectProteus(b *testing.B) {
 	b.ResetTimer()
 	pExec := proteus.Wrap(tx)
 	for i := 0; i < b.N; i++ {
-		p, err := productDao.FindById(pExec, 4)
+		p, err := productDao.FindByID(pExec, 4)
 		if err != nil {
 			panic(err)
 		}
-		if p.Id != 4 {
-			b.Errorf("should of had id 4, had %d instead", p.Id)
+		if p.ID != 4 {
+			b.Errorf("should of had id 4, had %d instead", p.ID)
 		}
 		if p.Name != "person4" {
 			b.Errorf("should of had person4, had %s instead", p.Name)
@@ -43,7 +43,7 @@ func BenchmarkSelectProteus(b *testing.B) {
 			b.Errorf("cost should have been non-nil")
 		} else {
 			if *p.Cost != 4.4 {
-				b.Errorf("should have had 4.4, had %f instead", p.Cost)
+				b.Errorf("should have had 4.4, had %f instead", *p.Cost)
 			}
 		}
 
@@ -75,9 +75,9 @@ func BenchmarkSelectNative(b *testing.B) {
 			if err != nil {
 				panic(err)
 			}
-			p := BenchProduct{Id: id, Name: name, Cost: cost}
-			if p.Id != 4 {
-				b.Errorf("should of had id 4, had %d instead", p.Id)
+			p := BenchProduct{ID: id, Name: name, Cost: cost}
+			if p.ID != 4 {
+				b.Errorf("should of had id 4, had %d instead", p.ID)
 			}
 			if p.Name != "person4" {
 				b.Errorf("should of had person4, had %s instead", p.Name)
@@ -86,7 +86,7 @@ func BenchmarkSelectNative(b *testing.B) {
 				b.Errorf("cost should have been non-nil")
 			} else {
 				if *p.Cost != 4.4 {
-					b.Errorf("should have had 4.4, had %f instead", p.Cost)
+					b.Errorf("should have had 4.4, had %f instead", *p.Cost)
 				}
 			}
 		}
@@ -95,11 +95,11 @@ func BenchmarkSelectNative(b *testing.B) {
 }
 
 type BenchProduct struct {
-	Id   int      `prof:"id"`
+	ID   int      `prof:"id"`
 	Name string   `prof:"name"`
 	Cost *float64 `prof:"cost"`
 }
 
 type BenchProductDao struct {
-	FindById func(e proteus.Executor, id int) (BenchProduct, error) `proq:"select id, name, cost from Product where id = :id:" prop:"id"`
+	FindByID func(e proteus.Executor, id int) (BenchProduct, error) `proq:"select id, name, cost from Product where id = :id:" prop:"id"`
 }
