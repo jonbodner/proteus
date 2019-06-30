@@ -33,15 +33,20 @@ func Test_validateFunction(t *testing.T) {
 		args    args
 		want    bool
 		wantErr bool
+		hasCtx  bool
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
-		err := validateFunction(tt.args.funcType)
-		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. validateFunction() error = %v, wantErr %v", tt.name, err, tt.wantErr)
-			continue
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			hasCtx, err := validateFunction(tt.args.funcType)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateFunction() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if hasCtx != tt.hasCtx {
+				t.Errorf("validateFunction() hasCtx = %v, expected = %v", hasCtx, tt.hasCtx)
+			}
+		})
 	}
 }
 
@@ -49,36 +54,42 @@ func Test_buildParamMap(t *testing.T) {
 	type args struct {
 		prop       string
 		paramCount int
+		startPos   int
 	}
 	tests := []struct {
 		name string
 		args args
 		want map[string]int
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
-		if got := buildNameOrderMap(tt.args.prop); !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. buildNameOrderMap() = %v, want %v", tt.name, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := buildNameOrderMap(tt.args.prop, tt.args.startPos); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("buildNameOrderMap() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
 func Test_buildDummyParameters(t *testing.T) {
 	type args struct {
 		paramCount int
+		startPos   int
 	}
 	tests := []struct {
 		name string
 		args args
 		want map[string]int
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
-		if got := buildDummyParameters(tt.args.paramCount); !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. buildDummyParameters() = %v, want %v", tt.name, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := buildDummyParameters(tt.args.paramCount, tt.args.startPos); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("buildDummyParameters() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -96,7 +107,7 @@ func Test_convertToPositionalParameters(t *testing.T) {
 		want1   []paramInfo
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
@@ -124,7 +135,7 @@ func Test_joinFactory(t *testing.T) {
 		args args
 		want func(int) string
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if got := joinFactory(tt.args.startPos, tt.args.paramAdapter); !reflect.DeepEqual(got, tt.want) {
@@ -142,7 +153,7 @@ func Test_fixNameForTemplate(t *testing.T) {
 		args args
 		want string
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if got := fixNameForTemplate(tt.args.name); got != tt.want {
@@ -160,7 +171,7 @@ func Test_addSlice(t *testing.T) {
 		args args
 		want string
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if got := addSlice(tt.args.sliceName); got != tt.want {
@@ -179,7 +190,7 @@ func Test_validIdentifier(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {

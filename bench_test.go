@@ -50,7 +50,7 @@ type PersonDao struct {
 var personDao PersonDao
 
 func setupDbPostgres() *sql.DB {
-	db, err := sql.Open("postgres", "postgres://jon:jon@localhost/jon?sslmode=disable")
+	db, err := sql.Open("postgres", "postgres://admin:test@localhost/proteus?sslmode=disable")
 
 	if err != nil {
 		log.Fatal(err)

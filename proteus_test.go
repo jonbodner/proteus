@@ -128,23 +128,36 @@ func TestConvertToPositionalParameters(t *testing.T) {
 }
 
 func TestBuildParamMap(t *testing.T) {
-	values := map[string]map[string]int{
-		"name,cost": map[string]int{
-			"name": 1,
-			"cost": 2,
+	values := []struct {
+		name     string
+		params   string
+		startPos int
+		expected map[string]int
+	}{
+		{
+			name:     "simple",
+			params:   "name,cost",
+			startPos: 1,
+			expected: map[string]int{
+				"name": 1,
+				"cost": 2,
+			},
 		},
 	}
-	for k, v := range values {
-		pm := buildNameOrderMap(k)
-		if !reflect.DeepEqual(pm, v) {
-			t.Errorf("failed for %s -> %v: %v", k, v, pm)
-		}
+	for _, tt := range values {
+		t.Run(tt.name, func(t *testing.T) {
+			pm := buildNameOrderMap(tt.params, tt.startPos)
+			if !reflect.DeepEqual(pm, tt.expected) {
+				t.Errorf("failed for %s %d -> %v: %v", tt.params, tt.startPos, tt.expected, pm)
+			}
+		})
 	}
 }
 
+// This still needs tests for context...
 func TestValidateFunction(t *testing.T) {
 	f := func(fType reflect.Type, msg string) {
-		err := validateFunction(fType)
+		hasCtx, err := validateFunction(fType)
 		if err == nil {
 			t.Fatalf("Expected err")
 		}
@@ -152,28 +165,31 @@ func TestValidateFunction(t *testing.T) {
 		if !cmp.Errors(err, eExp) {
 			t.Errorf("Wrong error expected %s, got %s", eExp, err)
 		}
+		if hasCtx {
+			t.Errorf("Expected no context, has one")
+		}
 	}
 
 	fOk := func(fType reflect.Type, isExecIn bool) {
-		err := validateFunction(fType)
+		hasCtx, err := validateFunction(fType)
 		if err != nil {
 			t.Errorf("Unexpected err %s", err)
+		}
+		if hasCtx {
+			t.Errorf("Expected no context, has one")
 		}
 	}
 
 	//invalid -- no parameters
 	var f1 func()
 	f(reflect.TypeOf(f1), "need to supply an Executor or Querier parameter")
-	f(reflect.TypeOf(f1), "need to supply an Executor or Querier parameter")
 
 	//invalid -- wrong first parameter type
 	var f2 func(int)
-	f(reflect.TypeOf(f2), "first parameter must be of type Executor or Querier")
-	f(reflect.TypeOf(f2), "first parameter must be of type Executor or Querier")
+	f(reflect.TypeOf(f2), "first parameter must be of type context.Context, Executor, or Querier")
 
 	//invalid -- has a channel input param
 	var f3 func(Executor, chan int)
-	f(reflect.TypeOf(f3), "no input parameter can be a channel")
 	f(reflect.TypeOf(f3), "no input parameter can be a channel")
 
 	//valid -- only an Executor
@@ -229,7 +245,7 @@ func TestBuild(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if err := Build(tt.args.dao, tt.args.pa); (err != nil) != tt.wantErr {
@@ -546,7 +562,7 @@ func TestShouldBuild(t *testing.T) {
 		t.Error(err2)
 	}
 	if err2.Error() != `error in field #0 (Insert): missing a closing : somewhere: insert into Product(name) values(:p.Name)
-error in field #1 (Insert2): first parameter must be of type Executor or Querier
+error in field #1 (Insert2): first parameter must be of type context.Context, Executor, or Querier
 error in field #3 (Insert3): no query found for name nope
 error in field #5 (InsertNoP): query Parameter p cannot be found in the incoming parameters` {
 		t.Error(err2)

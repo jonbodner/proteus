@@ -16,19 +16,19 @@ import (
 	"github.com/jonbodner/proteus/mapper"
 )
 
-func buildNameOrderMap(paramOrder string) map[string]int {
+func buildNameOrderMap(paramOrder string, startPos int) map[string]int {
 	out := map[string]int{}
 	params := strings.Split(paramOrder, ",")
 	for k, v := range params {
-		out[strings.TrimSpace(v)] = k + 1
+		out[strings.TrimSpace(v)] = k + startPos
 	}
 	return out
 }
 
-func buildDummyParameters(paramCount int) map[string]int {
+func buildDummyParameters(paramCount int, startPos int) map[string]int {
 	m := map[string]int{}
-	for i := 1; i < paramCount; i++ {
-		m[fmt.Sprintf("$%d", i)] = i
+	for i := startPos; i < paramCount; i++ {
+		m[fmt.Sprintf("$%d", i-startPos+1)] = i
 	}
 	return m
 }

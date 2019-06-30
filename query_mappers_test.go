@@ -19,7 +19,7 @@ type DummyDB struct {
 	Args    [][]interface{}
 }
 
-func (dd *DummyDB) Query(query string, args ...interface{}) (Rows, error) {
+func (dd *DummyDB) Query(query string, args ...interface{}) (*sql.Rows, error) {
 	return nil, dd.checkExpectedData(query, args...)
 }
 

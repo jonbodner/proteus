@@ -1,8 +1,9 @@
 package proteus
 
 import (
-	"github.com/rickar/props"
 	"os"
+
+	"github.com/rickar/props"
 )
 
 type MapMapper map[string]string
