@@ -13,7 +13,7 @@ import (
 )
 
 type Product2 struct {
-	Id   int             `prof:"id"`
+	ID   int             `prof:"id"`
 	Name string          `prof:"name"`
 	Cost sql.NullFloat64 `prof:"cost"`
 }
@@ -21,14 +21,14 @@ type Product2 struct {
 func (p Product2) String() string {
 	c := "<nil>"
 	if p.Cost.Valid {
-		c = fmt.Sprintf("%f", p.Cost)
+		c = fmt.Sprintf("%f", p.Cost.Float64)
 	}
-	return fmt.Sprintf("%d: %s(%s)", p.Id, p.Name, c)
+	return fmt.Sprintf("%d: %s(%s)", p.ID, p.Name, c)
 }
 
 type Product2Dao struct {
 	FindByID          func(e proteus.Querier, id int) (Product2, error)                           `proq:"select * from Product where id = :id:" prop:"id"`
-	Update            func(e proteus.Executor, p Product2) (int64, error)                         `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	Update            func(e proteus.Executor, p Product2) (int64, error)                         `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.ID:" prop:"p"`
 	FindByNameAndCost func(e proteus.Querier, name string, cost float64) ([]Product2, error)      `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
 	Insert            func(e proteus.Executor, id int, name string, cost *float64) (int64, error) `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
 }
