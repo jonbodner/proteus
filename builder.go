@@ -58,7 +58,11 @@ var (
 	valueType = reflect.TypeOf((*driver.Valuer)(nil)).Elem()
 )
 
-func buildFixedQueryAndParamOrder(c context.Context, query string, nameOrderMap map[string]int, funcType reflect.Type, pa ParamAdapter) (queryHolder, []paramInfo, error) {
+type posType interface {
+	In(i int) reflect.Type
+}
+
+func buildFixedQueryAndParamOrder(c context.Context, query string, nameOrderMap map[string]int, funcType posType, pa ParamAdapter) (queryHolder, []paramInfo, error) {
 	var out bytes.Buffer
 
 	var paramOrder []paramInfo

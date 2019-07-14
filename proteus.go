@@ -67,8 +67,8 @@ var rw sync.RWMutex
 
 func SetLogLevel(ll logger.Level) {
 	rw.Lock()
-	defer rw.Unlock()
 	l = ll
+	rw.Unlock()
 }
 
 // ShouldBuild works like Build, with two differences:
@@ -78,25 +78,25 @@ func SetLogLevel(ll logger.Level) {
 // 2. All errors found during building will be reported back
 //
 // 3. The context passed in to ShouldBuild can be used to specify the logging level used during ShouldBuild and
-// when the generated functions are invoked. If a logging level was specified using the SetLogLevel function,
-// the log level specifed will override any log level in the context.
+// when the generated functions are invoked. This overrides any logging level specified using the SetLogLevel
+// function.
 func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
-	//if log level is set, then override the log level specified here
-	rw.RLock()
-	defer rw.RUnlock()
-	if l != logger.OFF {
+	//if log level is set and not in the context, use it
+	if _, ok := logger.LevelFromContext(c); !ok && l != logger.OFF {
+		rw.RLock()
 		c = logger.WithLevel(c, l)
+		rw.RUnlock()
 	}
 
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
 	if daoPointerType.Kind() != reflect.Ptr {
-		return errors.New("Not a pointer")
+		return errors.New("not a pointer")
 	}
 	daoType := daoPointerType.Elem()
 	//if not a struct, error out
 	if daoType.Kind() != reflect.Struct {
-		return errors.New("Not a pointer to struct")
+		return errors.New("not a pointer to struct")
 	}
 	var out error
 	funcs := make([]reflect.Value, daoType.NumField())
@@ -172,17 +172,17 @@ func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, 
 // Build is the main entry point into Proteus
 func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 	rw.RLock()
-	defer rw.RUnlock()
 	c := logger.WithLevel(context.Background(), l)
+	rw.RUnlock()
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
 	if daoPointerType.Kind() != reflect.Ptr {
-		return errors.New("Not a pointer")
+		return errors.New("not a pointer")
 	}
 	daoType := daoPointerType.Elem()
 	//if not a struct, error out
 	if daoType.Kind() != reflect.Struct {
-		return errors.New("Not a pointer to struct")
+		return errors.New("not a pointer to struct")
 	}
 	daoPointerValue := reflect.ValueOf(dao)
 	daoValue := reflect.Indirect(daoPointerValue)
@@ -194,7 +194,10 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 		//recurse
 		if curField.Type.Kind() == reflect.Struct && curField.Anonymous {
 			pv := reflect.New(curField.Type)
-			Build(pv.Interface(), paramAdapter, mappers...)
+			err := Build(pv.Interface(), paramAdapter, mappers...)
+			if err != nil {
+				return err
+			}
 			daoValue.Field(i).Set(pv.Elem())
 			continue
 		}
