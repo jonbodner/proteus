@@ -42,52 +42,81 @@ func TestBuilder_ExecuteQuery(t *testing.T) {
 	db := setupDbPostgres()
 	defer db.Close()
 	ctx := context.Background()
-	rows, err := b.Execute(ctx, db, "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)", []interface{}{"Fred", 20}, []string{"name", "age"})
+	rows, err := b.Execute(ctx, db, "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)", map[string]interface{}{"name": "Fred", "age": 20})
 	if err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
 	fmt.Println(rows)
-	rows, err = b.Execute(ctx, db, "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)", []interface{}{"Bob", 50}, []string{"name", "age"})
+	rows, err = b.Execute(ctx, db, "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)", map[string]interface{}{"name": "Bob", "age": 50})
 	if err != nil {
 		t.Fatalf("create 2 failed: %v", err)
 	}
 	fmt.Println(rows)
-	rows, err = b.Execute(ctx, db, "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)", []interface{}{"Julia", 32}, []string{"name", "age"})
+	rows, err = b.Execute(ctx, db, "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)", map[string]interface{}{"name": "Julia", "age": 32})
 	if err != nil {
 		t.Fatalf("create 3 failed: %v", err)
 	}
 	fmt.Println(rows)
-	rows, err = b.Execute(ctx, db, "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)", []interface{}{"Pat", 37}, []string{"name", "age"})
+	rows, err = b.Execute(ctx, db, "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)", map[string]interface{}{"name": "Pat", "age": 37})
 	if err != nil {
 		t.Fatalf("create 4 failed: %v", err)
 	}
 	fmt.Println(rows)
 
 	var p Person
-	err = b.Query(ctx, db, "SELECT * FROM PERSON WHERE id = :id:", []interface{}{1}, []string{"id"}, &p)
+	err = b.Query(ctx, db, "SELECT * FROM PERSON WHERE id = :id:", map[string]interface{}{"id": 1}, &p)
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
 	fmt.Println(p)
 
 	var people []Person
-	err = b.Query(ctx, db, "SELECT * FROM PERSON", nil, nil, &people)
+	err = b.Query(ctx, db, "SELECT * FROM PERSON", nil, &people)
 	if err != nil {
 		t.Fatalf("get all failed: %v", err)
 	}
 	fmt.Println(people)
 
-	err = b.Query(ctx, db, "SELECT * from PERSON WHERE name=:name: and age in (:ages:) and id = :id:", []interface{}{1, []int{20, 32}, "Fred"}, []string{"id", "ages", "name"}, &people)
+	err = b.Query(ctx, db, "SELECT * from PERSON WHERE name=:name: and age in (:ages:) and id = :id:", map[string]interface{}{"id": 1, "ages": []int{20, 32}, "name": "Fred"}, &people)
 	if err != nil {
 		t.Fatalf("get by age failed: %v", err)
 	}
 	fmt.Println(people)
 
-	err = b.Query(ctx, db, "SELECT * from PERSON WHERE name=:$1: and age in (:$2:) and id = :$3:", []interface{}{"Fred", []int{20, 32}, 1}, nil, &people)
+	err = b.Query(ctx, db, "SELECT * from PERSON WHERE name=:$1: and age in (:$2:) and id = :$3:", map[string]interface{}{"$1": "Fred", "$2": []int{20, 32}, "$3": 1}, &people)
 	if err != nil {
 		t.Fatalf("get by age 2 failed: %v", err)
 	}
 	fmt.Println(people)
+
+	// or really non-typed
+	var p2 map[string]interface{}
+	err = b.Query(ctx, db, "SELECT * FROM PERSON WHERE id = :id:", map[string]interface{}{"id": 1}, &p2)
+	if err != nil {
+		t.Fatalf("get map failed: %v", err)
+	}
+	fmt.Println(p2)
+
+	var people2 []map[string]interface{}
+	err = b.Query(ctx, db, "SELECT * FROM PERSON where age > :$1: and age < :$2:", map[string]interface{}{"$1": 20, "$2": 50}, &people2)
+	if err != nil {
+		t.Fatalf("get map slice failed: %v", err)
+	}
+	fmt.Println(people2)
+
+	var p3 map[string]interface{}
+	err = b.Query(ctx, db, "SELECT * FROM PERSON WHERE id = :p.Id:", map[string]interface{}{"p": p}, &p3)
+	if err != nil {
+		t.Fatalf("get map 2 failed: %v", err)
+	}
+	fmt.Println(p3)
+
+	var p4 map[string]interface{}
+	err = b.Query(ctx, db, "SELECT * FROM PERSON WHERE id = :p.id:", map[string]interface{}{"p": p3}, &p4)
+	if err != nil {
+		t.Fatalf("get map 2 failed: %v", err)
+	}
+	fmt.Println(p4)
 }
 
 //func doPersonStuffForProteusTest(b *testing.B, wrapper Wrapper) (int64, *Person, []Person, error) {

@@ -90,8 +90,8 @@ func (st sliceTypes) In(i int) reflect.Type {
 	return st[i]
 }
 
-func (fb Builder) Execute(c context.Context, e ContextExecutor, query string, params []interface{}, names []string) (int64, error) {
-	finalQuery, queryArgs, err := fb.setupDynamicQueries(c, query, params, names)
+func (fb Builder) Execute(c context.Context, e ContextExecutor, query string, params map[string]interface{}) (int64, error) {
+	finalQuery, queryArgs, err := fb.setupDynamicQueries(c, query, params)
 	if err != nil {
 		return 0, err
 	}
@@ -105,14 +105,14 @@ func (fb Builder) Execute(c context.Context, e ContextExecutor, query string, pa
 	return count, err
 }
 
-func (fb Builder) Query(c context.Context, q ContextQuerier, query string, params []interface{}, names []string, output interface{}) error {
+func (fb Builder) Query(c context.Context, q ContextQuerier, query string, params map[string]interface{}, output interface{}) error {
 	// make sure that output is a pointer to something
 	outputPointerType := reflect.TypeOf(output)
 	if outputPointerType.Kind() != reflect.Ptr {
 		return errors.New("not a pointer")
 	}
 
-	finalQuery, queryArgs, err := fb.setupDynamicQueries(c, query, params, names)
+	finalQuery, queryArgs, err := fb.setupDynamicQueries(c, query, params)
 	if err != nil {
 		return err
 	}
@@ -144,7 +144,7 @@ func (fb Builder) Query(c context.Context, q ContextQuerier, query string, param
 	return nil
 }
 
-func (fb Builder) setupDynamicQueries(c context.Context, query string, params []interface{}, names []string) (string, []interface{}, error) {
+func (fb Builder) setupDynamicQueries(c context.Context, query string, paramsAndNames map[string]interface{}) (string, []interface{}, error) {
 	//if log level is set and not in the context, use it
 	if _, ok := logger.LevelFromContext(c); !ok && l != logger.OFF {
 		rw.RLock()
@@ -152,12 +152,14 @@ func (fb Builder) setupDynamicQueries(c context.Context, query string, params []
 		rw.RUnlock()
 	}
 
-	var nameOrderMap map[string]int
-	if len(names) == 0 {
-		nameOrderMap = buildDummyParameters(len(params), 0)
-	} else {
-		nameOrderMap = buildFuncNameOrderMap(names, 0)
+	params := make([]interface{}, 0, len(paramsAndNames))
+	names := make([]string, 0, len(paramsAndNames))
+	for k, v := range paramsAndNames {
+		params = append(params, v)
+		names = append(names, k)
 	}
+
+	nameOrderMap := buildFuncNameOrderMap(names, 0)
 
 	//check to see if the query is in a QueryMapper
 	query, err := lookupQuery(query, fb.mappers)
