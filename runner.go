@@ -289,6 +289,9 @@ func handleMapping(c context.Context, sType reflect.Type, rows *sql.Rows, builde
 		var result interface{}
 		for {
 			result, err = mapRows(c, rows, builder)
+			if err != nil {
+				return nil, err
+			}
 			if result == nil {
 				break
 			}

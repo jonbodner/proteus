@@ -90,7 +90,14 @@ func (st sliceTypes) In(i int) reflect.Type {
 	return st[i]
 }
 
-func (fb Builder) Execute(c context.Context, e ContextExecutor, query string, params map[string]interface{}) (int64, error) {
+func (fb Builder) Exec(c context.Context, e ContextExecutor, query string, params map[string]interface{}) (int64, error) {
+	//if log level is set and not in the context, use it
+	if _, ok := logger.LevelFromContext(c); !ok && l != logger.OFF {
+		rw.RLock()
+		c = logger.WithLevel(c, l)
+		rw.RUnlock()
+	}
+
 	finalQuery, queryArgs, err := fb.setupDynamicQueries(c, query, params)
 	if err != nil {
 		return 0, err
@@ -106,6 +113,13 @@ func (fb Builder) Execute(c context.Context, e ContextExecutor, query string, pa
 }
 
 func (fb Builder) Query(c context.Context, q ContextQuerier, query string, params map[string]interface{}, output interface{}) error {
+	//if log level is set and not in the context, use it
+	if _, ok := logger.LevelFromContext(c); !ok && l != logger.OFF {
+		rw.RLock()
+		c = logger.WithLevel(c, l)
+		rw.RUnlock()
+	}
+
 	// make sure that output is a pointer to something
 	outputPointerType := reflect.TypeOf(output)
 	if outputPointerType.Kind() != reflect.Ptr {
@@ -145,13 +159,6 @@ func (fb Builder) Query(c context.Context, q ContextQuerier, query string, param
 }
 
 func (fb Builder) setupDynamicQueries(c context.Context, query string, paramsAndNames map[string]interface{}) (string, []interface{}, error) {
-	//if log level is set and not in the context, use it
-	if _, ok := logger.LevelFromContext(c); !ok && l != logger.OFF {
-		rw.RLock()
-		c = logger.WithLevel(c, l)
-		rw.RUnlock()
-	}
-
 	params := make([]interface{}, 0, len(paramsAndNames))
 	names := make([]string, 0, len(paramsAndNames))
 	for k, v := range paramsAndNames {
@@ -185,9 +192,9 @@ func (fb Builder) setupDynamicQueries(c context.Context, query string, paramsAnd
 	}
 
 	queryArgs, err := buildQueryArgs(c, args, paramOrder)
-
 	if err != nil {
 		return "", nil, err
 	}
+
 	return finalQuery, queryArgs, nil
 }
