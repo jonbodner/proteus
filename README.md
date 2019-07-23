@@ -8,6 +8,15 @@ A simple tool for generating an application's data access layer.
 
 ## Purpose
 
+Proteus makes your SQL queries type-safe and prevents SQL injection attacks. It processes structs with struct tags on function fields to generate 
+Go functions at runtime. These functions map input parameters to SQL query parameters and optionally map the output parameters to the output of your
+SQL queries.
+
+In addition to being type-safe, Proteus also prevents SQL injection by generating prepared statements from your SQL queries. Even dynamic `in` clauses 
+are converted into injection-proof prepared statements.
+
+Proteus is _not_ an ORM; it does not generate SQL. It just automates away the boring parts of interacting with databases in Go.
+
 ## Quick Start
 1. Define a struct that contains function fields and tags to indicate the query and the parameter names:
 
@@ -219,6 +228,101 @@ as the second parameter.
 
 Note that if you are using the context variants, you cannot use the `proteus.Wrap` function; this is OK, as Wrap is now a no-op and is considered deprecated.
 
+## Generating function variables
+
+Some people don't want to use structs and struct tags to implement their SQL mapping layer. Starting with version 0.11, Proteus can also generate functions that aren't fields in a struct.
+
+First, create an instance of a `proteus.Builder`. The factory function takes a `proteus.Adapter` and zero or more `proteus.QueryMapper` instances:
+
+```go
+    b := NewBuilder(Postgres)
+```
+
+Next, declare a function variable with the signature you want. The parameters for the function variables follow the same rules as the function fields: 
+
+```go
+    var f func(c context.Context, e ContextExecutor, name string, age int) (int64, error)
+    var g func(c context.Context, q ContextQuerier, id int) (*Person, error)
+```
+
+Then call the `BuildFunction` method on your `proteus.Builder` instance, passing in a pointer to your function variable, the SQL query (or a query mapper reference),
+and the parameter names as a string slice:
+
+```go
+    err := b.BuildFunction(ctx, &f, "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)", []string{"name", "age"})
+    if err != nil {
+        t.Fatalf("build function failed: %v", err)
+    }
+    
+    err = b.BuildFunction(ctx, &g, "SELECT * FROM PERSON WHERE id = :id:", []string{"id"})
+    if err != nil {
+        t.Fatalf("build function 2 failed: %v", err)
+    }
+```
+
+Finally, call your functions, to run your SQL queries:
+
+```go
+    db := setupDbPostgres()
+    defer db.Close()
+    ctx := context.Background()
+    
+    rows, err := f(ctx, db, "Fred", 20)
+    if err != nil {
+        t.Fatalf("create failed: %v", err)
+    }
+    fmt.Println(rows) // prints 1
+    
+    p, err := g(ctx, db, 1)
+    if err != nil {
+        t.Fatalf("get failed: %v", err)
+    }
+    fmt.Println(p) // prints {1, Fred, 20}
+```
+
+## Ad-hoc database queries
+
+While Proteus is focused on type safety, sometimes you just want to run a query without associating it with a function. 
+Starting with version 0.11, Proteus allows you to run ad-hoc database queries.
+
+First, create an instance of a `proteus.Builder`. The factory function takes a `proteus.Adapter` and zero or more `proteus.QueryMapper` instances:
+
+```go
+    b := NewBuilder(Postgres)
+```
+
+Next, run your query by passing it to the `Exec` or `Query` methods on `proteus.Builder`. 
+
+`Exec` expects a `context.Context`, a `proteus.ContextExecutor`, the query, and a 
+map of `string` to `interface{}`, where the keys are the parameter names and the values are the parameter values. It returns an int64 with the number of rows modified and
+and error. 
+
+`Query` expected a `context.Context`, a `proteus.ContextQuerier`, the query, 
+a map of `string` to `interface{}`, where the keys are the parameter names and the values are the parameter values, and a pointer to the value that
+should be populated by the query. The method returns an error.
+
+```go
+    db := setupDbPostgres()
+    defer db.Close()
+    ctx := context.Background()
+
+    rows, err := b.Exec(c, db, "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)", map[string]interface{}{"name": "Fred", "age": 20})
+    if err != nil {
+        t.Fatalf("create failed: %v", err)
+    } 
+    fmt.Println(rows) // prints 1
+
+    var p *Person
+    err = b.Query(c, db, "SELECT * FROM PERSON WHERE id = :id:", map[string]interface{}{"id": 1}, &p)
+    if err != nil {
+        t.Fatalf("get failed: %v", err)
+    }
+    fmt.Println(*p) // prints {1, Fred, 20}
+```
+
+Ad-hoc queries support all of the functionality of Proteus except for type safety. You can reference queries in `proteus.QueryMapper` instances, build out dynamic
+`in` clauses, extract values from `struct` instances, and map to a struct with `prof` tags on its fields.  
+
 ## Valid function signatures
 
 ## API
@@ -351,6 +455,10 @@ Feel free to use this logger within your own code. If this logger proves to be u
 ## Future Directions
 
 There are more interesting features coming to Proteus. They are (in likely order of implementation):
+
+- Build `in` clauses using a field from a slice of struct or map
+
+- Generate batch `values` clauses using a slice of struct or map
 
 - more expansive performance measurement support and per-request logging control
 
