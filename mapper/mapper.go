@@ -29,7 +29,7 @@ func ptrConverter(c context.Context, isPtr bool, sType reflect.Type, out reflect
 	}
 	k := out.Type().Kind()
 	if (k == reflect.Ptr || k == reflect.Interface) && out.IsNil() {
-		return nil, fmt.Errorf("Attempting to return nil for non-pointer type %v", sType)
+		return nil, fmt.Errorf("attempting to return nil for non-pointer type %v", sType)
 	}
 	return out.Interface(), nil
 }
@@ -52,7 +52,7 @@ func MakeBuilder(c context.Context, sType reflect.Type) (Builder, error) {
 
 	if sType.Kind() == reflect.Map {
 		if sType.Key().Kind() != reflect.String {
-			return nil, errors.New("Only maps with string keys are supported")
+			return nil, errors.New("only maps with string keys are supported")
 		}
 		return func(cols []string, vals []interface{}) (interface{}, error) {
 			out, err := buildMap(c, sType, cols, vals)
@@ -137,7 +137,7 @@ func buildMap(c context.Context, sType reflect.Type, cols []string, vals []inter
 		if rv.Elem().Elem().Type().ConvertibleTo(sType.Elem()) {
 			out.SetMapIndex(reflect.ValueOf(v), rv.Elem().Elem().Convert(sType.Elem()))
 		} else {
-			return out, fmt.Errorf("Unable to assign value %v of type %v to map value of type %v with key %s", rv.Elem().Elem(), rv.Elem().Elem().Type(), sType.Elem(), v)
+			return out, fmt.Errorf("unable to assign value %v of type %v to map value of type %v with key %s", rv.Elem().Elem(), rv.Elem().Elem().Type(), sType.Elem(), v)
 		}
 	}
 	return out, nil
@@ -185,7 +185,7 @@ func buildStructInner(c context.Context, sType reflect.Type, out reflect.Value, 
 			field.Elem().Set(rv.Elem().Elem().Convert(curFieldType.Elem()))
 		} else {
 			logger.Log(c, logger.ERROR, fmt.Sprintln("can't find the field"))
-			return fmt.Errorf("Unable to assign pointer to value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name[depth], curFieldType)
+			return fmt.Errorf("unable to assign pointer to value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name[depth], curFieldType)
 		}
 	} else {
 		if reflect.PtrTo(curFieldType).Implements(scannerType) {
@@ -202,12 +202,12 @@ func buildStructInner(c context.Context, sType reflect.Type, out reflect.Value, 
 			}
 		} else if rv.Elem().IsNil() {
 			logger.Log(c, logger.ERROR, fmt.Sprintln("Attempting to assign a nil to a non-pointer field"))
-			return fmt.Errorf("Unable to assign nil value to non-pointer struct field %s of type %v", sf.name[depth], curFieldType)
+			return fmt.Errorf("unable to assign nil value to non-pointer struct field %s of type %v", sf.name[depth], curFieldType)
 		} else if rv.Elem().Elem().Type().ConvertibleTo(curFieldType) {
 			field.Set(rv.Elem().Elem().Convert(curFieldType))
 		} else {
 			logger.Log(c, logger.ERROR, fmt.Sprintln("can't find the field"))
-			return fmt.Errorf("Unable to assign value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name[depth], curFieldType)
+			return fmt.Errorf("unable to assign value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name[depth], curFieldType)
 		}
 	}
 	return nil
@@ -223,7 +223,7 @@ func buildPrimitive(c context.Context, sType reflect.Type, cols []string, vals [
 	if rv.Elem().Elem().Type().ConvertibleTo(sType) {
 		out.Set(rv.Elem().Elem().Convert(sType))
 	} else {
-		return out, fmt.Errorf("Unable to assign value %v of type %v to return type of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sType)
+		return out, fmt.Errorf("unable to assign value %v of type %v to return type of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sType)
 	}
 	return out, nil
 }

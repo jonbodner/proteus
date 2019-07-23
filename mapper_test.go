@@ -198,8 +198,8 @@ func TestBuildSqlitePrimitiveNilFail(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error didn't get one")
 	}
-	if err.Error() != "Attempting to return nil for non-pointer type string" {
-		t.Errorf("Expected error message '%s', got '%s'", "Attempting to return nil for non-pointer type string", err.Error())
+	if err.Error() != "attempting to return nil for non-pointer type string" {
+		t.Errorf("Expected error message '%s', got '%s'", "attempting to return nil for non-pointer type string", err.Error())
 	}
 
 	s, err = mapRows(c, rows, b)
