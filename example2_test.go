@@ -27,6 +27,8 @@ func Example_create() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer tx.Commit()
+
 	ctx := context.Background()
 
 	for i := 0; i < 100; i++ {
@@ -35,5 +37,4 @@ func Example_create() {
 			log.Fatal(err)
 		}
 	}
-	tx.Commit()
 }

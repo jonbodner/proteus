@@ -108,6 +108,7 @@ func runCtx(setupDb setupDb, productDao ProductDaoCtx) {
 	if err != nil {
 		panic(err)
 	}
+	defer exec.Commit()
 
 	logger.Log(c, logger.DEBUG, fmt.Sprintln(productDao.FindByID(c, exec, 10)))
 	cost := new(float64)
@@ -139,8 +140,6 @@ func runCtx(setupDb setupDb, productDao ProductDaoCtx) {
 
 	//using positional parameters instead of names
 	logger.Log(c, logger.DEBUG, fmt.Sprintln((productDao.FindByNameAndCostUnlabeled(c, exec, "Thingie", 56.23))))
-
-	exec.Commit()
 }
 
 func run(setupDb setupDb, productDao ProductDao) {
@@ -151,6 +150,7 @@ func run(setupDb setupDb, productDao ProductDao) {
 	if err != nil {
 		panic(err)
 	}
+	defer exec.Commit()
 
 	pExec := proteus.Wrap(exec)
 
@@ -184,8 +184,6 @@ func run(setupDb setupDb, productDao ProductDao) {
 
 	//using positional parameters instead of names
 	logger.Log(c, logger.DEBUG, fmt.Sprintln((productDao.FindByNameAndCostUnlabeled(pExec, "Thingie", 56.23))))
-
-	exec.Commit()
 }
 
 func setupDbPostgres(c context.Context) *sql.DB {
@@ -233,6 +231,7 @@ func populate(c context.Context, db *sql.DB, productDao ProductDao) {
 	if err != nil {
 		logger.Log(c, logger.FATAL, fmt.Sprintln(err))
 	}
+	defer tx.Commit()
 
 	pExec := proteus.Wrap(tx)
 
@@ -248,5 +247,4 @@ func populate(c context.Context, db *sql.DB, productDao ProductDao) {
 		}
 		logger.Log(c, logger.DEBUG, fmt.Sprintln(rowCount))
 	}
-	tx.Commit()
 }

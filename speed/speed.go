@@ -135,6 +135,7 @@ func populate(ctx context.Context, db *sql.DB) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer tx.Commit()
 
 	for i := 0; i < 100; i++ {
 		var cost *float64
@@ -148,5 +149,4 @@ func populate(ctx context.Context, db *sql.DB) {
 		}
 		log.Debug(rowCount)
 	}
-	tx.Commit()
 }

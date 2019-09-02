@@ -11,7 +11,8 @@ import (
 
 	"time"
 
-	"github.com/jonbodner/proteus/cmp"
+	"github.com/google/go-cmp/cmp"
+	pcmp "github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/logger"
 )
 
@@ -120,7 +121,7 @@ func TestConvertToPositionalParameters(t *testing.T) {
 		if err == nil {
 			qSimple, _ = q.finalize(c, nil)
 		}
-		if qSimple != v.query || !reflect.DeepEqual(qps, v.qps) || !cmp.Errors(err, v.err) {
+		if qSimple != v.query || !reflect.DeepEqual(qps, v.qps) || !pcmp.Errors(err, v.err) {
 			t.Errorf("failed for %s -> %#v: %v", k, v, err)
 		}
 	}
@@ -161,7 +162,7 @@ func TestValidateFunction(t *testing.T) {
 			t.Fatalf("Expected err")
 		}
 		eExp := errors.New(msg)
-		if !cmp.Errors(err, eExp) {
+		if !pcmp.Errors(err, eExp) {
 			t.Errorf("Wrong error expected %s, got %s", eExp, err)
 		}
 		if hasCtx {
@@ -244,7 +245,7 @@ func TestBuild(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if err := Build(tt.args.dao, tt.args.pa); (err != nil) != tt.wantErr {
@@ -282,6 +283,7 @@ func TestNilScanner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer exec.Commit()
 
 	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
 	if err != nil {
@@ -335,6 +337,7 @@ func TestUnnamedStructs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer exec.Commit()
 
 	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100))")
 	if err != nil {
@@ -387,6 +390,7 @@ func TestEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer exec.Commit()
 
 	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100))")
 	if err != nil {
@@ -447,11 +451,13 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
 
 	exec, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer exec.Commit()
 
 	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100),empty_field VARCHAR(100))")
 
@@ -593,6 +599,7 @@ func TestShouldBuildEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer exec.Commit()
 
 	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
 	if err != nil {
@@ -644,6 +651,7 @@ func TestShouldBinaryColumn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer exec.Commit()
 
 	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), data bytea)")
 	if err != nil {
@@ -698,37 +706,30 @@ func TestShouldTimeColumn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer exec.Commit()
 
-	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), ts timestamp)")
+	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), ts timestamptz)")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	timestamp := time.Now()
-	count, err := productDao.Insert(exec, MyProduct{Name: "Foo", Timestamp: timestamp})
+	timestamp := time.Now().UTC().Truncate(time.Microsecond)
+	mp := MyProduct{Name: "Foo", Timestamp: timestamp}
+	count, err := productDao.Insert(exec, mp)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
 		t.Fatal("Should have modified 1 row")
 	}
-	prod, err := productDao.Get(Wrap(exec), "Foo")
+	prod, err := productDao.Get(exec, "Foo")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if prod.Name != "Foo" {
-		t.Fatal(fmt.Sprintf("Expected prod with name, got %+v", prod))
-	}
+	// this is what serial should have bumped it to
+	mp.Id = 1
 
-	// crazy but true: intermediate formats can create different format outputs.
-	// using a -07:00 for the time zone here, and then turning it back into a time, and then formatting it with
-	// time.UnixDate produces different output than if you formatted with UnixDate, parsed it, and then formatted it again.
-	// WAT
-	s := timestamp.Format("2006-01-02 15:04:05.999999999-07:00")
-	t2, _ := time.ParseInLocation("2006-01-02 15:04:05.999999999-07:00", s, time.UTC)
-	fmt.Println(prod.Timestamp.Location(), prod.Timestamp.Format(time.UnixDate))
-	fmt.Println(t2.Location(), t2.Format(time.UnixDate))
-	if prod.Timestamp.Format(time.UnixDate) != t2.Format(time.UnixDate) {
-		t.Fatal(fmt.Sprintf("Expected prod with timestamp, got %+v", prod))
+	if diff := cmp.Diff(mp, prod); diff != "" {
+		t.Error(diff)
 	}
 }

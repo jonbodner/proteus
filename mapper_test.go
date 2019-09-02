@@ -45,6 +45,7 @@ func setupDb(t *testing.T) *sql.DB {
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
 		log.Fatalf("%q: %s\n", err, sqlStmt)
+		panic(err)
 		return nil
 	}
 
@@ -52,6 +53,7 @@ func setupDb(t *testing.T) *sql.DB {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer tx.Commit()
 	stmt, err := tx.Prepare("insert into product(id, name, cost) values($1, $2, $3)")
 	if err != nil {
 		log.Fatal(err)
@@ -68,7 +70,6 @@ func setupDb(t *testing.T) *sql.DB {
 			log.Fatal(err)
 		}
 	}
-	tx.Commit()
 	return db
 }
 
