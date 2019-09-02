@@ -6,14 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
+	"math"
 	"reflect"
 	"testing"
 
 	"github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
-	_ "github.com/mutecomm/go-sqlcipher"
 )
 
 func TestMapRows(t *testing.T) {
@@ -34,14 +33,14 @@ func setupDb(t *testing.T) *sql.DB {
 	if testing.Short() {
 		t.Skip("skipping sqlite test in short mode")
 	}
-	os.Remove("./proteus_test.db")
 
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
 		log.Fatal(err)
 	}
 	sqlStmt := `
-	create table product (id integer not null primary key, name text, cost real);
+		drop table if exists product; 
+		create table product (id integer not null primary key, name text, cost real);
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
@@ -53,7 +52,7 @@ func setupDb(t *testing.T) *sql.DB {
 	if err != nil {
 		log.Fatal(err)
 	}
-	stmt, err := tx.Prepare("insert into product(id, name, cost) values(?, ?, ?)")
+	stmt, err := tx.Prepare("insert into product(id, name, cost) values($1, $2, $3)")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -113,7 +112,7 @@ func TestBuildSqliteStruct(t *testing.T) {
 					t.Errorf("Wrong name, expected nil, got %v", p2.Name)
 				}
 			}
-			if p2.Cost != 1.1*float64(i) {
+			if math.Abs(p2.Cost-1.1*float64(i)) > 0.01 {
 				t.Errorf("Wrong cost, expected %f, got %f", 1.1*float64(i), p2.Cost)
 			}
 		}
@@ -137,7 +136,7 @@ func TestBuildSqlitePrimitive(t *testing.T) {
 	defer db.Close()
 
 	//primitive
-	stmt, err := db.Prepare("select name from product where id = ?")
+	stmt, err := db.Prepare("select name from product where id = $1")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -181,7 +180,7 @@ func TestBuildSqlitePrimitiveNilFail(t *testing.T) {
 	defer db.Close()
 
 	//primitive
-	stmt, err := db.Prepare("select name from product where id = ?")
+	stmt, err := db.Prepare("select name from product where id = $1")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -218,7 +217,7 @@ func TestBuildSqlitePrimitivePtr(t *testing.T) {
 	defer db.Close()
 
 	//primitive
-	stmt, err := db.Prepare("select name from product where id = ?")
+	stmt, err := db.Prepare("select name from product where id = $1")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -263,7 +262,7 @@ func TestBuildSqlitePrimitivePtrNil(t *testing.T) {
 	defer db.Close()
 
 	//primitive
-	stmt, err := db.Prepare("select name from product where id = ?")
+	stmt, err := db.Prepare("select name from product where id = $1")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -338,7 +337,7 @@ func TestBuildSqliteMap(t *testing.T) {
 				if !ok {
 					t.Errorf("name map value not found")
 				}
-				if string(name.([]byte)) != fmt.Sprintf("person%d", i) {
+				if name.(string) != fmt.Sprintf("person%d", i) {
 					t.Errorf("Wrong name, expected %s, got %s, existed: %v", fmt.Sprintf("person%d", i), name, ok)
 				}
 			} else {
@@ -350,7 +349,7 @@ func TestBuildSqliteMap(t *testing.T) {
 			if !ok {
 				t.Errorf("cost map value not found")
 			} else {
-				if cost.(float64) != 1.1*float64(i) {
+				if math.Abs(cost.(float64)-1.1*float64(i)) > 0.01 {
 					t.Errorf("Wrong cost, expected %f, got %f", 1.1*float64(i), cost)
 				}
 			}

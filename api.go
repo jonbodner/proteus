@@ -49,3 +49,8 @@ type ContextExecutor interface {
 	// The args are for any placeholder parameters in the query.
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 }
+
+type ContextWrapper interface {
+	ContextQuerier
+	ContextExecutor
+}

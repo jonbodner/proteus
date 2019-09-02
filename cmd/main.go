@@ -4,13 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
 
 	"github.com/jonbodner/dbtimer"
 	"github.com/jonbodner/proteus"
 	"github.com/jonbodner/proteus/logger"
 	_ "github.com/lib/pq"
-	_ "github.com/mutecomm/go-sqlcipher"
 )
 
 type Product struct {
@@ -191,8 +189,8 @@ func run(setupDb setupDb, productDao ProductDao) {
 }
 
 func setupDbPostgres(c context.Context) *sql.DB {
-	//db, err := sql.Open("postgres", "postgres://postgres@localhost/postgres?sslmode=disable")
-	db, err := sql.Open("timer", "postgres postgres://admin:test@localhost/proteus?sslmode=disable")
+	//db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
+	db, err := sql.Open("timer", "postgres postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 
 	if err != nil {
 		logger.Log(c, logger.FATAL, fmt.Sprintln(err))
@@ -211,10 +209,8 @@ func setupDbPostgres(c context.Context) *sql.DB {
 }
 
 func setupDbSqlite(c context.Context) *sql.DB {
-	os.Remove("./proteus_test.db")
 
-	//db, err := sql.Open("sqlite3", "./proteus_test.db")
-	db, err := sql.Open("timer", "sqlite3 ./proteus_test.db")
+	db, err := sql.Open("timer", "postgres postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 
 	if err != nil {
 		logger.Log(c, logger.FATAL, fmt.Sprintln(err))

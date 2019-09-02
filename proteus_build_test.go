@@ -13,7 +13,7 @@ func TestEmbeddedNoSql(t *testing.T) {
 	}
 
 	productDao := OuterEmbeddedProductDao{}
-	err := Build(&productDao, Sqlite)
+	err := Build(&productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}

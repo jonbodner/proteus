@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"database/sql"
-	"os"
 
 	"time"
 
@@ -255,8 +254,6 @@ func TestBuild(t *testing.T) {
 }
 
 func TestNilScanner(t *testing.T) {
-	os.Remove("./proteus_test.db")
-
 	type ScannerProduct struct {
 		Id        int            `prof:"id"`
 		Name      sql.NullString `prof:"name"`
@@ -270,12 +267,12 @@ func TestNilScanner(t *testing.T) {
 
 	productDao := ScannerProductDao{}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Sqlite)
+	err := ShouldBuild(c, &productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +283,7 @@ func TestNilScanner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
+	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,7 +308,6 @@ func TestNilScanner(t *testing.T) {
 }
 
 func TestUnnamedStructs(t *testing.T) {
-	os.Remove("./proteus_test.db")
 
 	type ScannerProduct struct {
 		Id   int    `prof:"id"`
@@ -324,12 +320,12 @@ func TestUnnamedStructs(t *testing.T) {
 	}
 
 	productDao := ScannerProductDao{}
-	err := Build(&productDao, Sqlite)
+	err := Build(&productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +336,7 @@ func TestUnnamedStructs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100))")
+	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100))")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,7 +361,6 @@ func TestUnnamedStructs(t *testing.T) {
 }
 
 func TestEmbedded(t *testing.T) {
-	os.Remove("./proteus_test.db")
 
 	type InnerEmbeddedProductDao struct {
 		Insert func(e Executor, p Product) (int64, error) `proq:"insert into Product(name) values(:p.Name:)" prop:"p"`
@@ -377,12 +372,12 @@ func TestEmbedded(t *testing.T) {
 	}
 
 	productDao := OuterEmbeddedProductDao{}
-	err := Build(&productDao, Sqlite)
+	err := Build(&productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +388,7 @@ func TestEmbedded(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100))")
+	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100))")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -418,7 +413,6 @@ func TestEmbedded(t *testing.T) {
 }
 
 func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
-	os.Remove("./proteus_test.db")
 
 	type MyProduct struct {
 		Id         int            `prof:"id"`
@@ -445,11 +439,11 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 
 	productDao := ProductDao{}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Sqlite)
+	err := ShouldBuild(c, &productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +453,7 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100),empty_field VARCHAR(100))")
+	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100),empty_field VARCHAR(100))")
 
 	if err != nil {
 		t.Fatal(err)
@@ -520,7 +514,7 @@ func TestPositionalVariables(t *testing.T) {
 
 	productDao := ProductDao{}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Sqlite)
+	err := ShouldBuild(c, &productDao, Postgres)
 	if err != nil {
 		t.Error(err)
 	}
@@ -534,7 +528,7 @@ func TestShouldBuild(t *testing.T) {
 
 	productDao := ProductDao{}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Sqlite)
+	err := ShouldBuild(c, &productDao, Postgres)
 	if err == nil {
 		t.Fatal("This should have errors")
 	}
@@ -557,7 +551,7 @@ func TestShouldBuild(t *testing.T) {
 	}
 
 	productDao2 := ProductDao2{}
-	err2 := ShouldBuild(c, &productDao2, Sqlite)
+	err2 := ShouldBuild(c, &productDao2, Postgres)
 	if err2 == nil {
 		t.Error(err2)
 	}
@@ -570,7 +564,6 @@ error in field #5 (InsertNoP): query Parameter p cannot be found in the incoming
 }
 
 func TestShouldBuildEmbedded(t *testing.T) {
-	os.Remove("./proteus_test.db")
 
 	type Inner struct {
 		Name string `prof:"name"`
@@ -586,11 +579,11 @@ func TestShouldBuildEmbedded(t *testing.T) {
 
 	productDao := ProductDao{}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Sqlite)
+	err := ShouldBuild(c, &productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -601,7 +594,7 @@ func TestShouldBuildEmbedded(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
+	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -623,7 +616,6 @@ func TestShouldBuildEmbedded(t *testing.T) {
 }
 
 func TestShouldBinaryColumn(t *testing.T) {
-	os.Remove("./proteus_test.db")
 
 	type MyProduct struct {
 		Id   int    `prof:"id"`
@@ -638,11 +630,11 @@ func TestShouldBinaryColumn(t *testing.T) {
 
 	productDao := ProductDao{}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Sqlite)
+	err := ShouldBuild(c, &productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -653,7 +645,7 @@ func TestShouldBinaryColumn(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), data blob)")
+	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), data bytea)")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -678,26 +670,25 @@ func TestShouldBinaryColumn(t *testing.T) {
 }
 
 func TestShouldTimeColumn(t *testing.T) {
-	os.Remove("./proteus_test.db")
 
 	type MyProduct struct {
 		Id        int       `prof:"id"`
 		Name      string    `prof:"name"`
-		Timestamp time.Time `prof:"timestamp"`
+		Timestamp time.Time `prof:"ts"`
 	}
 
 	type ProductDao struct {
-		Insert func(e Executor, p MyProduct) (int64, error)    `proq:"insert into product(name, timestamp) values(:p.Name:, :p.Timestamp:)" prop:"p"`
+		Insert func(e Executor, p MyProduct) (int64, error)    `proq:"insert into product(name, ts) values(:p.Name:, :p.Timestamp:)" prop:"p"`
 		Get    func(q Querier, name string) (MyProduct, error) `proq:"select * from product where name=:name:" prop:"name"`
 	}
 
 	productDao := ProductDao{}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Sqlite)
+	err := ShouldBuild(c, &productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -708,13 +699,13 @@ func TestShouldTimeColumn(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), timestamp datetime)")
+	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), ts timestamp)")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	timestamp := time.Now()
-	count, err := productDao.Insert(Wrap(exec), MyProduct{Name: "Foo", Timestamp: timestamp})
+	count, err := productDao.Insert(exec, MyProduct{Name: "Foo", Timestamp: timestamp})
 	if err != nil {
 		t.Fatal(err)
 	}
