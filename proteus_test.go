@@ -245,7 +245,7 @@ func TestBuild(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if err := Build(tt.args.dao, tt.args.pa); (err != nil) != tt.wantErr {
@@ -279,28 +279,26 @@ func TestNilScanner(t *testing.T) {
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer exec.Commit()
+	defer tx.Commit()
 
-	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
+	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	gExec := Wrap(exec)
 
 	p := ScannerProduct{
 		Name: sql.NullString{String: "hi", Valid: true},
 	}
 
-	rowId, err := productDao.Insert(gExec, p)
+	rowId, err := productDao.Insert(tx, p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roundTrip, err := productDao.FindById(gExec, rowId)
+	roundTrip, err := productDao.FindById(tx, rowId)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,28 +331,26 @@ func TestUnnamedStructs(t *testing.T) {
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer exec.Commit()
+	defer tx.Commit()
 
-	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100))")
+	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100))")
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	gExec := Wrap(exec)
 
 	p := ScannerProduct{
 		Name: "bob",
 	}
 
-	rowId, err := productDao.Insert(gExec, p)
+	rowId, err := productDao.Insert(tx, p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roundTrip, err := productDao.FindById(gExec, rowId)
+	roundTrip, err := productDao.FindById(tx, rowId)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,28 +382,26 @@ func TestEmbedded(t *testing.T) {
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer exec.Commit()
+	defer tx.Commit()
 
-	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100))")
+	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100))")
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	gExec := Wrap(exec)
 
 	p := Product{
 		Name: "Bob",
 	}
 
-	rowId, err := productDao.Insert(gExec, p)
+	rowId, err := productDao.Insert(tx, p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roundTrip, err := productDao.FindById(gExec, rowId)
+	roundTrip, err := productDao.FindById(tx, rowId)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -453,21 +447,21 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer exec.Commit()
+	defer tx.Commit()
 
-	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100),empty_field VARCHAR(100))")
+	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100),empty_field VARCHAR(100))")
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	count, err := productDao.Insert(Wrap(exec), MyProduct{Name: "foo", EmptyField: sql.NullString{String: "", Valid: false}})
+	count, err := productDao.Insert(tx, MyProduct{Name: "foo", EmptyField: sql.NullString{String: "", Valid: false}})
 	// Nullable field with non-null values work fine, e.g. line below
-	//count, err := productDao.Insert(Wrap(exec), MyProduct{Name: "foo", EmptyField: sql.NullString{String:"field",Valid: true}})
+	//count, err := productDao.Insert(tx, MyProduct{Name: "foo", EmptyField: sql.NullString{String:"field",Valid: true}})
 
 	if err != nil {
 		t.Fatal(err)
@@ -475,7 +469,7 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 	if count != 1 {
 		t.Fatal("Should have modified 1 row")
 	}
-	prod, err := productDao.Get(Wrap(exec), "foo")
+	prod, err := productDao.Get(tx, "foo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,7 +483,7 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 	}
 
 	// This is currently failing
-	nestedProd, err := productDao.GetNested(Wrap(exec), "foo")
+	nestedProd, err := productDao.GetNested(tx, "foo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -595,25 +589,25 @@ func TestShouldBuildEmbedded(t *testing.T) {
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer exec.Commit()
+	defer tx.Commit()
 
-	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
+	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	count, err := productDao.Insert(Wrap(exec), MyProduct{Inner: Inner{Name: "foo"}})
+	count, err := productDao.Insert(tx, MyProduct{Inner: Inner{Name: "foo"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
 		t.Fatal("Should have modified 1 row")
 	}
-	prod, err := productDao.Get(Wrap(exec), "foo")
+	prod, err := productDao.Get(tx, "foo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -647,25 +641,25 @@ func TestShouldBinaryColumn(t *testing.T) {
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer exec.Commit()
+	defer tx.Commit()
 
-	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), data bytea)")
+	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), data bytea)")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	count, err := productDao.Insert(Wrap(exec), MyProduct{Name: "Foo", Data: []byte("Hello")})
+	count, err := productDao.Insert(tx, MyProduct{Name: "Foo", Data: []byte("Hello")})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
 		t.Fatal("Should have modified 1 row")
 	}
-	prod, err := productDao.Get(Wrap(exec), "Foo")
+	prod, err := productDao.Get(tx, "Foo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -702,27 +696,27 @@ func TestShouldTimeColumn(t *testing.T) {
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer exec.Commit()
+	defer tx.Commit()
 
-	_, err = exec.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), ts timestamptz)")
+	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), ts timestamptz)")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	timestamp := time.Now().UTC().Truncate(time.Microsecond)
 	mp := MyProduct{Name: "Foo", Timestamp: timestamp}
-	count, err := productDao.Insert(exec, mp)
+	count, err := productDao.Insert(tx, mp)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
 		t.Fatal("Should have modified 1 row")
 	}
-	prod, err := productDao.Get(exec, "Foo")
+	prod, err := productDao.Get(tx, "Foo")
 	if err != nil {
 		t.Fatal(err)
 	}

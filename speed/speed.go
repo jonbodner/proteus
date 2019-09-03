@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/jonbodner/proteus"
@@ -26,33 +27,37 @@ func SelectProteus(ctx context.Context, db *sql.DB) time.Duration {
 			if err != nil {
 				panic(err)
 			}
-			validate(j, p)
+			err = validate(j, p)
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
 	}
 	end := time.Now()
 	return end.Sub(start)
 }
 
-func validate(i int, p BenchProduct) {
+func validate(i int, p BenchProduct) error {
 	if p.Id != i {
-		fmt.Errorf("should of had id %d, had %d instead", i, p.Id)
+		return fmt.Errorf("should of had id %d, had %d instead", i, p.Id)
 	}
 	if p.Name != fmt.Sprintf("person%d", i) {
-		fmt.Errorf("should of had person4, had %s instead", p.Name)
+		return fmt.Errorf("should of had person4, had %s instead", p.Name)
 	}
 	if i%2 == 0 {
 		if p.Cost == nil {
-			fmt.Errorf("cost should have been non-nil")
+			return fmt.Errorf("cost should have been non-nil")
 		} else {
-			if *p.Cost != 1.1*float64(i) {
-				fmt.Errorf("should have had %f, had %f instead", 1.1*float64(i), *p.Cost)
+			if math.Abs(*p.Cost-1.1*float64(i)) > 0.01 {
+				return fmt.Errorf("should have had %f, had %f instead", 1.1*float64(i), *p.Cost)
 			}
 		}
 	} else {
 		if p.Cost != nil {
-			fmt.Errorf("should have been nil, was %f", *p.Cost)
+			return fmt.Errorf("should have been nil, was %f", *p.Cost)
 		}
 	}
+	return nil
 }
 
 func SelectNative(ctx context.Context, db *sql.DB) time.Duration {
@@ -72,7 +77,10 @@ func SelectNative(ctx context.Context, db *sql.DB) time.Duration {
 					panic(err)
 				}
 				p := BenchProduct{Id: id, Name: name, Cost: cost}
-				validate(j, p)
+				err = validate(j, p)
+				if err != nil {
+					fmt.Println(err)
+				}
 			}
 			rows.Close()
 		}

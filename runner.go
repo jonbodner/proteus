@@ -313,7 +313,7 @@ func handleMapping(c context.Context, sType reflect.Type, rows *sql.Rows, builde
 // If any columns cannot be assigned to any types, then an error is returned
 // If next returns false, then nil is returned for both the interface and the error
 // If an error occurs while processing the current row, nil is returned for the interface and the error is non-nil
-// If a value is successfuly extracted from the current row, the instance is returned and the error is nil
+// If a value is successfully extracted from the current row, the instance is returned and the error is nil
 func mapRows(c context.Context, rows *sql.Rows, builder mapper.Builder) (interface{}, error) {
 	//fmt.Println(sType)
 	if rows == nil {

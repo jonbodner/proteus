@@ -31,7 +31,7 @@ func TestMapRows(t *testing.T) {
 
 func setupDb(t *testing.T) *sql.DB {
 	if testing.Short() {
-		t.Skip("skipping sqlite test in short mode")
+		t.Skip("skipping postgres test in short mode")
 	}
 
 	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
@@ -46,7 +46,6 @@ func setupDb(t *testing.T) *sql.DB {
 	if err != nil {
 		log.Fatalf("%q: %s\n", err, sqlStmt)
 		panic(err)
-		return nil
 	}
 
 	tx, err := db.Begin()
@@ -73,7 +72,7 @@ func setupDb(t *testing.T) *sql.DB {
 	return db
 }
 
-func TestBuildSqliteStruct(t *testing.T) {
+func TestBuildStruct(t *testing.T) {
 	db := setupDb(t)
 	defer db.Close()
 
@@ -132,7 +131,7 @@ func TestBuildSqliteStruct(t *testing.T) {
 	}
 }
 
-func TestBuildSqlitePrimitive(t *testing.T) {
+func TestBuildPrimitive(t *testing.T) {
 	db := setupDb(t)
 	defer db.Close()
 
@@ -176,7 +175,7 @@ func TestBuildSqlitePrimitive(t *testing.T) {
 	}
 }
 
-func TestBuildSqlitePrimitiveNilFail(t *testing.T) {
+func TestBuildPrimitiveNilFail(t *testing.T) {
 	db := setupDb(t)
 	defer db.Close()
 
@@ -213,7 +212,7 @@ func TestBuildSqlitePrimitiveNilFail(t *testing.T) {
 	}
 }
 
-func TestBuildSqlitePrimitivePtr(t *testing.T) {
+func TestBuildPrimitivePtr(t *testing.T) {
 	db := setupDb(t)
 	defer db.Close()
 
@@ -258,7 +257,7 @@ func TestBuildSqlitePrimitivePtr(t *testing.T) {
 	}
 }
 
-func TestBuildSqlitePrimitivePtrNil(t *testing.T) {
+func TestBuildPrimitivePtrNil(t *testing.T) {
 	db := setupDb(t)
 	defer db.Close()
 
@@ -300,7 +299,7 @@ func TestBuildSqlitePrimitivePtrNil(t *testing.T) {
 	}
 }
 
-func TestBuildSqliteMap(t *testing.T) {
+func TestBuildMap(t *testing.T) {
 	db := setupDb(t)
 	defer db.Close()
 
