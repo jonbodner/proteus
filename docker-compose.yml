@@ -8,8 +8,8 @@ services:
 #    volumes:
 #      - my_dbdata:/var/lib/postgresql/data
     environment:
-       POSTGRES_USER: admin
-       POSTGRES_PASSWORD: test
+       POSTGRES_USER: pro_user
+       POSTGRES_PASSWORD: pro_pwd
        POSTGRES_DB: proteus
 #volumes:
 #  my_dbdata:

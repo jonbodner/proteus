@@ -1,79 +1,73 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
-	"os"
+	"math"
 	"time"
 
 	"github.com/jonbodner/proteus"
-	_ "github.com/mutecomm/go-sqlcipher"
+	_ "github.com/lib/pq"
 	"github.com/pkg/profile"
 	log "github.com/sirupsen/logrus"
 )
 
-func SelectProteus(db *sql.DB) {
+func SelectProteus(ctx context.Context, db *sql.DB) time.Duration {
 	var productDao BenchProductDao
 
-	err := proteus.Build(&productDao, proteus.Sqlite)
+	err := proteus.Build(&productDao, proteus.Postgres)
 	if err != nil {
 		panic(err)
 	}
-	tx, err := db.Begin()
-	if err != nil {
-		panic(err)
-	}
-	defer tx.Commit()
 	start := time.Now()
-	pExec := proteus.Wrap(tx)
 	for i := 0; i < 1000; i++ {
 		for j := 0; j < 10; j++ {
-			p, err := productDao.FindById(pExec, j)
+			p, err := productDao.FindById(ctx, db, j)
 			if err != nil {
 				panic(err)
 			}
-			validate(j, p)
+			err = validate(j, p)
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
 	}
 	end := time.Now()
-	fmt.Println("Proteus", end.Sub(start))
+	return end.Sub(start)
 }
 
-func validate(i int, p BenchProduct) {
+func validate(i int, p BenchProduct) error {
 	if p.Id != i {
-		fmt.Errorf("should of had id %d, had %d instead", i, p.Id)
+		return fmt.Errorf("should of had id %d, had %d instead", i, p.Id)
 	}
 	if p.Name != fmt.Sprintf("person%d", i) {
-		fmt.Errorf("should of had person4, had %s instead", p.Name)
+		return fmt.Errorf("should of had person4, had %s instead", p.Name)
 	}
 	if i%2 == 0 {
 		if p.Cost == nil {
-			fmt.Errorf("cost should have been non-nil")
+			return fmt.Errorf("cost should have been non-nil")
 		} else {
-			if *p.Cost != 1.1*float64(i) {
-				fmt.Errorf("should have had %f, had %f instead", 1.1*float64(i), *p.Cost)
+			if math.Abs(*p.Cost-1.1*float64(i)) > 0.01 {
+				return fmt.Errorf("should have had %f, had %f instead", 1.1*float64(i), *p.Cost)
 			}
 		}
 	} else {
 		if p.Cost != nil {
-			fmt.Errorf("should have been nil, was %f", *p.Cost)
+			return fmt.Errorf("should have been nil, was %f", *p.Cost)
 		}
 	}
+	return nil
 }
 
-func SelectNative(db *sql.DB) {
-	tx, err := db.Begin()
-	if err != nil {
-		panic(err)
-	}
-	defer tx.Commit()
+func SelectNative(ctx context.Context, db *sql.DB) time.Duration {
 	start := time.Now()
 	for i := 0; i < 1000; i++ {
 		var id int
 		var name string
 		var cost *float64
 		for j := 0; j < 10; j++ {
-			rows, err := tx.Query("select id, name, cost from Product where id = ?", j)
+			rows, err := db.QueryContext(ctx, "select id, name, cost from Product where id = $1", j)
 			if err != nil {
 				panic(err)
 			}
@@ -83,13 +77,16 @@ func SelectNative(db *sql.DB) {
 					panic(err)
 				}
 				p := BenchProduct{Id: id, Name: name, Cost: cost}
-				validate(j, p)
+				err = validate(j, p)
+				if err != nil {
+					fmt.Println(err)
+				}
 			}
 			rows.Close()
 		}
 	}
 	end := time.Now()
-	fmt.Println("Native:", end.Sub(start))
+	return end.Sub(start)
 }
 
 type BenchProduct struct {
@@ -99,29 +96,29 @@ type BenchProduct struct {
 }
 
 type BenchProductDao struct {
-	FindById func(e proteus.Querier, id int) (BenchProduct, error)                       `proq:"select id, name, cost from Product where id = :id:" prop:"id"`
-	Insert   func(e proteus.Executor, id int, name string, cost *float64) (int64, error) `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
+	FindById func(ctx context.Context, e proteus.ContextQuerier, id int) (BenchProduct, error)                       `proq:"select id, name, cost from Product where id = :id:" prop:"id"`
+	Insert   func(ctx context.Context, e proteus.ContextExecutor, id int, name string, cost *float64) (int64, error) `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
 }
 
 func main() {
-	db := setupDbSqlite()
+	ctx := context.Background()
+	db := setupDbPostgres(ctx)
 	defer profile.Start().Stop()
 	defer db.Close()
 
 	for i := 0; i < 5; i++ {
-		fmt.Println("round ", i+1)
-		SelectProteus(db)
-		SelectNative(db)
-		fmt.Println("round ", i+2)
-		SelectNative(db)
-		SelectProteus(db)
+		fmt.Printf("Round %d - Proteus first\n", i+1)
+		fmt.Println("Proteus: ", SelectProteus(ctx, db))
+		fmt.Println("Native: ", SelectNative(ctx, db))
+		fmt.Printf("Round %d - Native first\n", i+1)
+		fmt.Println("Native: ", SelectNative(ctx, db))
+		fmt.Println("Proteus: ", SelectProteus(ctx, db))
 	}
 }
 
-func setupDbSqlite() *sql.DB {
-	os.Remove("./proteus_test.db")
+func setupDbPostgres(ctx context.Context) *sql.DB {
 
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 
 	if err != nil {
 		log.Fatal(err)
@@ -135,19 +132,18 @@ func setupDbSqlite() *sql.DB {
 		log.Fatalf("%q: %s\n", err, sqlStmt)
 		return nil
 	}
-	populate(db)
+	populate(ctx, db)
 	return db
 }
 
-func populate(db *sql.DB) {
+func populate(ctx context.Context, db *sql.DB) {
 	productDao := BenchProductDao{}
-	proteus.Build(&productDao, proteus.Sqlite)
+	proteus.Build(&productDao, proteus.Postgres)
 	tx, err := db.Begin()
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	pExec := proteus.Wrap(tx)
+	defer tx.Commit()
 
 	for i := 0; i < 100; i++ {
 		var cost *float64
@@ -155,11 +151,10 @@ func populate(db *sql.DB) {
 			c := 1.1 * float64(i)
 			cost = &c
 		}
-		rowCount, err := productDao.Insert(pExec, i, fmt.Sprintf("person%d", i), cost)
+		rowCount, err := productDao.Insert(ctx, tx, i, fmt.Sprintf("person%d", i), cost)
 		if err != nil {
 			log.Fatal(err)
 		}
 		log.Debug(rowCount)
 	}
-	tx.Commit()
 }

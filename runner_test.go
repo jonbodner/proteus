@@ -21,7 +21,7 @@ func Test_getQArgs(t *testing.T) {
 		want    []interface{}
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
@@ -48,7 +48,7 @@ func Test_buildExec(t *testing.T) {
 		want    func(args []reflect.Value) []reflect.Value
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
@@ -71,7 +71,7 @@ func Test_buildQuery(t *testing.T) {
 		want    func(args []reflect.Value) []reflect.Value
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {
@@ -98,7 +98,7 @@ func Test_handleMapping(t *testing.T) {
 		want    interface{}
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	for _, tt := range tests {

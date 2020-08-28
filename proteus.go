@@ -75,9 +75,7 @@ func SetLogLevel(ll logger.Level) {
 //
 // 1. It will not populate any function fields if there are errors.
 //
-// 2. All errors found during building will be reported back
-//
-// 3. The context passed in to ShouldBuild can be used to specify the logging level used during ShouldBuild and
+// 2. The context passed in to ShouldBuild can be used to specify the logging level used during ShouldBuild and
 // when the generated functions are invoked. This overrides any logging level specified using the SetLogLevel
 // function.
 func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
@@ -169,7 +167,11 @@ func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, 
 	return out
 }
 
-// Build is the main entry point into Proteus
+// Build is the main entry point into Proteus. It takes in a pointer to a DAO struct to populate,
+// a proteus.ParamAdapter, and zero or more proteus.QueryMapper instances.
+//
+// As of version v0.12.0, all errors found during building will be reported back. Also, prefer using
+// proteus.ShouldBuild over proteus.Build.
 func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 	rw.RLock()
 	c := logger.WithLevel(context.Background(), l)
@@ -186,6 +188,7 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 	}
 	daoPointerValue := reflect.ValueOf(dao)
 	daoValue := reflect.Indirect(daoPointerValue)
+	var outErr error
 	//for each field in ProductDao that is of type func and has a proteus struct tag, assign it a func
 	for i := 0; i < daoType.NumField(); i++ {
 		curField := daoType.Field(i)
@@ -196,7 +199,7 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 			pv := reflect.New(curField.Type)
 			err := Build(pv.Interface(), paramAdapter, mappers...)
 			if err != nil {
-				return err
+				outErr = multierr.Append(outErr, err)
 			}
 			daoValue.Field(i).Set(pv.Elem())
 			continue
@@ -212,6 +215,7 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 		hasCtx, err := validateFunction(funcType)
 		if err != nil {
 			logger.Log(c, logger.WARN, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
+			outErr = multierr.Append(outErr, err)
 			continue
 		}
 
@@ -231,16 +235,21 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 		query, err = lookupQuery(query, mappers)
 		if err != nil {
 			logger.Log(c, logger.WARN, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
+			outErr = multierr.Append(outErr, err)
 			continue
 		}
 
 		implementation, err := makeImplementation(c, funcType, query, paramAdapter, nameOrderMap)
 		if err != nil {
 			logger.Log(c, logger.WARN, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
+			outErr = multierr.Append(outErr, err)
 			continue
 		}
 		fieldValue := daoValue.Field(i)
 		fieldValue.Set(reflect.MakeFunc(funcType, implementation))
+	}
+	if outErr != nil {
+		return outErr
 	}
 	return nil
 }

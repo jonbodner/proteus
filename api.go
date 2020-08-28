@@ -49,3 +49,10 @@ type ContextExecutor interface {
 	// The args are for any placeholder parameters in the query.
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 }
+
+// ContextWrapper is an interface that contains both ContextQuerier and ContextExecutor. It represents all
+// of the operations that are performed by Proteus
+type ContextWrapper interface {
+	ContextQuerier
+	ContextExecutor
+}

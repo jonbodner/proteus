@@ -8,11 +8,11 @@ import (
 	"testing"
 
 	"database/sql"
-	"os"
 
 	"time"
 
-	"github.com/jonbodner/proteus/cmp"
+	"github.com/google/go-cmp/cmp"
+	pcmp "github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/logger"
 )
 
@@ -121,7 +121,7 @@ func TestConvertToPositionalParameters(t *testing.T) {
 		if err == nil {
 			qSimple, _ = q.finalize(c, nil)
 		}
-		if qSimple != v.query || !reflect.DeepEqual(qps, v.qps) || !cmp.Errors(err, v.err) {
+		if qSimple != v.query || !reflect.DeepEqual(qps, v.qps) || !pcmp.Errors(err, v.err) {
 			t.Errorf("failed for %s -> %#v: %v", k, v, err)
 		}
 	}
@@ -162,7 +162,7 @@ func TestValidateFunction(t *testing.T) {
 			t.Fatalf("Expected err")
 		}
 		eExp := errors.New(msg)
-		if !cmp.Errors(err, eExp) {
+		if !pcmp.Errors(err, eExp) {
 			t.Errorf("Wrong error expected %s, got %s", eExp, err)
 		}
 		if hasCtx {
@@ -245,7 +245,7 @@ func TestBuild(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		if err := Build(tt.args.dao, tt.args.pa); (err != nil) != tt.wantErr {
@@ -255,8 +255,6 @@ func TestBuild(t *testing.T) {
 }
 
 func TestNilScanner(t *testing.T) {
-	os.Remove("./proteus_test.db")
-
 	type ScannerProduct struct {
 		Id        int            `prof:"id"`
 		Name      sql.NullString `prof:"name"`
@@ -270,38 +268,37 @@ func TestNilScanner(t *testing.T) {
 
 	productDao := ScannerProductDao{}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Sqlite)
+	err := ShouldBuild(c, &productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer tx.Commit()
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
+	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	gExec := Wrap(exec)
 
 	p := ScannerProduct{
 		Name: sql.NullString{String: "hi", Valid: true},
 	}
 
-	rowId, err := productDao.Insert(gExec, p)
+	rowId, err := productDao.Insert(tx, p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roundTrip, err := productDao.FindById(gExec, rowId)
+	roundTrip, err := productDao.FindById(tx, rowId)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,7 +308,6 @@ func TestNilScanner(t *testing.T) {
 }
 
 func TestUnnamedStructs(t *testing.T) {
-	os.Remove("./proteus_test.db")
 
 	type ScannerProduct struct {
 		Id   int    `prof:"id"`
@@ -324,38 +320,37 @@ func TestUnnamedStructs(t *testing.T) {
 	}
 
 	productDao := ScannerProductDao{}
-	err := Build(&productDao, Sqlite)
+	err := Build(&productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer tx.Commit()
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100))")
+	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100))")
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	gExec := Wrap(exec)
 
 	p := ScannerProduct{
 		Name: "bob",
 	}
 
-	rowId, err := productDao.Insert(gExec, p)
+	rowId, err := productDao.Insert(tx, p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roundTrip, err := productDao.FindById(gExec, rowId)
+	roundTrip, err := productDao.FindById(tx, rowId)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,7 +360,6 @@ func TestUnnamedStructs(t *testing.T) {
 }
 
 func TestEmbedded(t *testing.T) {
-	os.Remove("./proteus_test.db")
 
 	type InnerEmbeddedProductDao struct {
 		Insert func(e Executor, p Product) (int64, error) `proq:"insert into Product(name) values(:p.Name:)" prop:"p"`
@@ -377,38 +371,37 @@ func TestEmbedded(t *testing.T) {
 	}
 
 	productDao := OuterEmbeddedProductDao{}
-	err := Build(&productDao, Sqlite)
+	err := Build(&productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer tx.Commit()
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100))")
+	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100))")
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	gExec := Wrap(exec)
 
 	p := Product{
 		Name: "Bob",
 	}
 
-	rowId, err := productDao.Insert(gExec, p)
+	rowId, err := productDao.Insert(tx, p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roundTrip, err := productDao.FindById(gExec, rowId)
+	roundTrip, err := productDao.FindById(tx, rowId)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -418,7 +411,6 @@ func TestEmbedded(t *testing.T) {
 }
 
 func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
-	os.Remove("./proteus_test.db")
 
 	type MyProduct struct {
 		Id         int            `prof:"id"`
@@ -445,29 +437,31 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 
 	productDao := ProductDao{}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Sqlite)
+	err := ShouldBuild(c, &productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Commit()
+
+	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100),empty_field VARCHAR(100))")
+
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	exec, err := db.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100),empty_field VARCHAR(100))")
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err := productDao.Insert(Wrap(exec), MyProduct{Name: "foo", EmptyField: sql.NullString{String: "", Valid: false}})
+	count, err := productDao.Insert(tx, MyProduct{Name: "foo", EmptyField: sql.NullString{String: "", Valid: false}})
 	// Nullable field with non-null values work fine, e.g. line below
-	//count, err := productDao.Insert(Wrap(exec), MyProduct{Name: "foo", EmptyField: sql.NullString{String:"field",Valid: true}})
+	//count, err := productDao.Insert(tx, MyProduct{Name: "foo", EmptyField: sql.NullString{String:"field",Valid: true}})
 
 	if err != nil {
 		t.Fatal(err)
@@ -475,7 +469,7 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 	if count != 1 {
 		t.Fatal("Should have modified 1 row")
 	}
-	prod, err := productDao.Get(Wrap(exec), "foo")
+	prod, err := productDao.Get(tx, "foo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,7 +483,7 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 	}
 
 	// This is currently failing
-	nestedProd, err := productDao.GetNested(Wrap(exec), "foo")
+	nestedProd, err := productDao.GetNested(tx, "foo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -520,7 +514,7 @@ func TestPositionalVariables(t *testing.T) {
 
 	productDao := ProductDao{}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Sqlite)
+	err := ShouldBuild(c, &productDao, Postgres)
 	if err != nil {
 		t.Error(err)
 	}
@@ -534,7 +528,7 @@ func TestShouldBuild(t *testing.T) {
 
 	productDao := ProductDao{}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Sqlite)
+	err := ShouldBuild(c, &productDao, Postgres)
 	if err == nil {
 		t.Fatal("This should have errors")
 	}
@@ -557,7 +551,7 @@ func TestShouldBuild(t *testing.T) {
 	}
 
 	productDao2 := ProductDao2{}
-	err2 := ShouldBuild(c, &productDao2, Sqlite)
+	err2 := ShouldBuild(c, &productDao2, Postgres)
 	if err2 == nil {
 		t.Error(err2)
 	}
@@ -570,7 +564,6 @@ error in field #5 (InsertNoP): query Parameter p cannot be found in the incoming
 }
 
 func TestShouldBuildEmbedded(t *testing.T) {
-	os.Remove("./proteus_test.db")
 
 	type Inner struct {
 		Name string `prof:"name"`
@@ -586,34 +579,35 @@ func TestShouldBuildEmbedded(t *testing.T) {
 
 	productDao := ProductDao{}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Sqlite)
+	err := ShouldBuild(c, &productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Commit()
+
+	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err := productDao.Insert(Wrap(exec), MyProduct{Inner: Inner{Name: "foo"}})
+	count, err := productDao.Insert(tx, MyProduct{Inner: Inner{Name: "foo"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
 		t.Fatal("Should have modified 1 row")
 	}
-	prod, err := productDao.Get(Wrap(exec), "foo")
+	prod, err := productDao.Get(tx, "foo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -623,7 +617,6 @@ func TestShouldBuildEmbedded(t *testing.T) {
 }
 
 func TestShouldBinaryColumn(t *testing.T) {
-	os.Remove("./proteus_test.db")
 
 	type MyProduct struct {
 		Id   int    `prof:"id"`
@@ -638,34 +631,35 @@ func TestShouldBinaryColumn(t *testing.T) {
 
 	productDao := ProductDao{}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Sqlite)
+	err := ShouldBuild(c, &productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Commit()
+
+	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), data bytea)")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), data blob)")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err := productDao.Insert(Wrap(exec), MyProduct{Name: "Foo", Data: []byte("Hello")})
+	count, err := productDao.Insert(tx, MyProduct{Name: "Foo", Data: []byte("Hello")})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
 		t.Fatal("Should have modified 1 row")
 	}
-	prod, err := productDao.Get(Wrap(exec), "Foo")
+	prod, err := productDao.Get(tx, "Foo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -678,66 +672,58 @@ func TestShouldBinaryColumn(t *testing.T) {
 }
 
 func TestShouldTimeColumn(t *testing.T) {
-	os.Remove("./proteus_test.db")
 
 	type MyProduct struct {
 		Id        int       `prof:"id"`
 		Name      string    `prof:"name"`
-		Timestamp time.Time `prof:"timestamp"`
+		Timestamp time.Time `prof:"ts"`
 	}
 
 	type ProductDao struct {
-		Insert func(e Executor, p MyProduct) (int64, error)    `proq:"insert into product(name, timestamp) values(:p.Name:, :p.Timestamp:)" prop:"p"`
+		Insert func(e Executor, p MyProduct) (int64, error)    `proq:"insert into product(name, ts) values(:p.Name:, :p.Timestamp:)" prop:"p"`
 		Get    func(q Querier, name string) (MyProduct, error) `proq:"select * from product where name=:name:" prop:"name"`
 	}
 
 	productDao := ProductDao{}
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Sqlite)
+	err := ShouldBuild(c, &productDao, Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 
-	exec, err := db.Begin()
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Commit()
+
+	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), ts timestamptz)")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = exec.Exec("CREATE TABLE product(id INTEGER PRIMARY KEY, name VARCHAR(100), timestamp datetime)")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	timestamp := time.Now()
-	count, err := productDao.Insert(Wrap(exec), MyProduct{Name: "Foo", Timestamp: timestamp})
+	timestamp := time.Now().UTC().Truncate(time.Microsecond)
+	mp := MyProduct{Name: "Foo", Timestamp: timestamp}
+	count, err := productDao.Insert(tx, mp)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
 		t.Fatal("Should have modified 1 row")
 	}
-	prod, err := productDao.Get(Wrap(exec), "Foo")
+	prod, err := productDao.Get(tx, "Foo")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if prod.Name != "Foo" {
-		t.Fatal(fmt.Sprintf("Expected prod with name, got %+v", prod))
-	}
+	// this is what serial should have bumped it to
+	mp.Id = 1
 
-	// crazy but true: intermediate formats can create different format outputs.
-	// using a -07:00 for the time zone here, and then turning it back into a time, and then formatting it with
-	// time.UnixDate produces different output than if you formatted with UnixDate, parsed it, and then formatted it again.
-	// WAT
-	s := timestamp.Format("2006-01-02 15:04:05.999999999-07:00")
-	t2, _ := time.ParseInLocation("2006-01-02 15:04:05.999999999-07:00", s, time.UTC)
-	fmt.Println(prod.Timestamp.Location(), prod.Timestamp.Format(time.UnixDate))
-	fmt.Println(t2.Location(), t2.Format(time.UnixDate))
-	if prod.Timestamp.Format(time.UnixDate) != t2.Format(time.UnixDate) {
-		t.Fatal(fmt.Sprintf("Expected prod with timestamp, got %+v", prod))
+	if diff := cmp.Diff(mp, prod); diff != "" {
+		t.Error(diff)
 	}
 }

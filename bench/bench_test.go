@@ -1,72 +1,117 @@
 package proteus
 
 import (
+	"context"
 	"database/sql"
+	"fmt"
 	"log"
+	"math"
 	"testing"
 
 	"github.com/jonbodner/proteus"
-	_ "github.com/mutecomm/go-sqlcipher"
+	_ "github.com/lib/pq"
 )
 
-func BenchmarkSelectProteus(b *testing.B) {
-	var productDao BenchProductDao
+func setupDbPostgres(ctx context.Context, db *sql.DB) {
+	sqlStmt := `
+	drop table if exists product;
+	create table product (id integer not null primary key, name text, cost real);
+	`
+	_, err := db.ExecContext(ctx, sqlStmt)
+	if err != nil {
+		log.Fatalf("%q: %s\n", err, sqlStmt)
+	}
+	populate(ctx, db)
+}
 
-	err := proteus.Build(&productDao, proteus.Sqlite)
-	if err != nil {
-		panic(err)
-	}
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
+func populate(ctx context.Context, db *sql.DB) {
+	productDao := BenchProductDao{}
+	proteus.Build(&productDao, proteus.Postgres)
 	tx, err := db.Begin()
 	if err != nil {
 		panic(err)
 	}
 	defer tx.Commit()
-	b.ResetTimer()
-	pExec := proteus.Wrap(tx)
-	for i := 0; i < b.N; i++ {
-		p, err := productDao.FindByID(pExec, 4)
+
+	for i := 0; i < 10; i++ {
+		var cost *float64
+		if i%2 == 0 {
+			c := 1.1 * float64(i)
+			cost = &c
+		}
+		_, err := productDao.Insert(ctx, tx, i, fmt.Sprintf("person%d", i), cost)
 		if err != nil {
 			panic(err)
 		}
-		if p.ID != 4 {
-			b.Errorf("should of had id 4, had %d instead", p.ID)
-		}
-		if p.Name != "person4" {
-			b.Errorf("should of had person4, had %s instead", p.Name)
-		}
-		if p.Cost == nil {
-			b.Errorf("cost should have been non-nil")
-		} else {
-			if *p.Cost != 4.4 {
-				b.Errorf("should have had 4.4, had %f instead", *p.Cost)
-			}
-		}
+	}
+}
 
+type closer func()
+
+func setup() (*sql.Tx, closer) {
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
+	if err != nil {
+		panic(err)
+	}
+	ctx := context.Background()
+	setupDbPostgres(ctx, db)
+	tx, err := db.Begin()
+	if err != nil {
+		panic(err)
+	}
+	return tx, func() {
+		tx.Commit()
+		db.Close()
+	}
+}
+
+func BenchmarkSelectProteus(b *testing.B) {
+	var productDao BenchProductDao
+	ctx := context.Background()
+
+	err := proteus.ShouldBuild(ctx, &productDao, proteus.Postgres)
+	if err != nil {
+		panic(err)
+	}
+
+	tx, closer := setup()
+	defer closer()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		p, err := productDao.FindByID(ctx, tx, 4)
+		if err != nil {
+			panic(err)
+		}
+		validate(p, b)
+	}
+}
+
+func validate(p BenchProduct, b *testing.B) {
+	if p.ID != 4 {
+		b.Errorf("should of had id 4, had %d instead", p.ID)
+	}
+	if p.Name != "person4" {
+		b.Errorf("should of had person4, had %s instead", p.Name)
+	}
+	if p.Cost == nil {
+		b.Errorf("cost should have been non-nil")
+	} else {
+		if math.Abs(*p.Cost-4.4) > 0.001 {
+			b.Errorf("should have had 4.4, had %f instead", *p.Cost)
+		}
 	}
 }
 
 func BenchmarkSelectNative(b *testing.B) {
-	db, err := sql.Open("sqlite3", "./proteus_test.db")
-	if err != nil {
-		log.Fatal(err)
-	}
-	tx, err := db.Begin()
-	if err != nil {
-		panic(err)
-	}
-	defer tx.Commit()
-	defer db.Close()
+	ctx := context.Background()
+	tx, closer := setup()
+	defer closer()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var id int
 		var name string
 		cost := new(float64)
-		rows, err := tx.Query("select id, name, cost from Product where id = ?", 4)
+		rows, err := tx.QueryContext(ctx, "select id, name, cost from Product where id = $1", 4)
 		if err != nil {
 			panic(err)
 		}
@@ -76,19 +121,7 @@ func BenchmarkSelectNative(b *testing.B) {
 				panic(err)
 			}
 			p := BenchProduct{ID: id, Name: name, Cost: cost}
-			if p.ID != 4 {
-				b.Errorf("should of had id 4, had %d instead", p.ID)
-			}
-			if p.Name != "person4" {
-				b.Errorf("should of had person4, had %s instead", p.Name)
-			}
-			if p.Cost == nil {
-				b.Errorf("cost should have been non-nil")
-			} else {
-				if *p.Cost != 4.4 {
-					b.Errorf("should have had 4.4, had %f instead", *p.Cost)
-				}
-			}
+			validate(p, b)
 		}
 		rows.Close()
 	}
@@ -101,5 +134,6 @@ type BenchProduct struct {
 }
 
 type BenchProductDao struct {
-	FindByID func(e proteus.Executor, id int) (BenchProduct, error) `proq:"select id, name, cost from Product where id = :id:" prop:"id"`
+	FindByID func(ctx context.Context, e proteus.ContextQuerier, id int) (BenchProduct, error)                       `proq:"select id, name, cost from Product where id = :id:" prop:"id"`
+	Insert   func(ctx context.Context, e proteus.ContextExecutor, id int, name string, cost *float64) (int64, error) `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
 }

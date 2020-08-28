@@ -79,15 +79,15 @@ func runMapper(m QueryMapper, t *testing.T) {
 		Update func(e Executor, id string, x string) (int64, error) `proq:"q:q2" prop:"id,x"`
 	}
 	sImpl := s{}
-	err := Build(&sImpl, Sqlite, m)
+	err := Build(&sImpl, Postgres, m)
 	if err != nil {
 		t.Error("error while building", err)
 	}
 
 	dummyDB := &DummyDB{
 		Queries: []string{
-			"select * from foo where id = ?",
-			"update foo set x=? where id = ?",
+			"select * from foo where id = $1",
+			"update foo set x=$1 where id = $2",
 		},
 		Args: [][]interface{}{
 			[]interface{}{"1"},

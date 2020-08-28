@@ -1,6 +1,7 @@
 package proteus
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -16,13 +17,13 @@ func BenchmarkProteus(b *testing.B) {
 	if err != nil {
 		panic(err)
 	}
+	ctx := context.Background()
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
 		db := setupDbPostgres()
-		wrapper := Wrap(db)
 		b.StartTimer()
-		doPersonStuffForProteusTest(b, wrapper)
+		doPersonStuffForProteusTest(ctx, b, db)
 		b.StopTimer()
 		db.Close()
 	}
@@ -39,18 +40,18 @@ func (p Person) String() string {
 }
 
 type PersonDao struct {
-	Create   func(e Executor, name string, age int) (int64, error)              `proq:"INSERT INTO PERSON(name, age) VALUES(:name:, :age:)" prop:"name,age"`
-	Get      func(q Querier, id int) (*Person, error)                           `proq:"SELECT * FROM PERSON WHERE id = :id:" prop:"id"`
-	Update   func(e Executor, id int, name string, age int) (int64, error)      `proq:"UPDATE PERSON SET name = :name:, age=:age: where id=:id:" prop:"id,name,age"`
-	Delete   func(e Executor, id int) (int64, error)                            `proq:"DELETE FROM PERSON WHERE id = :id:" prop:"id"`
-	GetAll   func(q Querier) ([]Person, error)                                  `proq:"SELECT * FROM PERSON"`
-	GetByAge func(q Querier, id int, ages []int, name string) ([]Person, error) `proq:"SELECT * from PERSON WHERE name=:name: and age in (:ages:) and id = :id:" prop:"id,ages,name"`
+	Create   func(ctx context.Context, e ContextExecutor, name string, age int) (int64, error)              `proq:"INSERT INTO PERSON(name, age) VALUES(:name:, :age:)" prop:"name,age"`
+	Get      func(ctx context.Context, q ContextQuerier, id int) (*Person, error)                           `proq:"SELECT * FROM PERSON WHERE id = :id:" prop:"id"`
+	Update   func(ctx context.Context, e ContextExecutor, id int, name string, age int) (int64, error)      `proq:"UPDATE PERSON SET name = :name:, age=:age: where id=:id:" prop:"id,name,age"`
+	Delete   func(ctx context.Context, e ContextExecutor, id int) (int64, error)                            `proq:"DELETE FROM PERSON WHERE id = :id:" prop:"id"`
+	GetAll   func(ctx context.Context, q ContextQuerier) ([]Person, error)                                  `proq:"SELECT * FROM PERSON"`
+	GetByAge func(ctx context.Context, q ContextQuerier, id int, ages []int, name string) ([]Person, error) `proq:"SELECT * from PERSON WHERE name=:name: and age in (:ages:) and id = :id:" prop:"id,ages,name"`
 }
 
 var personDao PersonDao
 
 func setupDbPostgres() *sql.DB {
-	db, err := sql.Open("postgres", "postgres://admin:test@localhost/proteus?sslmode=disable")
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 
 	if err != nil {
 		log.Fatal(err)
@@ -67,63 +68,63 @@ func setupDbPostgres() *sql.DB {
 	return db
 }
 
-func doPersonStuffForProteusTest(b *testing.B, wrapper Wrapper) (int64, *Person, []Person, error) {
-	count, err := personDao.Create(wrapper, "Fred", 20)
+func doPersonStuffForProteusTest(ctx context.Context, b *testing.B, wrapper ContextWrapper) (int64, *Person, []Person, error) {
+	count, err := personDao.Create(ctx, wrapper, "Fred", 20)
 	if err != nil {
 		b.Fatalf("create failed: %v", err)
 	}
 
-	count, err = personDao.Create(wrapper, "Bob", 50)
+	count, err = personDao.Create(ctx, wrapper, "Bob", 50)
 	if err != nil {
 		b.Fatalf("create 2 failed: %v", err)
 	}
 
-	count, err = personDao.Create(wrapper, "Julia", 32)
+	count, err = personDao.Create(ctx, wrapper, "Julia", 32)
 	if err != nil {
 		b.Fatalf("create 3 failed: %v", err)
 	}
 
-	count, err = personDao.Create(wrapper, "Pat", 37)
+	count, err = personDao.Create(ctx, wrapper, "Pat", 37)
 	if err != nil {
 		b.Fatalf("create 4 failed: %v", err)
 	}
 
-	person, err := personDao.Get(wrapper, 1)
+	person, err := personDao.Get(ctx, wrapper, 1)
 	if err != nil {
 		b.Fatalf("get failed: %v", err)
 	}
 
-	people, err := personDao.GetAll(wrapper)
+	people, err := personDao.GetAll(ctx, wrapper)
 	if err != nil {
 		b.Fatalf("get all failed: %v", err)
 	}
 
-	people, err = personDao.GetByAge(wrapper, 1, []int{20, 32}, "Fred")
+	people, err = personDao.GetByAge(ctx, wrapper, 1, []int{20, 32}, "Fred")
 	if err != nil {
 		b.Fatalf("get by age failed: %v", err)
 	}
 
-	count, err = personDao.Update(wrapper, 1, "Freddie", 30)
+	count, err = personDao.Update(ctx, wrapper, 1, "Freddie", 30)
 	if err != nil {
 		b.Fatalf("update failed: %v", err)
 	}
 
-	person, err = personDao.Get(wrapper, 1)
+	person, err = personDao.Get(ctx, wrapper, 1)
 	if err != nil {
 		b.Fatalf("get 2 failed: %v", err)
 	}
 
-	count, err = personDao.Delete(wrapper, 1)
+	count, err = personDao.Delete(ctx, wrapper, 1)
 	if err != nil {
 		b.Fatalf("delete failed: %v", err)
 	}
 
-	count, err = personDao.Delete(wrapper, 1)
+	count, err = personDao.Delete(ctx, wrapper, 1)
 	if err != nil {
 		b.Fatalf("delete 2 failed: %v", err)
 	}
 
-	person, err = personDao.Get(wrapper, 1)
+	person, err = personDao.Get(ctx, wrapper, 1)
 	if err != nil {
 		b.Fatalf("get 3 failed: %v", err)
 	}
