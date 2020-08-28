@@ -2,7 +2,7 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/jonbodner/proteus)](https://goreportcard.com/report/github.com/jonbodner/proteus)
 [![Sourcegraph](https://sourcegraph.com/github.com/jonbodner/proteus/-/badge.svg)](https://sourcegraph.com/github.com/jonbodner/proteus?badge)
-[![Join the chat at https://gitter.im/jonbodner/proteus](https://badges.gitter.im/jonbodner/proteus.svg)](https://gitter.im/jonbodner/proteus?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/jonbodner/proteus)](https://pkg.go.dev/github.com/jonbodner/proteus)
 
 A simple tool for generating an application's data access layer.
 
@@ -21,56 +21,19 @@ Proteus is _not_ an ORM; it does not generate SQL. It just automates away the bo
 1. Define a struct that contains function fields and tags to indicate the query and the parameter names:
 
 ```go
-type ProductDao struct {
-	FindByID                      func(e proteus.Querier, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
-	Update                        func(e proteus.Executor, p Product) (int64, error)                                   `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCost             func(e proteus.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
-	FindByIDMap                   func(e proteus.Querier, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
-	UpdateMap                     func(e proteus.Executor, p map[string]interface{}) (int64, error)                    `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCostMap          func(e proteus.Querier, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
-	Insert                        func(e proteus.Executor, id int, name string, cost *float64) (int64, error)          `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
-	FindByIDSlice                 func(e proteus.Querier, ids []int) ([]Product, error)                                `proq:"select * from Product where id in (:ids:)" prop:"ids"`
-	FindByIDSliceAndName          func(e proteus.Querier, ids []int, name string) ([]Product, error)                   `proq:"select * from Product where name = :name: and id in (:ids:)" prop:"ids,name"`
-	FindByIDSliceNameAndCost      func(e proteus.Querier, ids []int, name string, cost *float64) ([]Product, error)    `proq:"select * from Product where name = :name: and id in (:ids:) and (cost is null or cost = :cost:)" prop:"ids,name,cost"`
-	FindByIDSliceCostAndNameSlice func(e proteus.Querier, ids []int, names []string, cost *float64) ([]Product, error) `proq:"select * from Product where id in (:ids:) and (cost is null or cost = :cost:) and name in (:names:)" prop:"ids,names,cost"`
-	FindByNameAndCostUnlabeled    func(e proteus.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
-}
-```
-
-The first input parameter is either of type `proteus.Executor` or `proteus.Querier`:
-```go
-// Executor runs queries that modify the data store.
-type Executor interface {
-	// Exec executes a query without returning any rows.
-	// The args are for any placeholder parameters in the query.
-	Exec(query string, args ...interface{}) (sql.Result, error)
-}
-```
-```go
-// Querier runs queries that return Rows from the data store
-type Querier interface {
-	// Query executes a query that returns rows, typically a SELECT.
-	// The args are for any placeholder parameters in the query.
-	Query(query string, args ...interface{}) (*sql.Rows, error)
-}
-```
-
-As of Proteus 0.10.0, you can also pass a context into your SQL queries:
-
-```go
 type ProductDaoCtx struct {
-	FindByID                      func(ctx context.Context, e proteus.ContextQuerier, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
+	FindByID                      func(ctx context.Context, q proteus.ContextQuerier, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
 	Update                        func(ctx context.Context, e proteus.ContextExecutor, p Product) (int64, error)                                   `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCost             func(ctx context.Context, e proteus.ContextQuerier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
-	FindByIDMap                   func(ctx context.Context, e proteus.ContextQuerier, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
+	FindByNameAndCost             func(ctx context.Context, q proteus.ContextQuerier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindByIDMap                   func(ctx context.Context, q proteus.ContextQuerier, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
 	UpdateMap                     func(ctx context.Context, e proteus.ContextExecutor, p map[string]interface{}) (int64, error)                    `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCostMap          func(ctx context.Context, e proteus.ContextQuerier, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindByNameAndCostMap          func(ctx context.Context, q proteus.ContextQuerier, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
 	Insert                        func(ctx context.Context, e proteus.ContextExecutor, id int, name string, cost *float64) (int64, error)          `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
-	FindByIDSlice                 func(ctx context.Context, e proteus.ContextQuerier, ids []int) ([]Product, error)                                `proq:"select * from Product where id in (:ids:)" prop:"ids"`
-	FindByIDSliceAndName          func(ctx context.Context, e proteus.ContextQuerier, ids []int, name string) ([]Product, error)                   `proq:"select * from Product where name = :name: and id in (:ids:)" prop:"ids,name"`
-	FindByIDSliceNameAndCost      func(ctx context.Context, e proteus.ContextQuerier, ids []int, name string, cost *float64) ([]Product, error)    `proq:"select * from Product where name = :name: and id in (:ids:) and (cost is null or cost = :cost:)" prop:"ids,name,cost"`
-	FindByIDSliceCostAndNameSlice func(ctx context.Context, e proteus.ContextQuerier, ids []int, names []string, cost *float64) ([]Product, error) `proq:"select * from Product where id in (:ids:) and (cost is null or cost = :cost:) and name in (:names:)" prop:"ids,names,cost"`
-	FindByNameAndCostUnlabeled    func(ctx context.Context, e proteus.ContextQuerier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
+	FindByIDSlice                 func(ctx context.Context, q proteus.ContextQuerier, ids []int) ([]Product, error)                                `proq:"select * from Product where id in (:ids:)" prop:"ids"`
+	FindByIDSliceAndName          func(ctx context.Context, q proteus.ContextQuerier, ids []int, name string) ([]Product, error)                   `proq:"select * from Product where name = :name: and id in (:ids:)" prop:"ids,name"`
+	FindByIDSliceNameAndCost      func(ctx context.Context, q proteus.ContextQuerier, ids []int, name string, cost *float64) ([]Product, error)    `proq:"select * from Product where name = :name: and id in (:ids:) and (cost is null or cost = :cost:)" prop:"ids,name,cost"`
+	FindByIDSliceCostAndNameSlice func(ctx context.Context, q proteus.ContextQuerier, ids []int, names []string, cost *float64) ([]Product, error) `proq:"select * from Product where id in (:ids:) and (cost is null or cost = :cost:) and name in (:names:)" prop:"ids,names,cost"`
+	FindByNameAndCostUnlabeled    func(ctx context.Context, q proteus.ContextQuerier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
 }
 ```
 
@@ -118,20 +81,18 @@ type Product struct {
 }
 ```
 
-3\. Pass an instance of the Dao struct to the proteus.Build function:
+3\. Pass an instance of the Dao struct to the proteus.ShouldBuild function:
 
 ```go
 var productDao = ProductDao{}
 
 func init() {
-	err := proteus.Build(&productDao, proteus.Sqlite)
+	err := proteus.ShouldBuild(context.Background(), &productDao, proteus.Sqlite)
 	if err != nil {
 		panic(err)
 	}
 }
 ```
-
-The proteus.Build factory function only returns errors if the wrong data type is passed in for the first parameter. If you want errors returned when there is a failure to generate a function field, use `proteus.ShouldBuild` instead.
 
 4\. Open a connection to a SQL database:
 
@@ -143,30 +104,84 @@ The proteus.Build factory function only returns errors if the wrong data type is
 5\. Make calls to the function fields in your Proteus-populated struct:
 
 ```go
-	fmt.Println(productDao.FindById(db, 10))
+    ctx := context.Background()
+	fmt.Println(productDao.FindById(ctx, db, 10))
 	p := Product{10, "Thingie", 56.23}
-	fmt.Println(productDao.Update(db, p))
-	fmt.Println(productDao.FindById(db, 10))
-	fmt.Println(productDao.FindByNameAndCost(db, "fred", 54.10))
-	fmt.Println(productDao.FindByNameAndCost(db, "Thingie", 56.23))
+	fmt.Println(productDao.Update(ctx, db, p))
+	fmt.Println(productDao.FindById(ctx, db, 10))
+	fmt.Println(productDao.FindByNameAndCost(ctx, db, "fred", 54.10))
+	fmt.Println(productDao.FindByNameAndCost(ctx, db, "Thingie", 56.23))
 
 	//using a map of [string]interface{} works too!
-	fmt.Println(productDao.FindByIdMap(db, 10))
-	fmt.Println(productDao.FindByNameAndCostMap(db, "Thingie", 56.23))
+	fmt.Println(productDao.FindByIdMap(ctx, db, 10))
+	fmt.Println(productDao.FindByNameAndCostMap(ctx, db, "Thingie", 56.23))
 
-	fmt.Println(productDao.FindById(db, 11))
+	fmt.Println(productDao.FindById(ctx, db, 11))
 	m := map[string]interface{}{
 		"Id":   11,
 		"Name": "bobbo",
 		"Cost": 12.94,
 	}
-	fmt.Println(productDao.UpdateMap(db, m))
-	fmt.Println(productDao.FindById(db, 11))
+	fmt.Println(productDao.UpdateMap(ctx, db, m))
+	fmt.Println(productDao.FindById(ctx, db, 11))
 
-	fmt.Println(productDao.FindByIDSlice(db, []int{1, 3, 5}))
-	fmt.Println(productDao.FindByIDSliceAndName(db, []int{1, 3, 5}, "person1"))
-	fmt.Println(productDao.FindByIDSliceNameAndCost(db, []int{1, 3, 5}, "person3", nil))
-	fmt.Println(productDao.FindByIDSliceCostAndNameSlice(db, []int{1, 3, 5}, []string{"person3", "person5"}, nil))
+	fmt.Println(productDao.FindByIDSlice(ctx, db, []int{1, 3, 5}))
+	fmt.Println(productDao.FindByIDSliceAndName(ctx, db, []int{1, 3, 5}, "person1"))
+	fmt.Println(productDao.FindByIDSliceNameAndCost(ctx, db, []int{1, 3, 5}, "person3", nil))
+	fmt.Println(productDao.FindByIDSliceCostAndNameSlice(ctx, db, []int{1, 3, 5}, []string{"person3", "person5"}, nil))
+```
+
+### Proteus without the context
+
+If you are using an older database driver that does not work with the `context.Context`, Proteus provides support for them as well:
+
+```go
+type ProductDao struct {
+	FindByID                      func(q proteus.Querier, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
+	Update                        func(e proteus.Executor, p Product) (int64, error)                                   `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCost             func(q proteus.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindByIDMap                   func(q proteus.Querier, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
+	UpdateMap                     func(e proteus.Executor, p map[string]interface{}) (int64, error)                    `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCostMap          func(q proteus.Querier, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	Insert                        func(e proteus.Executor, id int, name string, cost *float64) (int64, error)          `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
+	FindByIDSlice                 func(q proteus.Querier, ids []int) ([]Product, error)                                `proq:"select * from Product where id in (:ids:)" prop:"ids"`
+	FindByIDSliceAndName          func(q proteus.Querier, ids []int, name string) ([]Product, error)                   `proq:"select * from Product where name = :name: and id in (:ids:)" prop:"ids,name"`
+	FindByIDSliceNameAndCost      func(q proteus.Querier, ids []int, name string, cost *float64) ([]Product, error)    `proq:"select * from Product where name = :name: and id in (:ids:) and (cost is null or cost = :cost:)" prop:"ids,name,cost"`
+	FindByIDSliceCostAndNameSlice func(q proteus.Querier, ids []int, names []string, cost *float64) ([]Product, error) `proq:"select * from Product where id in (:ids:) and (cost is null or cost = :cost:) and name in (:names:)" prop:"ids,names,cost"`
+	FindByNameAndCostUnlabeled    func(q proteus.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
+}
+```
+
+In this case, the first input parameter is either of type `proteus.Executor` or `proteus.Querier`:
+
+```go
+// Executor runs queries that modify the data store.
+type Executor interface {
+	// Exec executes a query without returning any rows.
+	// The args are for any placeholder parameters in the query.
+	Exec(query string, args ...interface{}) (sql.Result, error)
+}
+```
+```go
+// Querier runs queries that return Rows from the data store
+type Querier interface {
+	// Query executes a query that returns rows, typically a SELECT.
+	// The args are for any placeholder parameters in the query.
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+}
+```
+
+Use `proteus.Build` to generate your DAO functions:
+
+```go
+var productDao = ProductDao{}
+
+func init() {
+	err := proteus.Build(&productDao, proteus.Sqlite)
+	if err != nil {
+		panic(err)
+	}
+}
 ```
 
 ## Struct Tags
@@ -182,9 +197,9 @@ of named parameters. For example:
 
 ```go
 type ProductDaoS struct {
-	FindById             func(e proteus.Querier, id int) (Product, error)                                     `proq:"select * from Product where id = :$1:"`
-	Update               func(e proteus.Executor, p Product) (int64, error)                                   `proq:"update Product set name = :$1.Name:, cost = :$1.Cost: where id = :$1.Id:"`
-	FindByNameAndCost    func(e proteus.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
+	FindById             func(ctx context.Context, q proteus.ContextQuerier, id int) (Product, error)                      `proq:"select * from Product where id = :$1:"`
+	Update               func(ctx context.Context, e proteus.ContextExecutor, p Product) (int64, error)                    `proq:"update Product set name = :$1.Name:, cost = :$1.Cost: where id = :$1.Id:"`
+	FindByNameAndCost    func(ctx context.Context, q proteus.ContextQuerier, name string, cost float64) ([]Product, error) `proq:"select * from Product where name=:$1: and cost=:$2:"`
 }
 ```
 
@@ -207,30 +222,21 @@ For example:
 	}
 
 	type s struct {
-		GetF func(e proteus.Querier, id string) (f, error) `proq:"q:q1" prop:"id"`
-		Update func(e proteus.Executor, id string, x string) (int64, error) `proq:"q:q2" prop:"id,x"`
+		GetF   func(ctx context.Context, q proteus.ContextQuerier, id string) (f, error)                `proq:"q:q1" prop:"id"`
+		Update func(ctx context.Context, e proteus.ContextExecutor, id string, x string) (int64, error) `proq:"q:q2" prop:"id,x"`
 	}
 	
 	sImpl := s{}
-	err := proteus.Build(&sImpl, proteus.Sqlite, m)
+	err := proteus.ShouldBuild(context.Background(), &sImpl, proteus.Sqlite, m)
 ```
 
 Out of the box, you can use either a `map[string]string` or a unix properties file to store your queries. In order
 to use a `map[string]string`, cast your map to `proteus.MapMapper` (or just declare your variable to be of type `proteus.MapMapper`). To use a properties file, call the method 
 `proteus.PropFileToQueryMapper` with the name of the property file that contains your queries.
 
-## Context support
-
-As of Proteus 0.10.0, Proteus optionally builds functions that invoke the the `ExecContext` and `QueryContext` methods on `sql.DB` and `sql.Tx`. In order to do so, declare your
-function fields with a first parameter of `context.Context` and a second parameter of either `proteus.ContextQuerier` or `ContextExecutor`. You then call `proteus.Build` or 
-`proteus.ShouldBuild` as you normally would. When invoking the functions, you pass in a `context.Context` instance as the first parameter, and an instance of `sql.DB` or `sql.Tx`
-as the second parameter. 
-
-Note that if you are using the context variants, you cannot use the `proteus.Wrap` function; this is OK, as Wrap is now a no-op and is considered deprecated.
-
 ## Generating function variables
 
-Some people don't want to use structs and struct tags to implement their SQL mapping layer. Starting with version 0.11, Proteus can also generate functions that aren't fields in a struct.
+Some people don't want to use structs and struct tags to implement their SQL mapping layer. Starting with version 0.11.0, Proteus can also generate functions that aren't fields in a struct.
 
 First, create an instance of a `proteus.Builder`. The factory function takes a `proteus.Adapter` and zero or more `proteus.QueryMapper` instances:
 
@@ -283,7 +289,7 @@ Finally, call your functions, to run your SQL queries:
 ## Ad-hoc database queries
 
 While Proteus is focused on type safety, sometimes you just want to run a query without associating it with a function. 
-Starting with version 0.11, Proteus allows you to run ad-hoc database queries.
+Starting with version 0.11.0, Proteus allows you to run ad-hoc database queries.
 
 First, create an instance of a `proteus.Builder`. The factory function takes a `proteus.Adapter` and zero or more `proteus.QueryMapper` instances:
 
@@ -342,38 +348,42 @@ names of the functions and the types of the function parameters match an interfa
 
 Given these limitations, Proteus uses structs to hold the generated functions. If you want an interface that describes
 the functionality provided by the struct, you can do something like this:
+
 ```go
 type ProductDaoS struct {
-	FindById             func(e proteus.Executor, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
-	Update               func(e proteus.Executor, p Product) (int64, error)                                    `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCost    func(e proteus.Executor, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindById             func(ctx context.Context, q proteus.ContextQuerier, id int) (Product, error)                       `proq:"select * from Product where id = :id:" prop:"id"`
+	Update               func(ctx context.Context, e proteus.ContextExecutor, p Product) (int64, error)                     `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCost    func(ctx context.Context, q proteus.ContextQuerier, name string, cost float64) ([]Product, error)  `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
 }
 
 type ProductDao interface {
-    FindById(proteus.Executor, int) (Product, error)
-    Update(proteus.Executor, Product) (int64, error)
-    FindByNameAndCost(proteus.Executor, string, float64) ([]Product, error)
+    FindById(context.Context, proteus.ContextQuerier, int) (Product, error)
+    Update(context.Context, proteus.ContextExecutor, Product) (int64, error)
+    FindByNameAndCost(context.Context, proteus.ContextQuerier, string, float64) ([]Product, error)
 }
 
 type productWrapper struct {
     ProductDaoS
 }
 
-func (pw productWrapper) FindById(exec proteus.Executor, id int) (Product, error) {
-    return pw.ProductDaoS.FindById(exec, id)
+func (pw productWrapper) FindById(ctx context.Context, q proteus.ContextQuerier, id int) (Product, error) {
+    return pw.ProductDaoS.FindById(ctx, q, id)
 }
 
-func (pw productWrapper) Update(exec proteus.Executor, p Product) (int64, error) {
-    return pw.ProductDaoS.Update(exec, p)
+func (pw productWrapper) Update(ctx context.Context, e proteus.ContextExecutor, p Product) (int64, error) {
+    return pw.ProductDaoS.Update(ctx, e, p)
 }
 
-func (pw productWrapper) FindByNameAndCost(exec proteus.Executor, n string, c float64) ([]Product, error) {
-    return pw.ProductDaoS.FindByNameAndCost(exec, n, c)
+func (pw productWrapper) FindByNameAndCost(ctx context.Context, q proteus.ContextQuerier, n string, c float64) ([]Product, error) {
+    return pw.ProductDaoS.FindByNameAndCost(ctx, q, n, c)
 }
 
-func NewProductDao() ProductDao {
+func NewProductDao(ctx context.Context) ProductDao {
     p := ProductDaoS{}
-    proteus.Build(&p,proteus.Sqlite)
+    err := proteus.ShouldBuild(ctx, &p,proteus.Sqlite)
+    if err != nil {
+        panic(err)
+    }
     return productWrapper{p}
 }
 ```
@@ -385,12 +395,6 @@ A future version of Proteus may include a tool that can be used with go generate
 This is another limitation of go's reflection API. The names of parameters are not available at runtime to be inspected,
 and must be supplied by another way in order to be referenced in a query. If you do not want to use a prop struct tag, you
 can use positional parameters ($1, $2, etc.) instead.
-
-3\. Why do I need to use the `proteus.Wrap` function to wrap a `sql.DB` or `sql.Tx` from the standard library?
-
-As of Proteus 0.10.0, the `proteus.Wrap` function is no longer needed and should be considered deprecated. Proteus is no longer
-written using its own `Rows` interface. Existing code that uses `Wrap` continues to work, but the function is a no-op; it returns
-back the instance that was passed in.
 
 ## Logging
 

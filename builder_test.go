@@ -204,3 +204,15 @@ func Test_validIdentifier(t *testing.T) {
 		}
 	}
 }
+
+func TestBuilderBadFunction(t *testing.T) {
+	type bad struct {
+		Insert func(ctx context.Context, e ContextExecutor, email string) error `proq:"insert into foo (email) values (:$1:)"`
+	}
+
+	var b bad
+	err := Build(&b, Postgres)
+	if err == nil {
+		t.Error("should return error")
+	}
+}
