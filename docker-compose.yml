@@ -5,11 +5,24 @@ services:
     container_name: "my_postgres"
     ports:
       - "5432:5432"
-#    volumes:
-#      - my_dbdata:/var/lib/postgresql/data
+    #    volumes:
+    #      - my_dbdata:/var/lib/postgresql/data
     environment:
-       POSTGRES_USER: pro_user
-       POSTGRES_PASSWORD: pro_pwd
-       POSTGRES_DB: proteus
+      POSTGRES_USER: pro_user
+      POSTGRES_PASSWORD: pro_pwd
+      POSTGRES_DB: proteus
+
+  mysql:
+    image: "mysql:8"
+    container_name: "my_sql"
+    ports:
+      - "3306:3306"
+    #    volumes:
+    #      - my_dbdata:/var/lib/postgresql/data
+    environment:
+      MYSQL_USER: pro_user
+      MYSQL_PASSWORD: pro_pwd
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: proteus
 #volumes:
 #  my_dbdata:

@@ -3,6 +3,7 @@ module github.com/jonbodner/proteus
 go 1.15
 
 require (
+	github.com/go-sql-driver/mysql v1.5.0
 	github.com/google/go-cmp v0.3.1
 	github.com/jonbodner/dbtimer v0.0.0-20170410163237-7002f3758ae1
 	github.com/jonbodner/multierr v0.0.0-20200223210354-ace728439446
