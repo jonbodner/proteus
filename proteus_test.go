@@ -14,6 +14,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	pcmp "github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/logger"
+
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
 )
 
 func TestValidIdentifier(t *testing.T) {
@@ -262,49 +265,80 @@ func TestNilScanner(t *testing.T) {
 	}
 
 	type ScannerProductDao struct {
-		Insert   func(e Executor, p ScannerProduct) (int64, error) `proq:"insert into Product(name) values(:p.Name:)" prop:"p"`
-		FindById func(e Querier, id int64) (ScannerProduct, error) `proq:"select * from Product where id = :id:" prop:"id"`
+		Insert   func(e Executor, p ScannerProduct) (int64, error) `proq:"insert into product(name) values(:p.Name:)" prop:"p"`
+		FindById func(e Querier, id int64) (ScannerProduct, error) `proq:"select * from product where id = :id:" prop:"id"`
 	}
 
-	productDao := ScannerProductDao{}
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Postgres)
+	doTest := func(t *testing.T, setup setup, create string) {
+		productDao := ScannerProductDao{}
+		c := logger.WithLevel(context.Background(), logger.DEBUG)
+		db, err := setup(c, &productDao)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Commit()
+
+		_, err = tx.Exec(create)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		p := ScannerProduct{
+			Name: sql.NullString{String: "hi", Valid: true},
+		}
+
+		rowId, err := productDao.Insert(tx, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		roundTrip, err := productDao.FindById(tx, rowId)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if roundTrip.Id != 1 || roundTrip.Name.String != "hi" || roundTrip.Name.Valid != true || roundTrip.NullField.String != "" || roundTrip.NullField.Valid != false {
+			t.Errorf("Expected {1 {hi true} { false}}, got %v", roundTrip)
+		}
+	}
+	t.Run("postgres", func(t *testing.T) {
+		doTest(t, setupPostgres, "	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
+	})
+	t.Run("mysql", func(t *testing.T) {
+		doTest(t, setupMySQL, "	drop table if exists product; CREATE TABLE product(id int AUTO_INCREMENT, name VARCHAR(100), null_field VARCHAR(100), PRIMARY KEY(id))")
+	})
+}
+
+type setup func(c context.Context, dao interface{}) (*sql.DB, error)
+
+func setupPostgres(c context.Context, dao interface{}) (*sql.DB, error) {
+	err := ShouldBuild(c, dao, Postgres)
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 
 	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
-	defer db.Close()
+	return db, err
+}
 
-	tx, err := db.Begin()
+func setupMySQL(c context.Context, dao interface{}) (*sql.DB, error) {
+	err := ShouldBuild(c, dao, MySQL)
 	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Commit()
-
-	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
-	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 
-	p := ScannerProduct{
-		Name: sql.NullString{String: "hi", Valid: true},
-	}
-
-	rowId, err := productDao.Insert(tx, p)
+	db, err := sql.Open("mysql", "pro_user:pro_pwd@/proteus?multiStatements=true&parseTime=true")
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
-	roundTrip, err := productDao.FindById(tx, rowId)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if roundTrip.Id != 1 || roundTrip.Name.String != "hi" || roundTrip.Name.Valid != true || roundTrip.NullField.String != "" || roundTrip.NullField.Valid != false {
-		t.Errorf("Expected {1 {hi true} { false}}, got %v", roundTrip)
-	}
+	return db, err
 }
 
 func TestUnnamedStructs(t *testing.T) {
@@ -315,99 +349,108 @@ func TestUnnamedStructs(t *testing.T) {
 	}
 
 	type ScannerProductDao struct {
-		Insert   func(e Executor, p ScannerProduct) (int64, error) `proq:"insert into Product(name) values(:$1.Name:)"`
-		FindById func(e Querier, id int64) (ScannerProduct, error) `proq:"select * from Product where id = :id:" prop:"id"`
+		Insert   func(e Executor, p ScannerProduct) (int64, error) `proq:"insert into product(name) values(:$1.Name:)"`
+		FindById func(e Querier, id int64) (ScannerProduct, error) `proq:"select * from product where id = :id:" prop:"id"`
 	}
 
-	productDao := ScannerProductDao{}
-	err := Build(&productDao, Postgres)
-	if err != nil {
-		t.Fatal(err)
-	}
+	doTest := func(t *testing.T, setup setup, create string) {
+		productDao := ScannerProductDao{}
 
-	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+		ctx := context.Background()
+		db, err := setup(ctx, &productDao)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
 
-	tx, err := db.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Commit()
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Commit()
 
-	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100))")
-	if err != nil {
-		t.Fatal(err)
-	}
+		_, err = tx.Exec(create)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	p := ScannerProduct{
-		Name: "bob",
-	}
+		p := ScannerProduct{
+			Name: "bob",
+		}
 
-	rowId, err := productDao.Insert(tx, p)
-	if err != nil {
-		t.Fatal(err)
+		rowId, err := productDao.Insert(tx, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		roundTrip, err := productDao.FindById(tx, rowId)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if roundTrip.Id != 1 || roundTrip.Name != "bob" {
+			t.Errorf("Expected {1 bob}, got %v", roundTrip)
+		}
 	}
-	roundTrip, err := productDao.FindById(tx, rowId)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if roundTrip.Id != 1 || roundTrip.Name != "bob" {
-		t.Errorf("Expected {1 bob}, got %v", roundTrip)
-	}
+	t.Run("postgres", func(t *testing.T) {
+		doTest(t, setupPostgres, "	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100))")
+	})
+	t.Run("mysql", func(t *testing.T) {
+		doTest(t, setupMySQL, "	drop table if exists product; CREATE TABLE product(id int AUTO_INCREMENT, name VARCHAR(100), PRIMARY KEY(id))")
+	})
 }
 
 func TestEmbedded(t *testing.T) {
-
 	type InnerEmbeddedProductDao struct {
-		Insert func(e Executor, p Product) (int64, error) `proq:"insert into Product(name) values(:p.Name:)" prop:"p"`
+		Insert func(e Executor, p Product) (int64, error) `proq:"insert into product(name) values(:p.Name:)" prop:"p"`
 	}
 
 	type OuterEmbeddedProductDao struct {
 		InnerEmbeddedProductDao
-		FindById func(e Querier, id int64) (Product, error) `proq:"select * from Product where id = :id:" prop:"id"`
+		FindById func(e Querier, id int64) (Product, error) `proq:"select * from product where id = :id:" prop:"id"`
 	}
 
-	productDao := OuterEmbeddedProductDao{}
-	err := Build(&productDao, Postgres)
-	if err != nil {
-		t.Fatal(err)
-	}
+	doTest := func(t *testing.T, setup setup, create string) {
+		productDao := OuterEmbeddedProductDao{}
 
-	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+		ctx := context.Background()
+		db, err := setup(ctx, &productDao)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
 
-	tx, err := db.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Commit()
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Commit()
 
-	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100))")
-	if err != nil {
-		t.Fatal(err)
-	}
+		_, err = tx.Exec(create)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	p := Product{
-		Name: "Bob",
-	}
+		p := Product{
+			Name: "Bob",
+		}
 
-	rowId, err := productDao.Insert(tx, p)
-	if err != nil {
-		t.Fatal(err)
+		rowId, err := productDao.Insert(tx, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		roundTrip, err := productDao.FindById(tx, rowId)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if roundTrip.Id != 1 || roundTrip.Name != "Bob" {
+			t.Errorf("Expected {1 Bob}, got %v", roundTrip)
+		}
 	}
-	roundTrip, err := productDao.FindById(tx, rowId)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if roundTrip.Id != 1 || roundTrip.Name != "Bob" {
-		t.Errorf("Expected {1 Bob}, got %v", roundTrip)
-	}
+	t.Run("postgres", func(t *testing.T) {
+		doTest(t, setupPostgres, "	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100))")
+	})
+	t.Run("mysql", func(t *testing.T) {
+		doTest(t, setupMySQL, "	drop table if exists product; CREATE TABLE product(id int AUTO_INCREMENT, name VARCHAR(100), PRIMARY KEY(id))")
+	})
 }
 
 func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
@@ -435,66 +478,69 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 		// GetNested has the same query as "Get" but with embedded structure. Currently fails with null values
 	}
 
-	productDao := ProductDao{}
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Postgres)
-	if err != nil {
-		t.Fatal(err)
-	}
-	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+	doTest := func(t *testing.T, setup setup, create string) {
+		productDao := ProductDao{}
+		c := logger.WithLevel(context.Background(), logger.DEBUG)
+		db, err := setup(c, &productDao)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
 
-	tx, err := db.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Commit()
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Commit()
 
-	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100),empty_field VARCHAR(100))")
+		_, err = tx.Exec(create)
 
-	if err != nil {
-		t.Fatal(err)
-	}
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	count, err := productDao.Insert(tx, MyProduct{Name: "foo", EmptyField: sql.NullString{String: "", Valid: false}})
-	// Nullable field with non-null values work fine, e.g. line below
-	//count, err := productDao.Insert(tx, MyProduct{Name: "foo", EmptyField: sql.NullString{String:"field",Valid: true}})
+		count, err := productDao.Insert(tx, MyProduct{Name: "foo", EmptyField: sql.NullString{String: "", Valid: false}})
+		// Nullable field with non-null values work fine, e.g. line below
+		//count, err := productDao.Insert(tx, MyProduct{Name: "foo", EmptyField: sql.NullString{String:"field",Valid: true}})
 
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 1 {
-		t.Fatal("Should have modified 1 row")
-	}
-	prod, err := productDao.Get(tx, "foo")
-	if err != nil {
-		t.Fatal(err)
-	}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatal("Should have modified 1 row")
+		}
+		prod, err := productDao.Get(tx, "foo")
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if prod.Name != "foo" {
-		t.Fatal(fmt.Sprintf("Expected prod with name of foo, got %+v", prod))
-	}
+		if prod.Name != "foo" {
+			t.Fatal(fmt.Sprintf("Expected prod with name of foo, got %+v", prod))
+		}
 
-	if prod.EmptyField.Valid {
-		t.Fatal("emptyField shouldn't be valid")
-	}
+		if prod.EmptyField.Valid {
+			t.Fatal("emptyField shouldn't be valid")
+		}
 
-	// This is currently failing
-	nestedProd, err := productDao.GetNested(tx, "foo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if nestedProd.Name != "foo" {
-		t.Fatal(fmt.Sprintf("Expected nested product name of foo, got %+v", prod))
-	}
+		// This is currently failing
+		nestedProd, err := productDao.GetNested(tx, "foo")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if nestedProd.Name != "foo" {
+			t.Fatal(fmt.Sprintf("Expected nested product name of foo, got %+v", prod))
+		}
 
-	if prod.EmptyField.Valid {
-		t.Fatal("emptyField shouldn't be valid")
+		if prod.EmptyField.Valid {
+			t.Fatal("emptyField shouldn't be valid")
+		}
 	}
-
+	t.Run("postgres", func(t *testing.T) {
+		doTest(t, setupPostgres, "	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100),empty_field VARCHAR(100))")
+	})
+	t.Run("mysql", func(t *testing.T) {
+		doTest(t, setupMySQL, "	drop table if exists product; CREATE TABLE product(id int AUTO_INCREMENT, name VARCHAR(100),empty_field VARCHAR(100), PRIMARY KEY(id))")
+	})
 }
 
 func TestPositionalVariables(t *testing.T) {
@@ -577,43 +623,47 @@ func TestShouldBuildEmbedded(t *testing.T) {
 		Get    func(q Querier, name string) (MyProduct, error) `proq:"select * from product where name=:name:" prop:"name"`
 	}
 
-	productDao := ProductDao{}
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Postgres)
-	if err != nil {
-		t.Fatal(err)
-	}
-	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+	doTest := func(t *testing.T, setup setup, create string) {
+		productDao := ProductDao{}
+		c := logger.WithLevel(context.Background(), logger.DEBUG)
+		db, err := setup(c, &productDao)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
 
-	tx, err := db.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Commit()
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Commit()
 
-	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
-	if err != nil {
-		t.Fatal(err)
-	}
+		_, err = tx.Exec(create)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	count, err := productDao.Insert(tx, MyProduct{Inner: Inner{Name: "foo"}})
-	if err != nil {
-		t.Fatal(err)
+		count, err := productDao.Insert(tx, MyProduct{Inner: Inner{Name: "foo"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatal("Should have modified 1 row")
+		}
+		prod, err := productDao.Get(tx, "foo")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if prod.Name != "foo" {
+			t.Fatal(fmt.Sprintf("Expected prod with name, got %+v", prod))
+		}
 	}
-	if count != 1 {
-		t.Fatal("Should have modified 1 row")
-	}
-	prod, err := productDao.Get(tx, "foo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if prod.Name != "foo" {
-		t.Fatal(fmt.Sprintf("Expected prod with name, got %+v", prod))
-	}
+	t.Run("postgres", func(t *testing.T) {
+		doTest(t, setupPostgres, "	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
+	})
+	t.Run("mysql", func(t *testing.T) {
+		doTest(t, setupMySQL, "	drop table if exists product; CREATE TABLE product(id int AUTO_INCREMENT, name VARCHAR(100), null_field VARCHAR(100), PRIMARY KEY(id))")
+	})
 }
 
 func TestShouldBinaryColumn(t *testing.T) {
@@ -629,46 +679,51 @@ func TestShouldBinaryColumn(t *testing.T) {
 		Get    func(q Querier, name string) (MyProduct, error) `proq:"select * from product where name=:name:" prop:"name"`
 	}
 
-	productDao := ProductDao{}
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Postgres)
-	if err != nil {
-		t.Fatal(err)
-	}
-	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+	doTest := func(t *testing.T, setup setup, create string) {
+		productDao := ProductDao{}
+		c := logger.WithLevel(context.Background(), logger.DEBUG)
 
-	tx, err := db.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Commit()
+		db, err := setup(c, &productDao)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
 
-	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), data bytea)")
-	if err != nil {
-		t.Fatal(err)
-	}
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Commit()
 
-	count, err := productDao.Insert(tx, MyProduct{Name: "Foo", Data: []byte("Hello")})
-	if err != nil {
-		t.Fatal(err)
+		_, err = tx.Exec(create)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		count, err := productDao.Insert(tx, MyProduct{Name: "Foo", Data: []byte("Hello")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatal("Should have modified 1 row")
+		}
+		prod, err := productDao.Get(tx, "Foo")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if prod.Name != "Foo" {
+			t.Fatal(fmt.Sprintf("Expected prod with name, got %+v", prod))
+		}
+		if string(prod.Data) != "Hello" {
+			t.Fatal(fmt.Sprintf("Expected prod with data, got %+v", prod))
+		}
 	}
-	if count != 1 {
-		t.Fatal("Should have modified 1 row")
-	}
-	prod, err := productDao.Get(tx, "Foo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if prod.Name != "Foo" {
-		t.Fatal(fmt.Sprintf("Expected prod with name, got %+v", prod))
-	}
-	if string(prod.Data) != "Hello" {
-		t.Fatal(fmt.Sprintf("Expected prod with data, got %+v", prod))
-	}
+	t.Run("postgres", func(t *testing.T) {
+		doTest(t, setupPostgres, "	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), data bytea)")
+	})
+	t.Run("mysql", func(t *testing.T) {
+		doTest(t, setupMySQL, "	drop table if exists product; CREATE TABLE product(id int AUTO_INCREMENT, name VARCHAR(100), data MEDIUMBLOB, PRIMARY KEY(id))")
+	})
 }
 
 func TestShouldTimeColumn(t *testing.T) {
@@ -684,46 +739,51 @@ func TestShouldTimeColumn(t *testing.T) {
 		Get    func(q Querier, name string) (MyProduct, error) `proq:"select * from product where name=:name:" prop:"name"`
 	}
 
-	productDao := ProductDao{}
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Postgres)
-	if err != nil {
-		t.Fatal(err)
-	}
-	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+	doTest := func(t *testing.T, setup setup, create string) {
+		productDao := ProductDao{}
+		c := logger.WithLevel(context.Background(), logger.DEBUG)
 
-	tx, err := db.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Commit()
+		db, err := setup(c, &productDao)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
 
-	_, err = tx.Exec("	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), ts timestamptz)")
-	if err != nil {
-		t.Fatal(err)
-	}
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Commit()
 
-	timestamp := time.Now().UTC().Truncate(time.Microsecond)
-	mp := MyProduct{Name: "Foo", Timestamp: timestamp}
-	count, err := productDao.Insert(tx, mp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 1 {
-		t.Fatal("Should have modified 1 row")
-	}
-	prod, err := productDao.Get(tx, "Foo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// this is what serial should have bumped it to
-	mp.Id = 1
+		_, err = tx.Exec(create)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if diff := cmp.Diff(mp, prod); diff != "" {
-		t.Error(diff)
+		timestamp := time.Now().UTC().Truncate(time.Second)
+		mp := MyProduct{Name: "Foo", Timestamp: timestamp}
+		count, err := productDao.Insert(tx, mp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatal("Should have modified 1 row")
+		}
+		prod, err := productDao.Get(tx, "Foo")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// this is what serial should have bumped it to
+		mp.Id = 1
+
+		if diff := cmp.Diff(mp, prod); diff != "" {
+			t.Error(diff)
+		}
 	}
+	t.Run("postgres", func(t *testing.T) {
+		doTest(t, setupPostgres, "	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), ts timestamptz)")
+	})
+	t.Run("mysql", func(t *testing.T) {
+		doTest(t, setupMySQL, "	drop table if exists product; CREATE TABLE product(id int AUTO_INCREMENT, name VARCHAR(100), ts TIMESTAMP, PRIMARY KEY(id))")
+	})
 }

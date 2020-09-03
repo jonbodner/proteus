@@ -336,8 +336,13 @@ func mapRows(c context.Context, rows *sql.Rows, builder mapper.Builder) (interfa
 	}
 
 	vals := make([]interface{}, len(cols))
+	colTypes, err := rows.ColumnTypes()
+	if err != nil {
+		return nil, err
+	}
 	for i := 0; i < len(vals); i++ {
-		vals[i] = new(interface{})
+		newVal := reflect.New(colTypes[i].ScanType()).Interface()
+		vals[i] = &newVal
 	}
 
 	err = rows.Scan(vals...)
