@@ -341,6 +341,65 @@ func setupMySQL(c context.Context, dao interface{}) (*sql.DB, error) {
 	return db, err
 }
 
+func TestNoParams(t *testing.T) {
+	type ScannerProduct struct {
+		Id   int    `prof:"id"`
+		Name string `prof:"name"`
+	}
+
+	type ScannerProductDao struct {
+		Insert         func(e Executor) (int64, error)                                     `proq:"insert into product(name) values('hi')"`
+		FindAll        func(e Querier) (ScannerProduct, error)                             `proq:"select * from product"`
+		FindAllContext func(ctx context.Context, e ContextQuerier) (ScannerProduct, error) `proq:"select * from product"`
+	}
+
+	doTest := func(t *testing.T, setup setup, create string) {
+		productDao := ScannerProductDao{}
+		c := logger.WithLevel(context.Background(), logger.DEBUG)
+		db, err := setup(c, &productDao)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Commit()
+
+		_, err = tx.Exec(create)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = productDao.Insert(tx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		roundTrip, err := productDao.FindAll(tx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if roundTrip.Id != 1 || roundTrip.Name != "hi" {
+			t.Errorf("Expected {1 hi}, got %v", roundTrip)
+		}
+		roundTrip2, err := productDao.FindAllContext(context.Background(), tx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if roundTrip2.Id != 1 || roundTrip2.Name != "hi" {
+			t.Errorf("Expected {1 hi}, got %v", roundTrip2)
+		}
+	}
+	t.Run("postgres", func(t *testing.T) {
+		doTest(t, setupPostgres, "	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
+	})
+	t.Run("mysql", func(t *testing.T) {
+		doTest(t, setupMySQL, "	drop table if exists product; CREATE TABLE product(id int AUTO_INCREMENT, name VARCHAR(100), null_field VARCHAR(100), PRIMARY KEY(id))")
+	})
+}
+
 func TestUnnamedStructs(t *testing.T) {
 
 	type ScannerProduct struct {
