@@ -313,6 +313,34 @@ func TestNilScanner(t *testing.T) {
 	})
 }
 
+type setup func(c context.Context, dao interface{}) (*sql.DB, error)
+
+func setupPostgres(c context.Context, dao interface{}) (*sql.DB, error) {
+	err := ShouldBuild(c, dao, Postgres)
+	if err != nil {
+		return nil, err
+	}
+
+	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
+	if err != nil {
+		return nil, err
+	}
+	return db, err
+}
+
+func setupMySQL(c context.Context, dao interface{}) (*sql.DB, error) {
+	err := ShouldBuild(c, dao, MySQL)
+	if err != nil {
+		return nil, err
+	}
+
+	db, err := sql.Open("mysql", "pro_user:pro_pwd@/proteus?multiStatements=true&parseTime=true")
+	if err != nil {
+		return nil, err
+	}
+	return db, err
+}
+
 func TestNoParams(t *testing.T) {
 	type ScannerProduct struct {
 		Id   int    `prof:"id"`
@@ -370,34 +398,6 @@ func TestNoParams(t *testing.T) {
 	t.Run("mysql", func(t *testing.T) {
 		doTest(t, setupMySQL, "	drop table if exists product; CREATE TABLE product(id int AUTO_INCREMENT, name VARCHAR(100), null_field VARCHAR(100), PRIMARY KEY(id))")
 	})
-}
-
-type setup func(c context.Context, dao interface{}) (*sql.DB, error)
-
-func setupPostgres(c context.Context, dao interface{}) (*sql.DB, error) {
-	err := ShouldBuild(c, dao, Postgres)
-	if err != nil {
-		return nil, err
-	}
-
-	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
-	if err != nil {
-		return nil, err
-	}
-	return db, err
-}
-
-func setupMySQL(c context.Context, dao interface{}) (*sql.DB, error) {
-	err := ShouldBuild(c, dao, MySQL)
-	if err != nil {
-		return nil, err
-	}
-
-	db, err := sql.Open("mysql", "pro_user:pro_pwd@/proteus?multiStatements=true&parseTime=true")
-	if err != nil {
-		return nil, err
-	}
-	return db, err
 }
 
 func TestUnnamedStructs(t *testing.T) {
