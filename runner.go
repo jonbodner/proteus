@@ -190,7 +190,6 @@ func makeContextQuerierImplementation(c context.Context, funcType reflect.Type, 
 		logger.Log(ctx, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 		// going to work around the defective Go MySQL driver, which refuses to convert the text protocol properly.
 		// It is used when doing a query without parameters.
-		// I'm so annoyed by this, I'm using a goto to work around it.
 		if len(queryArgs) == 0 {
 			type ContextPreparer interface {
 				PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
@@ -202,15 +201,11 @@ func makeContextQuerierImplementation(c context.Context, funcType reflect.Type, 
 					return buildRetVals(rows, err)
 				}
 				defer stmt.Close()
-				rows, err = stmt.QueryContext(ctx, queryArgs...)
-				if err != nil {
-					return buildRetVals(rows, err)
-				}
-				goto done
+				rows, err = stmt.QueryContext(ctx)
+				return buildRetVals(rows, err)
 			}
 		}
 		rows, err = querier.QueryContext(ctx, finalQuery, queryArgs...)
-	done:
 		return buildRetVals(rows, err)
 	}, nil
 }
@@ -243,7 +238,6 @@ func makeQuerierImplementation(c context.Context, funcType reflect.Type, query q
 		logger.Log(c, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 		// going to work around the defective Go MySQL driver, which refuses to convert the text protocol properly.
 		// It is used when doing a query without parameters.
-		// I'm so annoyed by this, I'm using a goto to work around it.
 		if len(queryArgs) == 0 {
 			type Preparer interface {
 				Prepare(query string) (*sql.Stmt, error)
@@ -255,16 +249,11 @@ func makeQuerierImplementation(c context.Context, funcType reflect.Type, query q
 					return buildRetVals(rows, err)
 				}
 				defer stmt.Close()
-				rows, err = stmt.Query(queryArgs...)
-				if err != nil {
-					return buildRetVals(rows, err)
-				}
-				goto done
+				rows, err = stmt.Query()
+				return buildRetVals(rows, err)
 			}
 		}
 		rows, err = querier.Query(finalQuery, queryArgs...)
-
-	done:
 		return buildRetVals(rows, err)
 	}, nil
 }
