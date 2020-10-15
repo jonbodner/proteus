@@ -71,6 +71,37 @@ For insert/updates, return types can be:
 - an int64 that indicates the number of rows affected
 - an int64 that indicates the number of rows affected and an error
 
+The `proq` struct tag stores the query. You place variable substitutions between `:` s. Proteus allows you
+to refer to fields in maps and structs, as well as elements in arrays or slices using `.` as a path separator. If you have a
+struct like this:
+
+```go
+type Person struct {
+    Name string
+    Address Address
+    Pets []Pet
+} 
+
+type Pet struct {
+    Name string
+    Species string
+}
+
+type Address struct {
+    Street string
+    City string
+    State string
+}
+```
+You can write a query like this:
+
+```
+insert into person(name, city, pet1_name, pet2_name) values (:p.Name:, :p.Address.City:, :p.Pets.0.Name:, :p.Pets.1.Name:)
+```
+
+Note that the index for an array or slice must be an int literal and the key for a map must be a string.
+
+
 2\. If you want to map response fields to a struct, define a struct with struct tags to indicate the mapping:
 
 ```go

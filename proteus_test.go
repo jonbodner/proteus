@@ -2,6 +2,7 @@ package proteus
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -914,5 +915,106 @@ func TestArray(t *testing.T) {
 	})
 	t.Run("mysql", func(t *testing.T) {
 		doTest(t, setupMySQL, "	drop table if exists product; CREATE TABLE product(id int AUTO_INCREMENT, name VARCHAR(100), value1 int, value2 int, PRIMARY KEY(id))")
+	})
+}
+
+func TestNested(t *testing.T) {
+	type Pet struct {
+		Name    string
+		Species string
+	}
+
+	type Address struct {
+		Street string
+		City   string
+		State  string
+	}
+
+	type Person struct {
+		Name    string
+		Address Address
+		Pets    []Pet
+	}
+
+	type PersonOut struct {
+		Id       int    `prof:"id"`
+		Name     string `prof:"name"`
+		City     string `prof:"city"`
+		Pet1Name string `prof:"pet1_name"`
+		Pet2Name string `prof:"pet2_name"`
+	}
+
+	type PersonDao struct {
+		Insert func(e Executor, p Person) (int64, error)       `proq:"insert into person(name, city, pet1_name, pet2_name) values (:p.Name:, :p.Address.City:, :p.Pets.0.Name:, :p.Pets.1.Name:)" prop:"p"`
+		Get    func(q Querier, name string) (PersonOut, error) `proq:"select * from person where name=:name:" prop:"name"`
+	}
+
+	doTest := func(t *testing.T, setup setup, create string) {
+		personDao := PersonDao{}
+		c := logger.WithLevel(context.Background(), logger.DEBUG)
+
+		db, err := setup(c, &personDao)
+		if err != nil {
+			t.Fatalf("%+v\n", errors.Unwrap(err))
+		}
+		defer db.Close()
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Commit()
+
+		_, err = tx.Exec(create)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		mp := Person{
+			Name: "Foo",
+			Address: Address{
+				Street: "100 Main St",
+				City:   "Central City",
+				State:  "KZ",
+			},
+			Pets: []Pet{
+				{
+					Name:    "Fluffy",
+					Species: "Wolf",
+				},
+				{
+					Name:    "Fido",
+					Species: "Cat",
+				},
+			},
+		}
+		count, err := personDao.Insert(tx, mp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatal("Should have modified 1 row")
+		}
+		prod, err := personDao.Get(tx, "Foo")
+		if err != nil {
+			t.Fatal(err)
+		}
+		mpOut := PersonOut{
+			Id:       1,
+			Name:     "Foo",
+			City:     "Central City",
+			Pet1Name: "Fluffy",
+			Pet2Name: "Fido",
+		}
+
+		if diff := cmp.Diff(mpOut, prod); diff != "" {
+			t.Error(diff)
+		}
+	}
+	t.Run("postgres", func(t *testing.T) {
+		doTest(t, setupPostgres, "	drop table if exists person; CREATE TABLE person(id SERIAL PRIMARY KEY, name VARCHAR(100), city VARCHAR(100), pet1_name VARCHAR(100), pet2_name VARCHAR(100))")
+	})
+	t.Run("mysql", func(t *testing.T) {
+		doTest(t, setupMySQL, "	drop table if exists person; CREATE TABLE person(id int AUTO_INCREMENT, name VARCHAR(100), city VARCHAR(100), pet1_name VARCHAR(100), pet2_name VARCHAR(100), PRIMARY KEY(id))")
 	})
 }
