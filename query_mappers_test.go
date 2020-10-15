@@ -2,9 +2,10 @@ package proteus
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"testing"
+
+	"github.com/jonbodner/stackerr"
 )
 
 type NoErrType string
@@ -29,7 +30,7 @@ func (dd *DummyDB) Exec(query string, args ...interface{}) (sql.Result, error) {
 
 func (dd *DummyDB) checkExpectedData(query string, args ...interface{}) error {
 	if dd.pos >= len(dd.Queries) || dd.pos >= len(dd.Args) {
-		return fmt.Errorf("Expected at least %d queries and args, only have %d queries and %d args", dd.pos, len(dd.Queries), len(dd.Args))
+		return stackerr.Errorf("Expected at least %d queries and args, only have %d queries and %d args", dd.pos, len(dd.Queries), len(dd.Args))
 	}
 	var msg string
 	if dd.Queries[dd.pos] != query {
@@ -48,7 +49,7 @@ func (dd *DummyDB) checkExpectedData(query string, args ...interface{}) error {
 	if len(msg) == 0 {
 		return NoErrType("")
 	}
-	return errors.New(msg)
+	return stackerr.New(msg)
 }
 
 func TestMapMapper(t *testing.T) {

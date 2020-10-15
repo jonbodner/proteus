@@ -2,7 +2,6 @@ package proteus
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"sync"
 
@@ -11,6 +10,7 @@ import (
 
 	"github.com/jonbodner/multierr"
 	"github.com/jonbodner/proteus/logger"
+	"github.com/jonbodner/stackerr"
 )
 
 /*
@@ -52,14 +52,18 @@ If the entity is a primitive, then the first value returned for a row must be of
 
 */
 
-type ProteusError struct {
-	FuncName        string
-	FieldOrder      int
-	OriginalMessage string
+type Error struct {
+	FuncName      string
+	FieldOrder    int
+	OriginalError error
 }
 
-func (pe ProteusError) Error() string {
-	return fmt.Sprint("error in field #", pe.FieldOrder, " (", pe.FuncName, "): ", pe.OriginalMessage)
+func (pe Error) Error() string {
+	return fmt.Sprintf("error in field #%d (%s): %v", pe.FieldOrder, pe.FuncName, pe.OriginalError)
+}
+
+func (pe Error) Unwrap() error {
+	return pe.OriginalError
 }
 
 var l = logger.OFF
@@ -89,12 +93,12 @@ func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, 
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
 	if daoPointerType.Kind() != reflect.Ptr {
-		return errors.New("not a pointer")
+		return stackerr.New("not a pointer")
 	}
 	daoType := daoPointerType.Elem()
 	//if not a struct, error out
 	if daoType.Kind() != reflect.Struct {
-		return errors.New("not a pointer to struct")
+		return stackerr.New("not a pointer to struct")
 	}
 	var out error
 	funcs := make([]reflect.Value, daoType.NumField())
@@ -126,7 +130,7 @@ func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, 
 		//validate to make sure that the function matches what we expect
 		hasCtx, err := validateFunction(funcType)
 		if err != nil {
-			out = multierr.Append(out, ProteusError{FuncName: curField.Name, FieldOrder: i, OriginalMessage: err.Error()})
+			out = multierr.Append(out, Error{FuncName: curField.Name, FieldOrder: i, OriginalError: err})
 			continue
 		}
 
@@ -145,13 +149,13 @@ func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, 
 		//check to see if the query is in a QueryMapper
 		query, err = lookupQuery(query, mappers)
 		if err != nil {
-			out = multierr.Append(out, ProteusError{FuncName: curField.Name, FieldOrder: i, OriginalMessage: err.Error()})
+			out = multierr.Append(out, Error{FuncName: curField.Name, FieldOrder: i, OriginalError: err})
 			continue
 		}
 
 		implementation, err := makeImplementation(c, funcType, query, paramAdapter, nameOrderMap)
 		if err != nil {
-			out = multierr.Append(out, ProteusError{FuncName: curField.Name, FieldOrder: i, OriginalMessage: err.Error()})
+			out = multierr.Append(out, Error{FuncName: curField.Name, FieldOrder: i, OriginalError: err})
 			continue
 		}
 		funcs[i] = reflect.MakeFunc(funcType, implementation)
@@ -179,12 +183,12 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
 	if daoPointerType.Kind() != reflect.Ptr {
-		return errors.New("not a pointer")
+		return stackerr.New("not a pointer")
 	}
 	daoType := daoPointerType.Elem()
 	//if not a struct, error out
 	if daoType.Kind() != reflect.Struct {
-		return errors.New("not a pointer to struct")
+		return stackerr.New("not a pointer to struct")
 	}
 	daoPointerValue := reflect.ValueOf(dao)
 	daoValue := reflect.Indirect(daoPointerValue)
@@ -265,7 +269,7 @@ var (
 func validateFunction(funcType reflect.Type) (bool, error) {
 	//first parameter is Executor
 	if funcType.NumIn() == 0 {
-		return false, errors.New("need to supply an Executor or Querier parameter")
+		return false, stackerr.New("need to supply an Executor or Querier parameter")
 	}
 	var isExec bool
 	var hasContext bool
@@ -277,7 +281,7 @@ func validateFunction(funcType reflect.Type) (bool, error) {
 	case fType.Implements(qType):
 		//do nothing isExec is false
 	default:
-		return false, errors.New("first parameter must be of type context.Context, Executor, or Querier")
+		return false, stackerr.New("first parameter must be of type context.Context, Executor, or Querier")
 	}
 	start := 1
 	if hasContext {
@@ -288,36 +292,36 @@ func validateFunction(funcType reflect.Type) (bool, error) {
 		case fType.Implements(conQType):
 			//do nothing isExec is false
 		default:
-			return false, errors.New("first parameter must be of type context.Context, Executor, or Querier")
+			return false, stackerr.New("first parameter must be of type context.Context, Executor, or Querier")
 		}
 	}
 	//no in parameter can be a channel
 	for i := start; i < funcType.NumIn(); i++ {
 		if funcType.In(i).Kind() == reflect.Chan {
-			return false, errors.New("no input parameter can be a channel")
+			return false, stackerr.New("no input parameter can be a channel")
 		}
 	}
 
 	//has 0, 1, or 2 return values
 	if funcType.NumOut() > 2 {
-		return false, errors.New("must return 0, 1, or 2 values")
+		return false, stackerr.New("must return 0, 1, or 2 values")
 	}
 
 	//if 2 return values, second is error
 	if funcType.NumOut() == 2 {
 		errType := reflect.TypeOf((*error)(nil)).Elem()
 		if !funcType.Out(1).Implements(errType) {
-			return false, errors.New("2nd output parameter must be of type error")
+			return false, stackerr.New("2nd output parameter must be of type error")
 		}
 	}
 
 	//if 1 or 2, 1st param is not a channel (handle map, I guess)
 	if funcType.NumOut() > 0 {
 		if funcType.Out(0).Kind() == reflect.Chan {
-			return false, errors.New("1st output parameter cannot be a channel")
+			return false, stackerr.New("1st output parameter cannot be a channel")
 		}
 		if isExec && funcType.Out(0).Kind() != reflect.Int64 {
-			return false, errors.New("the 1st output parameter of an Executor must be int64")
+			return false, stackerr.New("the 1st output parameter of an Executor must be int64")
 		}
 	}
 	return hasContext, nil
@@ -343,7 +347,7 @@ func makeImplementation(c context.Context, funcType reflect.Type, query string, 
 		return makeQuerierImplementation(c, funcType, fixedQuery, paramOrder)
 	}
 	//this should impossible, since we already validated that the first parameter is either an executor or a querier
-	return nil, errors.New("first parameter must be of type Executor or Querier")
+	return nil, stackerr.New("first parameter must be of type Executor or Querier")
 }
 
 func lookupQuery(query string, mappers []QueryMapper) (string, error) {
@@ -356,5 +360,5 @@ func lookupQuery(query string, mappers []QueryMapper) (string, error) {
 			return q, nil
 		}
 	}
-	return "", fmt.Errorf("no query found for name %s", name)
+	return "", stackerr.Errorf("no query found for name %s", name)
 }
