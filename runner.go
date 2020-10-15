@@ -2,7 +2,6 @@ package proteus
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
+	"github.com/jonbodner/stackerr"
 )
 
 func buildQueryArgs(c context.Context, funcArgs []reflect.Value, paramOrder []paramInfo) ([]interface{}, error) {
@@ -145,7 +145,7 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 
 	// impossible case since validation should happen first, but be safe
 	return func(result sql.Result, err error) []reflect.Value {
-		return []reflect.Value{zero, reflect.ValueOf(errors.New("should never get here"))}
+		return []reflect.Value{zero, reflect.ValueOf(stackerr.New("should never get here"))}
 	}
 }
 
@@ -309,7 +309,7 @@ func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder map
 
 	// impossible case since validation should happen first, but be safe
 	return func(*sql.Rows, error) []reflect.Value {
-		return []reflect.Value{qZero, reflect.ValueOf(errors.New("should never get here!"))}
+		return []reflect.Value{qZero, reflect.ValueOf(stackerr.New("should never get here!"))}
 	}
 }
 
@@ -349,7 +349,7 @@ func handleMapping(c context.Context, sType reflect.Type, rows *sql.Rows, builde
 func mapRows(c context.Context, rows *sql.Rows, builder mapper.Builder) (interface{}, error) {
 	//fmt.Println(sType)
 	if rows == nil {
-		return nil, errors.New("rows must be non-nil")
+		return nil, stackerr.New("rows must be non-nil")
 	}
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
@@ -364,7 +364,7 @@ func mapRows(c context.Context, rows *sql.Rows, builder mapper.Builder) (interfa
 	}
 
 	if len(cols) == 0 {
-		return nil, errors.New("No values returned from query")
+		return nil, stackerr.New("No values returned from query")
 	}
 
 	vals := make([]interface{}, len(cols))

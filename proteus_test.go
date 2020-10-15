@@ -2,7 +2,6 @@ package proteus
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -14,6 +13,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	pcmp "github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/logger"
+	"github.com/jonbodner/stackerr"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -89,7 +89,7 @@ func TestConvertToPositionalParameters(t *testing.T) {
 			reflect.TypeOf(f3),
 			"",
 			nil,
-			fmt.Errorf("missing a closing : somewhere: %s", `select * from Product where name=:name: and cost=:cost`),
+			stackerr.Errorf("missing a closing : somewhere: %s", `select * from Product where name=:name: and cost=:cost`),
 		},
 		//empty ::
 		`select * from Product where name=:: and cost=:cost`: inner{
@@ -97,7 +97,7 @@ func TestConvertToPositionalParameters(t *testing.T) {
 			reflect.TypeOf(f3),
 			"",
 			nil,
-			errors.New("empty variable declaration at position 34"),
+			stackerr.New("empty variable declaration at position 34"),
 		},
 		//invalid identifier
 		`select * from Product where name=:a,b,c: and cost=:cost`: inner{
@@ -105,7 +105,7 @@ func TestConvertToPositionalParameters(t *testing.T) {
 			reflect.TypeOf(f3),
 			"",
 			nil,
-			errors.New("invalid character found in identifier: a,b,c"),
+			stackerr.New("invalid character found in identifier: a,b,c"),
 		},
 		//escaped character (invalid sql, but not the problem at hand)
 		`select * from Pr\:oduct where name=:name: and cost=:cost:`: inner{
@@ -164,7 +164,7 @@ func TestValidateFunction(t *testing.T) {
 		if err == nil {
 			t.Fatalf("Expected err")
 		}
-		eExp := errors.New(msg)
+		eExp := stackerr.New(msg)
 		if !pcmp.Errors(err, eExp) {
 			t.Errorf("Wrong error expected %s, got %s", eExp, err)
 		}
@@ -844,5 +844,75 @@ func TestShouldTimeColumn(t *testing.T) {
 	})
 	t.Run("mysql", func(t *testing.T) {
 		doTest(t, setupMySQL, "	drop table if exists product; CREATE TABLE product(id int AUTO_INCREMENT, name VARCHAR(100), ts TIMESTAMP, PRIMARY KEY(id))")
+	})
+}
+
+func TestArray(t *testing.T) {
+	type MyProductIn struct {
+		Name   string
+		Values [2]int
+	}
+
+	type MyProductOut struct {
+		Id     int    `prof:"id"`
+		Name   string `prof:"name"`
+		Value1 int    `prof:"value1"`
+		Value2 int    `prof:"value2"`
+	}
+
+	type ProductDao struct {
+		Insert func(e Executor, p MyProductIn) (int64, error)     `proq:"insert into product(name, value1, value2) values(:p.Name:, :p.Values.0:, :p.Values.1:)" prop:"p"`
+		Get    func(q Querier, name string) (MyProductOut, error) `proq:"select * from product where name=:name:" prop:"name"`
+	}
+
+	doTest := func(t *testing.T, setup setup, create string) {
+		productDao := ProductDao{}
+		c := logger.WithLevel(context.Background(), logger.DEBUG)
+
+		db, err := setup(c, &productDao)
+		if err != nil {
+			t.Fatalf("%+v\n", err)
+		}
+		defer db.Close()
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Commit()
+
+		_, err = tx.Exec(create)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		mp := MyProductIn{Name: "Foo", Values: [2]int{4, 7}}
+		count, err := productDao.Insert(tx, mp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatal("Should have modified 1 row")
+		}
+		prod, err := productDao.Get(tx, "Foo")
+		if err != nil {
+			t.Fatal(err)
+		}
+		mpOut := MyProductOut{
+			Id:     1,
+			Name:   "Foo",
+			Value1: 4,
+			Value2: 7,
+		}
+
+		if diff := cmp.Diff(mpOut, prod); diff != "" {
+			t.Error(diff)
+		}
+	}
+	t.Run("postgres", func(t *testing.T) {
+		doTest(t, setupPostgres, "	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), value1 int, value2 int)")
+	})
+	t.Run("mysql", func(t *testing.T) {
+		doTest(t, setupMySQL, "	drop table if exists product; CREATE TABLE product(id int AUTO_INCREMENT, name VARCHAR(100), value1 int, value2 int, PRIMARY KEY(id))")
 	})
 }

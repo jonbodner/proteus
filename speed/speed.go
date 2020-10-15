@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jonbodner/proteus"
+	"github.com/jonbodner/stackerr"
 	_ "github.com/lib/pq"
 	"github.com/pkg/profile"
 	log "github.com/sirupsen/logrus"
@@ -39,22 +40,22 @@ func SelectProteus(ctx context.Context, db *sql.DB) time.Duration {
 
 func validate(i int, p BenchProduct) error {
 	if p.Id != i {
-		return fmt.Errorf("should of had id %d, had %d instead", i, p.Id)
+		return stackerr.Errorf("should of had id %d, had %d instead", i, p.Id)
 	}
 	if p.Name != fmt.Sprintf("person%d", i) {
-		return fmt.Errorf("should of had person4, had %s instead", p.Name)
+		return stackerr.Errorf("should of had person4, had %s instead", p.Name)
 	}
 	if i%2 == 0 {
 		if p.Cost == nil {
-			return fmt.Errorf("cost should have been non-nil")
+			return stackerr.Errorf("cost should have been non-nil")
 		} else {
 			if math.Abs(*p.Cost-1.1*float64(i)) > 0.01 {
-				return fmt.Errorf("should have had %f, had %f instead", 1.1*float64(i), *p.Cost)
+				return stackerr.Errorf("should have had %f, had %f instead", 1.1*float64(i), *p.Cost)
 			}
 		}
 	} else {
 		if p.Cost != nil {
-			return fmt.Errorf("should have been nil, was %f", *p.Cost)
+			return stackerr.Errorf("should have been nil, was %f", *p.Cost)
 		}
 	}
 	return nil

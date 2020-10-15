@@ -3,7 +3,6 @@ package proteus
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -13,6 +12,7 @@ import (
 	"github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
+	"github.com/jonbodner/stackerr"
 )
 
 func TestMapRows(t *testing.T) {
@@ -23,7 +23,7 @@ func TestMapRows(t *testing.T) {
 	if v != nil {
 		t.Error("Expected nil when passing in nil rows")
 	}
-	eExp := errors.New("rows must be non-nil")
+	eExp := stackerr.New("rows must be non-nil")
 	if !cmp.Errors(err, eExp) {
 		t.Errorf("Expected error %s, got %s", eExp, err)
 	}

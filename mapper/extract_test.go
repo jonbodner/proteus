@@ -2,13 +2,13 @@ package mapper
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/logger"
+	"github.com/jonbodner/stackerr"
 )
 
 func TestExtractPointer(t *testing.T) {
@@ -124,7 +124,7 @@ func TestExtractFail(t *testing.T) {
 		if err == nil {
 			t.Errorf("Expected an error %s, got none", msg)
 		}
-		eExp := errors.New(msg)
+		eExp := stackerr.New(msg)
 		if !cmp.Errors(err, eExp) {
 			t.Errorf("Expected error %s, got %s", eExp, err)
 		}

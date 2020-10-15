@@ -2,13 +2,13 @@ package proteus
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
+	"github.com/jonbodner/stackerr"
 )
 
 type Builder struct {
@@ -35,12 +35,12 @@ func (fb Builder) BuildFunction(c context.Context, f interface{}, query string, 
 	funcPointerType := reflect.TypeOf(f)
 	//must be a pointer to func
 	if funcPointerType.Kind() != reflect.Ptr {
-		return errors.New("not a pointer")
+		return stackerr.New("not a pointer")
 	}
 	funcType := funcPointerType.Elem()
 	//if not a func, error out
 	if funcType.Kind() != reflect.Func {
-		return errors.New("not a pointer to func")
+		return stackerr.New("not a pointer to func")
 	}
 
 	//validate to make sure that the function matches what we expect
@@ -123,7 +123,7 @@ func (fb Builder) Query(c context.Context, q ContextQuerier, query string, param
 	// make sure that output is a pointer to something
 	outputPointerType := reflect.TypeOf(output)
 	if outputPointerType.Kind() != reflect.Ptr {
-		return errors.New("not a pointer")
+		return stackerr.New("not a pointer")
 	}
 
 	finalQuery, queryArgs, err := fb.setupDynamicQueries(c, query, params)

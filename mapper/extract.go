@@ -2,19 +2,19 @@ package mapper
 
 import (
 	"context"
-	"errors"
+	"database/sql/driver"
 	"fmt"
 	"reflect"
-
-	"database/sql/driver"
+	"strconv"
 
 	"github.com/jonbodner/proteus/logger"
+	"github.com/jonbodner/stackerr"
 )
 
 func ExtractType(c context.Context, curType reflect.Type, path []string) (reflect.Type, error) {
 	// error case path length == 0
 	if len(path) == 0 {
-		return nil, errors.New("cannot extract type; no path remaining")
+		return nil, stackerr.New("cannot extract type; no path remaining")
 	}
 	ss := fromPtrType(curType)
 	// base case path length == 1
@@ -22,24 +22,32 @@ func ExtractType(c context.Context, curType reflect.Type, path []string) (reflec
 		return ss, nil
 	}
 	// length > 1, find a match for path[1], and recurse
-	if ss.Kind() == reflect.Map {
+	switch ss.Kind() {
+	case reflect.Map:
 		//give up -- we can't figure out what's in the map, so just return the type of the value
 		return ss.Elem(), nil
+	case reflect.Struct:
+		//make sure the field exists
+		if f, exists := ss.FieldByName(path[1]); exists {
+			return ExtractType(c, f.Type, path[1:])
+		}
+		return nil, stackerr.New("cannot find the type; no such field " + path[1])
+	case reflect.Array, reflect.Slice:
+		// handle slices and arrays
+		_, err := strconv.Atoi(path[1])
+		if err != nil {
+			return nil, stackerr.Errorf("invalid index: %s :%w", path[1], err)
+		}
+		return ExtractType(c, ss.Elem(), path[1:])
+	default:
+		return nil, stackerr.New("cannot find the type for the subfield of anything other than a map, struct, slice, or array")
 	}
-	if ss.Kind() != reflect.Struct {
-		return nil, errors.New("Cannot find the type for the subfield of anything other than a struct.")
-	}
-	//make sure the field exists
-	if f, exists := ss.FieldByName(path[1]); exists {
-		return ExtractType(c, f.Type, path[1:])
-	}
-	return nil, errors.New("cannot find the type; no such field " + path[1])
 }
 
 func Extract(c context.Context, s interface{}, path []string) (interface{}, error) {
 	// error case path length == 0
 	if len(path) == 0 {
-		return nil, errors.New("cannot extract value; no path remaining")
+		return nil, stackerr.New("cannot extract value; no path remaining")
 	}
 	// base case path length == 1
 	if len(path) == 1 {
@@ -52,29 +60,38 @@ func Extract(c context.Context, s interface{}, path []string) (interface{}, erro
 	// length > 1, find a match for path[1], and recurse
 	ss := fromPtr(s)
 	sv := reflect.ValueOf(ss)
-	if sv.Kind() == reflect.Map {
+	switch sv.Kind() {
+	case reflect.Map:
 		if sv.Type().Key().Kind() != reflect.String {
-			return nil, errors.New("cannot extract value; map does not have a string key")
+			return nil, stackerr.New("cannot extract value; map does not have a string key")
 		}
 		logger.Log(c, logger.DEBUG, fmt.Sprintln(path[1]))
 		logger.Log(c, logger.DEBUG, fmt.Sprintln(sv.MapKeys()))
 		v := sv.MapIndex(reflect.ValueOf(path[1]))
 		logger.Log(c, logger.DEBUG, fmt.Sprintln(v))
 		if !v.IsValid() {
-			return nil, errors.New("cannot extract value; no such map key " + path[1])
+			return nil, stackerr.New("cannot extract value; no such map key " + path[1])
 		}
 		return Extract(c, v.Interface(), path[1:])
-	}
-	if sv.Kind() == reflect.Struct {
+	case reflect.Struct:
 		//make sure the field exists
 		if _, exists := sv.Type().FieldByName(path[1]); !exists {
-			return nil, errors.New("cannot extract value; no such field " + path[1])
+			return nil, stackerr.New("cannot extract value; no such field " + path[1])
 		}
 
 		v := sv.FieldByName(path[1])
 		return Extract(c, v.Interface(), path[1:])
+	case reflect.Array, reflect.Slice:
+		// handle slices and arrays
+		pos, err := strconv.Atoi(path[1])
+		if err != nil {
+			return nil, stackerr.Errorf("invalid index: %s :%w", path[1], err)
+		}
+		v := sv.Index(pos)
+		return Extract(c, v.Interface(), path[1:])
+	default:
+		return nil, stackerr.New("cannot extract value; only maps and structs can have contained values")
 	}
-	return nil, errors.New("cannot extract value; only maps and structs can have contained values")
 }
 
 func fromPtr(s interface{}) interface{} {
