@@ -122,6 +122,9 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 	if numOut == 1 {
 		return func(result sql.Result, err error) []reflect.Value {
 			if err != nil {
+				if sType == sqlResultType {
+					return []reflect.Value{zeroSQLResult}
+				}
 				return []reflect.Value{zeroInt64}
 			}
 			if sType == sqlResultType {
@@ -156,7 +159,11 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 
 	// impossible case since validation should happen first, but be safe
 	return func(result sql.Result, err error) []reflect.Value {
-		return []reflect.Value{zeroInt64, reflect.ValueOf(stackerr.New("should never get here"))}
+		impossibleErr := reflect.ValueOf(stackerr.New("should never get here"))
+		if sType == sqlResultType {
+			return []reflect.Value{zeroSQLResult, impossibleErr}
+		}
+		return []reflect.Value{zeroInt64, impossibleErr}
 	}
 }
 
