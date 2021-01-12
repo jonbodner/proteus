@@ -226,7 +226,7 @@ func TestValidateFunction(t *testing.T) {
 		D bool
 	}, error)
 	//invalid for Exec
-	f(reflect.TypeOf(g4), "the 1st output parameter of an Executor must be int64")
+	f(reflect.TypeOf(g4), "the 1st output parameter of an Executor must be int64 or sql.Result")
 
 	//valid for query
 	var g4q func(Querier, int, map[string]interface{}, struct {
@@ -237,6 +237,14 @@ func TestValidateFunction(t *testing.T) {
 		D bool
 	}, error)
 	fOk(reflect.TypeOf(g4q), false)
+
+	// valid -- an executor, returning an sql.Result
+	var r1 func(Executor) sql.Result
+	fOk(reflect.TypeOf(r1), true)
+
+	// invalid -- a querier, returning an sql.Result
+	var r2 func(Querier) sql.Result
+	f(reflect.TypeOf(r2), "output parameters of type sql.Result must be combined with Executor")
 }
 
 func TestBuild(t *testing.T) {
@@ -349,9 +357,11 @@ func TestNoParams(t *testing.T) {
 	}
 
 	type ScannerProductDao struct {
-		Insert         func(e Executor) (int64, error)                                     `proq:"insert into product(name) values('hi')"`
-		FindAll        func(e Querier) (ScannerProduct, error)                             `proq:"select * from product"`
-		FindAllContext func(ctx context.Context, e ContextQuerier) (ScannerProduct, error) `proq:"select * from product"`
+		InsertResult        func(e Executor) (sql.Result, error)                                `proq:"insert into product(name) values('bye')"`
+		InsertResultContext func(ctx context.Context, e ContextExecutor) (sql.Result, error)    `proq:"insert into product(name) values('bye')"`
+		Insert              func(e Executor) (int64, error)                                     `proq:"insert into product(name) values('hi')"`
+		FindAll             func(e Querier) (ScannerProduct, error)                             `proq:"select * from product"`
+		FindAllContext      func(ctx context.Context, e ContextQuerier) (ScannerProduct, error) `proq:"select * from product"`
 	}
 
 	doTest := func(t *testing.T, setup setup, create string) {
@@ -378,6 +388,25 @@ func TestNoParams(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		result, err := productDao.InsertResult(tx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		count, err := result.RowsAffected()
+		if count != 1 {
+			t.Fatal("Should have modified 1 row")
+		}
+
+		result, err = productDao.InsertResultContext(context.Background(), tx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		count, err = result.RowsAffected()
+		if count != 1 {
+			t.Fatal("Should have modified 1 row")
+		}
+
 		roundTrip, err := productDao.FindAll(tx)
 		if err != nil {
 			t.Fatal(err)
@@ -767,6 +796,7 @@ func TestShouldBinaryColumn(t *testing.T) {
 		if count != 1 {
 			t.Fatal("Should have modified 1 row")
 		}
+
 		prod, err := productDao.Get(tx, "Foo")
 		if err != nil {
 			t.Fatal(err)

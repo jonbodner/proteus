@@ -320,8 +320,14 @@ func validateFunction(funcType reflect.Type) (bool, error) {
 		if funcType.Out(0).Kind() == reflect.Chan {
 			return false, stackerr.New("1st output parameter cannot be a channel")
 		}
-		if isExec && funcType.Out(0).Kind() != reflect.Int64 {
-			return false, stackerr.New("the 1st output parameter of an Executor must be int64")
+		if isExec && funcType.Out(0).Kind() != reflect.Int64 &&
+			funcType.Out(0) != sqlResultType {
+			return false, stackerr.New("the 1st output parameter of an Executor must be int64 or sql.Result")
+		}
+
+		//sql.Result only useful with executor.
+		if !isExec && funcType.Out(0) == sqlResultType {
+			return false, stackerr.New("output parameters of type sql.Result must be combined with Executor")
 		}
 	}
 	return hasContext, nil

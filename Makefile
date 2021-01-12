@@ -1,20 +1,24 @@
 
 test:
 	docker-compose up -d db
+	docker-compose up -d mysql
 	go test -v -cover ./...
 
 bench:
 	docker-compose up -d db
+	docker-compose up -d mysql
 	go test -bench=.
 .PHONY:bench
 
 sample:
 	docker-compose up -d db
+	docker-compose up -d mysql
 	go run cmd/sample/main.go
 .PHONY:sample
 
 sample_ctx:
 	docker-compose up -d db
+	docker-compose up -d mysql
 	go run cmd/sample/main.go
 .PHONY:sample_ctx
 

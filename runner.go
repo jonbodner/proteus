@@ -36,9 +36,11 @@ func buildQueryArgs(c context.Context, funcArgs []reflect.Value, paramOrder []pa
 }
 
 var (
-	errType = reflect.TypeOf((*error)(nil)).Elem()
-	errZero = reflect.Zero(errType)
-	zero    = reflect.ValueOf(int64(0))
+	errType       = reflect.TypeOf((*error)(nil)).Elem()
+	errZero       = reflect.Zero(errType)
+	zeroInt64     = reflect.ValueOf(int64(0))
+	zeroSQLResult = reflect.ValueOf((sql.Result)(nil))
+	sqlResultType = reflect.TypeOf((*sql.Result)(nil)).Elem()
 )
 
 func makeContextExecutorImplementation(c context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) func(args []reflect.Value) []reflect.Value {
@@ -120,11 +122,17 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 	if numOut == 1 {
 		return func(result sql.Result, err error) []reflect.Value {
 			if err != nil {
-				return []reflect.Value{zero}
+				if sType == sqlResultType {
+					return []reflect.Value{zeroSQLResult}
+				}
+				return []reflect.Value{zeroInt64}
+			}
+			if sType == sqlResultType {
+				return []reflect.Value{reflect.ValueOf(result)}
 			}
 			val, err := result.RowsAffected()
 			if err != nil {
-				return []reflect.Value{zero}
+				return []reflect.Value{zeroInt64}
 			}
 			return []reflect.Value{reflect.ValueOf(val).Convert(sType)}
 		}
@@ -132,12 +140,18 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 	if numOut == 2 {
 		return func(result sql.Result, err error) []reflect.Value {
 			eType := funcType.Out(1)
+			if sType == sqlResultType {
+				if err != nil {
+					return []reflect.Value{zeroSQLResult, reflect.ValueOf(err).Convert(eType)}
+				}
+				return []reflect.Value{reflect.ValueOf(result), errZero}
+			}
 			if err != nil {
-				return []reflect.Value{zero, reflect.ValueOf(err).Convert(eType)}
+				return []reflect.Value{zeroInt64, reflect.ValueOf(err).Convert(eType)}
 			}
 			val, err := result.RowsAffected()
 			if err != nil {
-				return []reflect.Value{zero, reflect.ValueOf(err).Convert(eType)}
+				return []reflect.Value{zeroInt64, reflect.ValueOf(err).Convert(eType)}
 			}
 			return []reflect.Value{reflect.ValueOf(val).Convert(sType), errZero}
 		}
@@ -145,7 +159,11 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 
 	// impossible case since validation should happen first, but be safe
 	return func(result sql.Result, err error) []reflect.Value {
-		return []reflect.Value{zero, reflect.ValueOf(stackerr.New("should never get here"))}
+		impossibleErr := reflect.ValueOf(stackerr.New("should never get here"))
+		if sType == sqlResultType {
+			return []reflect.Value{zeroSQLResult, impossibleErr}
+		}
+		return []reflect.Value{zeroInt64, impossibleErr}
 	}
 }
 
