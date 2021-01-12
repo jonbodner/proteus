@@ -2,6 +2,7 @@ package proteus
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"reflect"
 	"strings"
@@ -91,6 +92,15 @@ func (st sliceTypes) In(i int) reflect.Type {
 }
 
 func (fb Builder) Exec(c context.Context, e ContextExecutor, query string, params map[string]interface{}) (int64, error) {
+	result, err := fb.ExecResult(c, e, query, params)
+	if err != nil {
+		return 0, err
+	}
+	count, err := result.RowsAffected()
+	return count, err
+}
+
+func (fb Builder) ExecResult(c context.Context, e ContextExecutor, query string, params map[string]interface{}) (sql.Result, error) {
 	//if log level is set and not in the context, use it
 	if _, ok := logger.LevelFromContext(c); !ok && l != logger.OFF {
 		rw.RLock()
@@ -100,16 +110,12 @@ func (fb Builder) Exec(c context.Context, e ContextExecutor, query string, param
 
 	finalQuery, queryArgs, err := fb.setupDynamicQueries(c, query, params)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	logger.Log(c, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 	result, err := e.ExecContext(c, finalQuery, queryArgs...)
-	if err != nil {
-		return 0, err
-	}
-	count, err := result.RowsAffected()
-	return count, err
+	return result, err
 }
 
 func (fb Builder) Query(c context.Context, q ContextQuerier, query string, params map[string]interface{}, output interface{}) error {

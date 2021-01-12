@@ -242,6 +242,27 @@ func TestBuilder_Execute(t *testing.T) {
 			if v.lineCount != len(lines) {
 				t.Errorf("Expected %d lines of debug, got %d: %#v", v.lineCount, len(lines), lines)
 			}
+			lines = nil
+			result, err := b.ExecResult(c, db, v.query, v.params)
+			errMsg = ""
+			if err != nil {
+				errMsg = err.Error()
+			}
+			if errMsg != v.errMsg {
+				t.Errorf("Expected error `%s`, got `%s`", v.errMsg, errMsg)
+			}
+			if err == nil {
+				rowsAffected, err := result.RowsAffected()
+				if err != nil {
+					t.Fatal("unexpected error", err)
+				}
+				if rowsAffected != v.rows {
+					t.Error("Unexpected # rows: ", rows)
+				}
+				if v.lineCount != len(lines) {
+					t.Errorf("Expected %d lines of debug, got %d: %#v", v.lineCount, len(lines), lines)
+				}
+			}
 		})
 	}
 }
