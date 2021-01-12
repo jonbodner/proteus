@@ -69,7 +69,9 @@ For queries, return types can be:
 For insert/updates, return types can be:
 - empty
 - an int64 that indicates the number of rows affected
+- a `sql.Result`
 - an int64 that indicates the number of rows affected and an error
+- a `sql.Result` and an error
 
 The `proq` struct tag stores the query. You place variable substitutions between `:` s. Proteus allows you
 to refer to fields in maps and structs, as well as elements in arrays or slices using `.` as a path separator. If you have a
@@ -328,11 +330,15 @@ First, create an instance of a `proteus.Builder`. The factory function takes a `
     b := NewBuilder(Postgres)
 ```
 
-Next, run your query by passing it to the `Exec` or `Query` methods on `proteus.Builder`. 
+Next, run your query by passing it to the `Exec`, `ExecResult`, or `Query` methods on `proteus.Builder`. 
 
 `Exec` expects a `context.Context`, a `proteus.ContextExecutor`, the query, and a 
 map of `string` to `interface{}`, where the keys are the parameter names and the values are the parameter values. It returns an int64 with the number of rows modified and
-and error. 
+and error. 	
+
+`ExecResult` expects a `context.Context`, a `proteus.ContextExecutor`, the query, and a 
+map of `string` to `interface{}`, where the keys are the parameter names and the values are the parameter values. It returns a `sql.Result` with the number of rows modified and
+and error. 	
 
 `Query` expected a `context.Context`, a `proteus.ContextQuerier`, the query, 
 a map of `string` to `interface{}`, where the keys are the parameter names and the values are the parameter values, and a pointer to the value that
