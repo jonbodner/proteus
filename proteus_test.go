@@ -626,6 +626,64 @@ func TestPositionalVariables(t *testing.T) {
 	}
 }
 
+func TestVariableMultipleUsage(t *testing.T) {
+
+	type Product struct {
+		Id   int    `prof:"id"`
+		Name string `prof:"name"`
+	}
+
+	// should allow multiple uses of the same parameter
+	type ProductDao struct {
+		Insert      func(e Executor, p Product) (int64, error)    `proq:"insert into product(name) values(:p.Name:)" prop:"p"`
+		SelectWeird func(e Querier, name string) (Product, error) `proq:"select * from product where name=:name: and name=:name:" prop:"name"`
+	}
+
+	doTest := func(t *testing.T, setup setup, create string) {
+		productDao := ProductDao{}
+		c := logger.WithLevel(context.Background(), logger.DEBUG)
+		db, err := setup(c, &productDao)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Commit()
+
+		_, err = tx.Exec(create)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		count, err := productDao.Insert(tx, Product{Name: "name"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatal("Should have modified 1 row")
+		}
+
+		prod, err := productDao.SelectWeird(tx, "name")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if prod.Name != "name" {
+			t.Fatal(fmt.Sprintf("Expected prod with name, got %+v", prod))
+		}
+	}
+
+	t.Run("postgres", func(t *testing.T) {
+		doTest(t, setupPostgres, "	drop table if exists product; CREATE TABLE product(id SERIAL PRIMARY KEY, name VARCHAR(100), null_field VARCHAR(100))")
+	})
+	t.Run("mysql", func(t *testing.T) {
+		doTest(t, setupMySQL, "	drop table if exists product; CREATE TABLE product(id int AUTO_INCREMENT, name VARCHAR(100), null_field VARCHAR(100), PRIMARY KEY(id))")
+	})
+}
+
 func TestShouldBuild(t *testing.T) {
 	//test single problem, invalid query (missing closing :)
 	type ProductDao struct {
