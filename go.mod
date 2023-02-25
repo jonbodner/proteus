@@ -13,5 +13,5 @@ require (
 	github.com/rickar/props v0.0.0-20170718221555-0b06aeb2f037
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.3.0 // indirect
-	golang.org/x/sys v0.0.0-20200828161417-c663848e9a16 // indirect
+	golang.org/x/sys v0.1.0 // indirect
 )
