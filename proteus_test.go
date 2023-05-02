@@ -3,7 +3,6 @@ package proteus
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -394,6 +393,9 @@ func TestNoParams(t *testing.T) {
 			t.Fatal(err)
 		}
 		count, err := result.RowsAffected()
+		if err != nil {
+			t.Fatal(err)
+		}
 		if count != 1 {
 			t.Fatal("Should have modified 1 row")
 		}
@@ -403,6 +405,9 @@ func TestNoParams(t *testing.T) {
 			t.Fatal(err)
 		}
 		count, err = result.RowsAffected()
+		if err != nil {
+			t.Fatal(err)
+		}
 		if count != 1 {
 			t.Fatal("Should have modified 1 row")
 		}
@@ -604,7 +609,7 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 		}
 
 		if prod.Name != "foo" {
-			t.Fatal(fmt.Sprintf("Expected prod with name of foo, got %+v", prod))
+			t.Fatalf("Expected prod with name of foo, got %+v", prod)
 		}
 
 		if prod.EmptyField.Valid {
@@ -617,7 +622,7 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 			t.Fatal(err)
 		}
 		if nestedProd.Name != "foo" {
-			t.Fatal(fmt.Sprintf("Expected nested product name of foo, got %+v", prod))
+			t.Fatalf("Expected nested product name of foo, got %+v", prod)
 		}
 
 		if prod.EmptyField.Valid {
@@ -701,7 +706,7 @@ func TestVariableMultipleUsage(t *testing.T) {
 			t.Fatal(err)
 		}
 		if prod.Name != "name" {
-			t.Fatal(fmt.Sprintf("Expected prod with name, got %+v", prod))
+			t.Fatalf("Expected prod with name, got %+v", prod)
 		}
 	}
 
@@ -802,7 +807,7 @@ func TestShouldBuildEmbedded(t *testing.T) {
 			t.Fatal(err)
 		}
 		if prod.Name != "foo" {
-			t.Fatal(fmt.Sprintf("Expected prod with name, got %+v", prod))
+			t.Fatalf("Expected prod with name, got %+v", prod)
 		}
 	}
 	t.Run("postgres", func(t *testing.T) {
@@ -860,10 +865,10 @@ func TestShouldBinaryColumn(t *testing.T) {
 			t.Fatal(err)
 		}
 		if prod.Name != "Foo" {
-			t.Fatal(fmt.Sprintf("Expected prod with name, got %+v", prod))
+			t.Fatalf("Expected prod with name, got %+v", prod)
 		}
 		if string(prod.Data) != "Hello" {
-			t.Fatal(fmt.Sprintf("Expected prod with data, got %+v", prod))
+			t.Fatalf("Expected prod with data, got %+v", prod)
 		}
 	}
 	t.Run("postgres", func(t *testing.T) {

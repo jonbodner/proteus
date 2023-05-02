@@ -1,0 +1,38 @@
+name: Staticcheck
+
+on:
+  push:
+    tags:
+      - v*
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  staticcheck:
+    name: Staticcheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.19
+
+      - name: Install staticcheck
+        run: make install
+
+      - name: Run staticcheck
+        run: make lint
+
+      - name: Save results
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          name: staticcheck-results
+          path: staticcheck-result.txt

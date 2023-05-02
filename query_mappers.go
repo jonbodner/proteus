@@ -17,7 +17,8 @@ type propFileMapper struct {
 }
 
 func (pm propFileMapper) Map(name string) string {
-	return pm.properties.Get(name)
+	val, _ := pm.properties.Get(name)
+	return val
 }
 
 func PropFileToQueryMapper(name string) (QueryMapper, error) {

@@ -27,7 +27,7 @@ fmt:
 .PHONY:fmt
 
 lint: fmt
-	golint ./...
+	staticcheck ./...
 .PHONY:lint
 
 vet: fmt
@@ -37,3 +37,7 @@ vet: fmt
 build: vet
 	go build github.com/jonbodner/proteus/cmd/sample
 .PHONY:build
+
+install:
+	go install honnef.co/go/tools/cmd/staticcheck@latest
+.PHONY:install

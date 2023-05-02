@@ -111,11 +111,6 @@ func ValuesFromContext(c context.Context) ([]Pair, bool) {
 func Log(c context.Context, l Level, message string, vals ...Pair) {
 	curLevelVal := c.Value(level)
 	if curLevel, ok := curLevelVal.(Level); !ok || curLevel == OFF || curLevel > l {
-		if !ok {
-			//fmt.Println("Not going to log anything because no level is specified")
-		} else {
-			//fmt.Println("not going to log anything because curLevel is", curLevel, "and the logger is at level", l)
-		}
 		return
 	}
 	outVals := []interface{}{"time", time.Now().UTC(), "level", l, "message", message}
