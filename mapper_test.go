@@ -193,7 +193,7 @@ func TestBuildPrimitiveNilFail(t *testing.T) {
 	sType := reflect.TypeOf("")
 	c := logger.WithLevel(context.Background(), logger.DEBUG)
 	b, _ := mapper.MakeBuilder(c, sType)
-	s, err := mapRows(c, rows, b)
+	_, err = mapRows(c, rows, b)
 	if err == nil {
 		t.Error("Expected error didn't get one")
 	}
@@ -201,7 +201,7 @@ func TestBuildPrimitiveNilFail(t *testing.T) {
 		t.Errorf("Expected error message '%s', got '%s'", "attempting to return nil for non-pointer type string", err.Error())
 	}
 
-	s, err = mapRows(c, rows, b)
+	s, err := mapRows(c, rows, b)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}

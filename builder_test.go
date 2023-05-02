@@ -2,6 +2,7 @@ package proteus
 
 import (
 	"context"
+	"github.com/google/go-cmp/cmp"
 	"reflect"
 	"testing"
 
@@ -61,12 +62,25 @@ func Test_buildParamMap(t *testing.T) {
 		args args
 		want map[string]int
 	}{
-		// TODO: Add test cases.
+		{
+			name: "simple",
+			args: args{
+				prop:       "a,b,c",
+				paramCount: 3,
+				startPos:   1,
+			},
+			want: map[string]int{
+				"a": 1,
+				"b": 2,
+				"c": 3,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := buildNameOrderMap(tt.args.prop, tt.args.startPos); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("buildNameOrderMap() = %v, want %v", got, tt.want)
+			got := buildNameOrderMap(tt.args.prop, tt.args.startPos)
+			if diff := cmp.Diff(got, tt.want); diff != "" {
+				t.Error(diff)
 			}
 		})
 	}

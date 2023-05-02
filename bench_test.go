@@ -69,62 +69,62 @@ func setupDbPostgres() *sql.DB {
 }
 
 func doPersonStuffForProteusTest(ctx context.Context, b *testing.B, wrapper ContextWrapper) (int64, *Person, []Person, error) {
-	count, err := personDao.Create(ctx, wrapper, "Fred", 20)
+	_, err := personDao.Create(ctx, wrapper, "Fred", 20)
 	if err != nil {
 		b.Fatalf("create failed: %v", err)
 	}
 
-	count, err = personDao.Create(ctx, wrapper, "Bob", 50)
+	_, err = personDao.Create(ctx, wrapper, "Bob", 50)
 	if err != nil {
 		b.Fatalf("create 2 failed: %v", err)
 	}
 
-	count, err = personDao.Create(ctx, wrapper, "Julia", 32)
+	_, err = personDao.Create(ctx, wrapper, "Julia", 32)
 	if err != nil {
 		b.Fatalf("create 3 failed: %v", err)
 	}
 
-	count, err = personDao.Create(ctx, wrapper, "Pat", 37)
+	_, err = personDao.Create(ctx, wrapper, "Pat", 37)
 	if err != nil {
 		b.Fatalf("create 4 failed: %v", err)
 	}
 
-	person, err := personDao.Get(ctx, wrapper, 1)
+	_, err = personDao.Get(ctx, wrapper, 1)
 	if err != nil {
 		b.Fatalf("get failed: %v", err)
 	}
 
-	people, err := personDao.GetAll(ctx, wrapper)
+	_, err = personDao.GetAll(ctx, wrapper)
 	if err != nil {
 		b.Fatalf("get all failed: %v", err)
 	}
 
-	people, err = personDao.GetByAge(ctx, wrapper, 1, []int{20, 32}, "Fred")
+	people, err := personDao.GetByAge(ctx, wrapper, 1, []int{20, 32}, "Fred")
 	if err != nil {
 		b.Fatalf("get by age failed: %v", err)
 	}
 
-	count, err = personDao.Update(ctx, wrapper, 1, "Freddie", 30)
+	_, err = personDao.Update(ctx, wrapper, 1, "Freddie", 30)
 	if err != nil {
 		b.Fatalf("update failed: %v", err)
 	}
 
-	person, err = personDao.Get(ctx, wrapper, 1)
+	_, err = personDao.Get(ctx, wrapper, 1)
 	if err != nil {
 		b.Fatalf("get 2 failed: %v", err)
 	}
 
-	count, err = personDao.Delete(ctx, wrapper, 1)
+	_, err = personDao.Delete(ctx, wrapper, 1)
 	if err != nil {
 		b.Fatalf("delete failed: %v", err)
 	}
 
-	count, err = personDao.Delete(ctx, wrapper, 1)
+	count, err := personDao.Delete(ctx, wrapper, 1)
 	if err != nil {
 		b.Fatalf("delete 2 failed: %v", err)
 	}
 
-	person, err = personDao.Get(ctx, wrapper, 1)
+	person, err := personDao.Get(ctx, wrapper, 1)
 	if err != nil {
 		b.Fatalf("get 3 failed: %v", err)
 	}
@@ -145,7 +145,7 @@ func BenchmarkStandard(b *testing.B) {
 
 type standardPersonDao struct{}
 
-//	`proq:"INSERT INTO PERSON(name, age) VALUES(:name:, :age:)" prop:"name,age"`
+// `proq:"INSERT INTO PERSON(name, age) VALUES(:name:, :age:)" prop:"name,age"`
 func (spd standardPersonDao) Create(db *sql.DB, name string, age int) (int64, error) {
 	result, err := db.Exec("INSERT INTO PERSON(name, age) VALUES($1, $2)", name, age)
 	if err != nil {
@@ -155,7 +155,7 @@ func (spd standardPersonDao) Create(db *sql.DB, name string, age int) (int64, er
 	return count, err
 }
 
-//`proq:"SELECT * FROM PERSON WHERE id = :id:" prop:"id"`
+// `proq:"SELECT * FROM PERSON WHERE id = :id:" prop:"id"`
 func (spd standardPersonDao) Get(db *sql.DB, id int) (*Person, error) {
 	rows, err := db.Query("SELECT age, name, id FROM PERSON WHERE id = $1", id)
 	if err != nil {
@@ -173,7 +173,7 @@ func (spd standardPersonDao) Get(db *sql.DB, id int) (*Person, error) {
 	return p, err
 }
 
-//`proq:"UPDATE PERSON SET name = :name:, age=:age: where id=:id:" prop:"id,name,age"`
+// `proq:"UPDATE PERSON SET name = :name:, age=:age: where id=:id:" prop:"id,name,age"`
 func (spd standardPersonDao) Update(db *sql.DB, id int, name string, age int) (int64, error) {
 	result, err := db.Exec("UPDATE PERSON SET name = $1, age=$2 where id=$3", name, age, id)
 	if err != nil {
@@ -183,7 +183,7 @@ func (spd standardPersonDao) Update(db *sql.DB, id int, name string, age int) (i
 	return count, err
 }
 
-//`proq:"DELETE FROM PERSON WHERE id = :id:" prop:"id"`
+// `proq:"DELETE FROM PERSON WHERE id = :id:" prop:"id"`
 func (spd standardPersonDao) Delete(db *sql.DB, id int) (int64, error) {
 	result, err := db.Exec("DELETE FROM PERSON WHERE id = $1", id)
 	if err != nil {
@@ -193,7 +193,7 @@ func (spd standardPersonDao) Delete(db *sql.DB, id int) (int64, error) {
 	return count, err
 }
 
-//`proq:"SELECT * FROM PERSON"`
+// `proq:"SELECT * FROM PERSON"`
 func (spd standardPersonDao) GetAll(db *sql.DB) ([]Person, error) {
 	rows, err := db.Query("SELECT age, name, id FROM PERSON")
 	if err != nil {
@@ -216,7 +216,7 @@ func (spd standardPersonDao) GetAll(db *sql.DB) ([]Person, error) {
 	return out, err
 }
 
-//`proq:"SELECT * from PERSON WHERE name=:name: and age in (:ages:) and id = :id:" prop:"id,ages,name"`
+// `proq:"SELECT * from PERSON WHERE name=:name: and age in (:ages:) and id = :id:" prop:"id,ages,name"`
 func (spd standardPersonDao) GetByAge(db *sql.DB, id int, ages []int, name string) ([]Person, error) {
 	startQuery := "SELECT age, name, id from PERSON WHERE name=$1 and age in (:ages:) and id = :id:"
 	params := make([]string, len(ages))
@@ -260,62 +260,62 @@ func (spd standardPersonDao) GetByAge(db *sql.DB, id int, ages []int, name strin
 var sPersonDao = standardPersonDao{}
 
 func doPersonStuffForStandardTest(b *testing.B, db *sql.DB) (int64, *Person, []Person, error) {
-	count, err := sPersonDao.Create(db, "Fred", 20)
+	_, err := sPersonDao.Create(db, "Fred", 20)
 	if err != nil {
 		b.Fatalf("create failed: %v", err)
 	}
 
-	count, err = sPersonDao.Create(db, "Bob", 50)
+	_, err = sPersonDao.Create(db, "Bob", 50)
 	if err != nil {
 		b.Fatalf("create 2 failed: %v", err)
 	}
 
-	count, err = sPersonDao.Create(db, "Julia", 32)
+	_, err = sPersonDao.Create(db, "Julia", 32)
 	if err != nil {
 		b.Fatalf("create 3 failed: %v", err)
 	}
 
-	count, err = sPersonDao.Create(db, "Pat", 37)
+	_, err = sPersonDao.Create(db, "Pat", 37)
 	if err != nil {
 		b.Fatalf("create 4 failed: %v", err)
 	}
 
-	person, err := sPersonDao.Get(db, 1)
+	_, err = sPersonDao.Get(db, 1)
 	if err != nil {
 		b.Fatalf("get failed: %v", err)
 	}
 
-	people, err := sPersonDao.GetAll(db)
+	_, err = sPersonDao.GetAll(db)
 	if err != nil {
 		b.Fatalf("get all failed: %v", err)
 	}
 
-	people, err = sPersonDao.GetByAge(db, 1, []int{20, 32}, "Fred")
+	people, err := sPersonDao.GetByAge(db, 1, []int{20, 32}, "Fred")
 	if err != nil {
 		b.Fatalf("get by age failed: %v", err)
 	}
 
-	count, err = sPersonDao.Update(db, 1, "Freddie", 30)
+	_, err = sPersonDao.Update(db, 1, "Freddie", 30)
 	if err != nil {
 		b.Fatalf("update failed: %v", err)
 	}
 
-	person, err = sPersonDao.Get(db, 1)
+	_, err = sPersonDao.Get(db, 1)
 	if err != nil {
 		b.Fatalf("get 2 failed: %v", err)
 	}
 
-	count, err = sPersonDao.Delete(db, 1)
+	_, err = sPersonDao.Delete(db, 1)
 	if err != nil {
 		b.Fatalf("delete failed: %v", err)
 	}
 
-	count, err = sPersonDao.Delete(db, 1)
+	count, err := sPersonDao.Delete(db, 1)
 	if err != nil {
 		b.Fatalf("delete 2 failed: %v", err)
 	}
 
-	person, err = sPersonDao.Get(db, 1)
+	person, err := sPersonDao.Get(db, 1)
 	if err != nil {
 		b.Fatalf("get 3 failed: %v", err)
 	}
