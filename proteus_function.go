@@ -12,9 +12,23 @@ import (
 	"github.com/jonbodner/stackerr"
 )
 
+type ErrorBehavior string
+
+const (
+	// (Default) proteus will do nothing the the query executor returns an error
+	DoNothing ErrorBehavior = "do_nothing"
+
+	// proteus will always panic when the query executor returns an error
+	PanicAlways ErrorBehavior = "panic_always"
+
+	// proteus will panic only if the calling function does not specify error in one of its return types
+	PanicWhenAbsent ErrorBehavior = "panic_if_absent"
+)
+
 type Builder struct {
-	adapter ParamAdapter
-	mappers []QueryMapper
+	adapter       ParamAdapter
+	mappers       []QueryMapper
+	errorBehavior ErrorBehavior
 }
 
 func NewBuilder(adapter ParamAdapter, mappers ...QueryMapper) Builder {

@@ -52,6 +52,12 @@ If the entity is a primitive, then the first value returned for a row must be of
 
 */
 
+type ContextKey string
+
+const (
+	ContextKeyErrorBehavior ContextKey = ContextKey("errorBehavior")
+)
+
 type Error struct {
 	FuncName      string
 	FieldOrder    int
@@ -352,7 +358,7 @@ func makeImplementation(c context.Context, funcType reflect.Type, query string, 
 	case fType.Implements(qType):
 		return makeQuerierImplementation(c, funcType, fixedQuery, paramOrder)
 	}
-	//this should impossible, since we already validated that the first parameter is either an executor or a querier
+	//this should be impossible, since we already validated that the first parameter is either an executor or a querier
 	return nil, stackerr.New("first parameter must be of type Executor or Querier")
 }
 

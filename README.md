@@ -216,6 +216,32 @@ func init() {
 	}
 }
 ```
+### Database error behavior configuration
+
+Having every DAO function returning an error can make things very cumbersone and repetitive quickly. Sometimes you just want to return a single value without having to check for errors because you are sure that any errors would be fatal, unrecoverable and require human intervention.
+
+```go
+type UserRepository struct {
+	Fetch () func (ctx context.Context, q ContextQuerier)[]*models.Users `proq:"select * from users"`
+}
+```
+The above struct works fine, but if the database throws an error, you won't be able to know. The following configurations will control the behavior of such scenarios.
+
+By passing the following values in the `context.Context` to the `ShouldBuild` function.
+
+```go
+c := context.WithValue(context.Background(), ContextKeyErrorBehavior, PanicAlways)
+ShouldBuild(c, &dao, Postgres)
+```
+
+**`ErrorBehavior` Values**:
+
+
+- `DoNothing` - proteus does not do anything when the underlying data source throws an error.
+- `PanicWhenAbsent` - proteus will `panic`, if the DAO function being called does not have the `error` return type.
+- `PanicAlways` - proteus will always `panic` if there is an error from the data source, whether or not the DAO function being called indicates an `error` return type.
+
+
 
 ## Struct Tags
 

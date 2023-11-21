@@ -3,12 +3,24 @@ package proteus
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
 )
+
+type faultyDb struct {
+}
+
+func (db *faultyDb) crash(query string) error {
+	return fmt.Errorf("error: %s", query)
+}
+
+func (db faultyDb) QueryContext(c context.Context, query string, args ...any) (*sql.Rows, error) {
+	return nil, db.crash(query)
+}
 
 func Test_getQArgs(t *testing.T) {
 	type args struct {
@@ -111,4 +123,65 @@ func Test_handleMapping(t *testing.T) {
 			t.Errorf("%q. handleMapping() = %v, want %v", tt.name, got, tt.want)
 		}
 	}
+}
+
+func Test_errorBehaviorDoNothing(t *testing.T) {
+	dao := struct {
+		Foo func(c context.Context, q ContextQuerier) (*sql.Rows, error) `proq:"drop table users"`
+	}{}
+
+	db := faultyDb{}
+
+	c := context.WithValue(context.Background(), ContextKeyErrorBehavior, DoNothing)
+	if err := ShouldBuild(c, &dao, Postgres); err != nil {
+		t.Fatal(err)
+		return
+	}
+	_, _ = dao.Foo(c, db)
+}
+
+func Test_errorBehaviorPanicAlways(t *testing.T) {
+	dao := struct {
+		Foo func(c context.Context, q ContextQuerier) (*sql.Rows, error) `proq:"drop table users"`
+	}{}
+
+	db := faultyDb{}
+
+	c := context.WithValue(context.Background(), ContextKeyErrorBehavior, PanicAlways)
+	if err := ShouldBuild(c, &dao, Postgres); err != nil {
+		t.Fatal(err)
+		return
+	}
+	recovery := func() {
+		err := recover()
+		t.Logf("This is a pass %s", err)
+	}
+	defer recovery()
+
+	_, _ = dao.Foo(c, db)
+
+	t.Fatalf("failed")
+}
+
+func Test_errorBehaviorPanicWhenAbsent(t *testing.T) {
+	dao := struct {
+		Foo func(c context.Context, q ContextQuerier) *sql.Rows `proq:"hot potato!"`
+	}{}
+
+	db := faultyDb{}
+
+	c := context.WithValue(context.Background(), ContextKeyErrorBehavior, PanicWhenAbsent)
+	if err := ShouldBuild(c, &dao, Postgres); err != nil {
+		t.Fatal(err)
+		return
+	}
+	recovery := func() {
+		err := recover()
+		t.Logf("This is a pass %s", err)
+	}
+	defer recovery()
+
+	_ = dao.Foo(c, db)
+
+	t.Fatalf("failed")
 }
