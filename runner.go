@@ -43,8 +43,16 @@ var (
 	sqlResultType = reflect.TypeOf((*sql.Result)(nil)).Elem()
 )
 
+func getErrorBehaviorFromContext(ctx context.Context) ErrorBehavior {
+	v := ctx.Value(ContextKeyErrorBehavior)
+	if v != nil {
+		return v.(ErrorBehavior)
+	}
+	return DoNothing
+}
+
 func makeContextExecutorImplementation(c context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) func(args []reflect.Value) []reflect.Value {
-	buildRetVals := makeExecutorReturnVals(funcType)
+	buildRetVals := makeExecutorReturnVals(funcType, getErrorBehaviorFromContext(c))
 	return func(args []reflect.Value) []reflect.Value {
 
 		executor := args[1].Interface().(ContextExecutor)
@@ -83,7 +91,7 @@ func makeContextExecutorImplementation(c context.Context, funcType reflect.Type,
 }
 
 func makeExecutorImplementation(c context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) func(args []reflect.Value) []reflect.Value {
-	buildRetVals := makeExecutorReturnVals(funcType)
+	buildRetVals := makeExecutorReturnVals(funcType, getErrorBehaviorFromContext(c))
 	return func(args []reflect.Value) []reflect.Value {
 
 		executor := args[0].Interface().(Executor)
@@ -108,12 +116,29 @@ func makeExecutorImplementation(c context.Context, funcType reflect.Type, query 
 	}
 }
 
-func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []reflect.Value {
+// Checks if query executor returns an error and handles the case appropriately
+// based on configured behavior
+func checkError(err error, behavior ErrorBehavior, isAbsent bool) {
+	if err != nil {
+		switch behavior {
+		case DoNothing:
+		case PanicAlways:
+			panic(stackerr.Wrap(err))
+		case PanicWhenAbsent:
+			if isAbsent {
+				panic(stackerr.Wrap(err))
+			}
+		}
+	}
+}
+
+func makeExecutorReturnVals(funcType reflect.Type, errorBehavior ErrorBehavior) func(sql.Result, error) []reflect.Value {
 	numOut := funcType.NumOut()
 
 	//handle the 0,1,2 out parameter cases
 	if numOut == 0 {
-		return func(sql.Result, error) []reflect.Value {
+		return func(_ sql.Result, err error) []reflect.Value {
+			checkError(err, errorBehavior, true)
 			return []reflect.Value{}
 		}
 	}
@@ -121,6 +146,8 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 	sType := funcType.Out(0)
 	if numOut == 1 {
 		return func(result sql.Result, err error) []reflect.Value {
+			// (sType == errType) in case error is the only single return value
+			checkError(err, errorBehavior, sType != errType)
 			if err != nil {
 				if sType == sqlResultType {
 					return []reflect.Value{zeroSQLResult}
@@ -131,6 +158,7 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 				return []reflect.Value{reflect.ValueOf(result)}
 			}
 			val, err := result.RowsAffected()
+			checkError(err, errorBehavior, sType != errType)
 			if err != nil {
 				return []reflect.Value{zeroInt64}
 			}
@@ -140,6 +168,7 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 	if numOut == 2 {
 		return func(result sql.Result, err error) []reflect.Value {
 			eType := funcType.Out(1)
+			checkError(err, errorBehavior, false)
 			if sType == sqlResultType {
 				if err != nil {
 					return []reflect.Value{zeroSQLResult, reflect.ValueOf(err).Convert(eType)}
@@ -150,6 +179,7 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 				return []reflect.Value{zeroInt64, reflect.ValueOf(err).Convert(eType)}
 			}
 			val, err := result.RowsAffected()
+			checkError(err, errorBehavior, false)
 			if err != nil {
 				return []reflect.Value{zeroInt64, reflect.ValueOf(err).Convert(eType)}
 			}
@@ -279,9 +309,12 @@ func makeQuerierImplementation(c context.Context, funcType reflect.Type, query q
 func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder mapper.Builder) func(*sql.Rows, error) []reflect.Value {
 	numOut := funcType.NumOut()
 
+	errorBehavior := getErrorBehaviorFromContext(c)
+
 	//handle the 0,1,2 out parameter cases
 	if numOut == 0 {
-		return func(*sql.Rows, error) []reflect.Value {
+		return func(_ *sql.Rows, err error) []reflect.Value {
+			checkError(err, errorBehavior, true)
 			return []reflect.Value{}
 		}
 	}
@@ -290,6 +323,7 @@ func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder map
 	qZero := reflect.Zero(sType)
 	if numOut == 1 {
 		return func(rows *sql.Rows, err error) []reflect.Value {
+			checkError(err, errorBehavior, sType != errType)
 			if err != nil {
 				return []reflect.Value{qZero}
 			}
@@ -307,6 +341,7 @@ func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder map
 	if numOut == 2 {
 		return func(rows *sql.Rows, err error) []reflect.Value {
 			eType := funcType.Out(1)
+			checkError(err, errorBehavior, false)
 			if err != nil {
 				return []reflect.Value{qZero, reflect.ValueOf(err).Convert(eType)}
 			}
