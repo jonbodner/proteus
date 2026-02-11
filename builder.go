@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"go/scanner"
 	"go/token"
+	"log/slog"
 	"reflect"
 	"strings"
 	"text/template"
 
 	"database/sql/driver"
 
-	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
 	"github.com/jonbodner/stackerr"
 )
@@ -248,7 +248,7 @@ func validIdentifier(ctx context.Context, curVar string) (string, error) {
 loop:
 	for {
 		pos, tok, lit := s.Scan()
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintf("%s\t%s\t%q\n", fset.Position(pos), tok, lit))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintf("%s\t%s\t%q\n", fset.Position(pos), tok, lit))
 		switch tok {
 		case token.EOF:
 			if first || lastPeriod {

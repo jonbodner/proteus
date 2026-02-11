@@ -3,12 +3,12 @@ package proteus
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 
 	"database/sql"
 
-	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
 	"github.com/jonbodner/stackerr"
 )
@@ -50,18 +50,6 @@ func makeContextExecutorImplementation(ctx context.Context, funcType reflect.Typ
 		executor := args[1].Interface().(ContextExecutor)
 		ctx := args[0].Interface().(context.Context)
 
-		// if the passed-in context doesn't contain any logging settings, use the one that were supplied
-		// at build time
-		if _, ok := logger.LevelFromContext(ctx); !ok {
-			if defaultLevel, ok := logger.LevelFromContext(ctx); ok {
-				ctx = logger.WithLevel(ctx, defaultLevel)
-			}
-		}
-		// copy over any logging values that were supplied at build time
-		if defaultVals, ok := logger.ValuesFromContext(ctx); ok {
-			ctx = logger.WithValues(ctx, defaultVals...)
-		}
-
 		var result sql.Result
 		finalQuery, err := query.finalize(ctx, args)
 
@@ -75,7 +63,7 @@ func makeContextExecutorImplementation(ctx context.Context, funcType reflect.Typ
 			return buildRetVals(result, err)
 		}
 
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 		result, err = executor.ExecContext(ctx, finalQuery, queryArgs...)
 
 		return buildRetVals(result, err)
@@ -101,7 +89,7 @@ func makeExecutorImplementation(ctx context.Context, funcType reflect.Type, quer
 			return buildRetVals(result, err)
 		}
 
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 		result, err = executor.Exec(finalQuery, queryArgs...)
 
 		return buildRetVals(result, err)
@@ -182,18 +170,6 @@ func makeContextQuerierImplementation(ctx context.Context, funcType reflect.Type
 		querier := args[1].Interface().(ContextQuerier)
 		ctx := args[0].Interface().(context.Context)
 
-		// if the passed-in context doesn't contain any logging settings, use the one that were supplied
-		// at build time
-		if _, ok := logger.LevelFromContext(ctx); !ok {
-			if defaultLevel, ok := logger.LevelFromContext(ctx); ok {
-				ctx = logger.WithLevel(ctx, defaultLevel)
-			}
-		}
-		// copy over any logging values that were supplied at build time
-		if defaultVals, ok := logger.ValuesFromContext(ctx); ok {
-			ctx = logger.WithValues(ctx, defaultVals...)
-		}
-
 		var rows *sql.Rows
 		finalQuery, err := query.finalize(ctx, args)
 		if err != nil {
@@ -205,7 +181,7 @@ func makeContextQuerierImplementation(ctx context.Context, funcType reflect.Type
 			return buildRetVals(rows, err)
 		}
 
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 		// going to work around the defective Go MySQL driver, which refuses to convert the text protocol properly.
 		// It is used when doing a query without parameters.
 		if len(queryArgs) == 0 {
@@ -253,7 +229,7 @@ func makeQuerierImplementation(ctx context.Context, funcType reflect.Type, query
 			return buildRetVals(rows, err)
 		}
 
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 		// going to work around the defective Go MySQL driver, which refuses to convert the text protocol properly.
 		// It is used when doing a query without parameters.
 		if len(queryArgs) == 0 {
@@ -397,7 +373,7 @@ func mapRows(ctx context.Context, rows *sql.Rows, builder mapper.Builder) (inter
 
 	err = rows.Scan(vals...)
 	if err != nil {
-		logger.Log(ctx, logger.WARN, "scan failed")
+		slog.Log(ctx, slog.LevelWarn, "scan failed")
 		return nil, err
 	}
 

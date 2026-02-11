@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 
-	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
 	"github.com/jonbodner/stackerr"
 )
@@ -25,13 +25,6 @@ func NewBuilder(adapter ParamAdapter, mappers ...QueryMapper) Builder {
 }
 
 func (fb Builder) BuildFunction(ctx context.Context, f interface{}, query string, names []string) error {
-	//if log level is set and not in the context, use it
-	if _, ok := logger.LevelFromContext(ctx); !ok && l != logger.OFF {
-		rw.RLock()
-		ctx = logger.WithLevel(ctx, l)
-		rw.RUnlock()
-	}
-
 	// make sure that f is of the right type (pointer to function)
 	funcPointerType := reflect.TypeOf(f)
 	//must be a pointer to func
@@ -101,31 +94,17 @@ func (fb Builder) Exec(ctx context.Context, e ContextExecutor, query string, par
 }
 
 func (fb Builder) ExecResult(ctx context.Context, e ContextExecutor, query string, params map[string]interface{}) (sql.Result, error) {
-	//if log level is set and not in the context, use it
-	if _, ok := logger.LevelFromContext(ctx); !ok && l != logger.OFF {
-		rw.RLock()
-		ctx = logger.WithLevel(ctx, l)
-		rw.RUnlock()
-	}
-
 	finalQuery, queryArgs, err := fb.setupDynamicQueries(ctx, query, params)
 	if err != nil {
 		return nil, err
 	}
 
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 	result, err := e.ExecContext(ctx, finalQuery, queryArgs...)
 	return result, err
 }
 
 func (fb Builder) Query(ctx context.Context, q ContextQuerier, query string, params map[string]interface{}, output interface{}) error {
-	//if log level is set and not in the context, use it
-	if _, ok := logger.LevelFromContext(ctx); !ok && l != logger.OFF {
-		rw.RLock()
-		ctx = logger.WithLevel(ctx, l)
-		rw.RUnlock()
-	}
-
 	// make sure that output is a pointer to something
 	outputPointerType := reflect.TypeOf(output)
 	if outputPointerType.Kind() != reflect.Ptr {
@@ -137,7 +116,7 @@ func (fb Builder) Query(ctx context.Context, q ContextQuerier, query string, par
 		return err
 	}
 
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 	rows, err := q.QueryContext(ctx, finalQuery, queryArgs...)
 	if err != nil {
 		return err

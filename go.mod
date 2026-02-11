@@ -11,13 +11,9 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/pkg/profile v1.7.0
 	github.com/rickar/props v1.0.0
-	github.com/sirupsen/logrus v1.9.0
 )
 
 require (
 	github.com/felixge/fgprof v0.9.3 // indirect
 	github.com/google/pprof v0.0.0-20230429030804-905365eefe3e // indirect
-	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
-	github.com/stretchr/testify v1.8.0 // indirect
-	golang.org/x/sys v0.7.0 // indirect
 )

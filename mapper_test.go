@@ -4,22 +4,21 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"reflect"
 	"testing"
 
 	"github.com/jonbodner/proteus/cmp"
-	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
 	"github.com/jonbodner/stackerr"
 )
 
 func TestMapRows(t *testing.T) {
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	ctx := context.Background()
 	//todo
-	b, _ := mapper.MakeBuilder(c, reflect.TypeOf(10))
-	v, err := mapRows(c, nil, b)
+	b, _ := mapper.MakeBuilder(ctx, reflect.TypeOf(10))
+	v, err := mapRows(ctx, nil, b)
 	if v != nil {
 		t.Error("Expected nil when passing in nil rows")
 	}
@@ -30,13 +29,15 @@ func TestMapRows(t *testing.T) {
 }
 
 func setupDb(t *testing.T) *sql.DB {
+	ctx := context.Background()
 	if testing.Short() {
 		t.Skip("skipping postgres test in short mode")
 	}
 
 	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 	sqlStmt := `
 		drop table if exists product; 
@@ -44,18 +45,20 @@ func setupDb(t *testing.T) *sql.DB {
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		log.Fatalf("%q: %s\n", err, sqlStmt)
-		panic(err)
+		slog.Log(ctx, slog.LevelError, "err", "error", slog.AnyValue(err), "query", slog.StringValue(sqlStmt))
+		t.FailNow()
 	}
 
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 	defer tx.Commit()
 	stmt, err := tx.Prepare("insert into product(id, name, cost) values($1, $2, $3)")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 	defer stmt.Close()
 	for i := 0; i < 5; i++ {
@@ -66,7 +69,8 @@ func setupDb(t *testing.T) *sql.DB {
 		}
 		_, err = stmt.Exec(i, name, 1.1*float64(i))
 		if err != nil {
-			log.Fatal(err)
+			slog.Error("err", "error", slog.AnyValue(err))
+			t.FailNow()
 		}
 	}
 	return db
@@ -85,14 +89,15 @@ func TestBuildStruct(t *testing.T) {
 
 	rows, err := db.Query("select id, name, cost from product")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 	defer rows.Close()
 	pType := reflect.TypeOf((*Product)(nil)).Elem()
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	b, _ := mapper.MakeBuilder(c, pType)
+	ctx := context.Background()
+	b, _ := mapper.MakeBuilder(ctx, pType)
 	for i := 0; i < 5; i++ {
-		prod, err := mapRows(c, rows, b)
+		prod, err := mapRows(ctx, rows, b)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +130,7 @@ func TestBuildStruct(t *testing.T) {
 	if rows.Next() {
 		t.Error("Expected no more rows, but had some")
 	}
-	prod, err := mapRows(c, rows, b)
+	prod, err := mapRows(ctx, rows, b)
 	if prod != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
@@ -138,18 +143,20 @@ func TestBuildPrimitive(t *testing.T) {
 	//primitive
 	stmt, err := db.Prepare("select name from product where id = $1")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query("4")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 	sType := reflect.TypeOf("")
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	b, _ := mapper.MakeBuilder(c, sType)
-	s, err := mapRows(c, rows, b)
+	ctx := context.Background()
+	b, _ := mapper.MakeBuilder(ctx, sType)
+	s, err := mapRows(ctx, rows, b)
 	if err != nil {
 		t.Error(err)
 	}
@@ -164,14 +171,15 @@ func TestBuildPrimitive(t *testing.T) {
 		t.Errorf("Expected %s, got %s", "person4", s2)
 	}
 
-	s, err = mapRows(c, rows, b)
+	s, err = mapRows(ctx, rows, b)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
 
 	_, err = db.Exec("delete from product")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 }
 
@@ -182,18 +190,20 @@ func TestBuildPrimitiveNilFail(t *testing.T) {
 	//primitive
 	stmt, err := db.Prepare("select name from product where id = $1")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query("3")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 	sType := reflect.TypeOf("")
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	b, _ := mapper.MakeBuilder(c, sType)
-	_, err = mapRows(c, rows, b)
+	ctx := context.Background()
+	b, _ := mapper.MakeBuilder(ctx, sType)
+	_, err = mapRows(ctx, rows, b)
 	if err == nil {
 		t.Error("Expected error didn't get one")
 	}
@@ -201,14 +211,15 @@ func TestBuildPrimitiveNilFail(t *testing.T) {
 		t.Errorf("Expected error message '%s', got '%s'", "attempting to return nil for non-pointer type string", err.Error())
 	}
 
-	s, err := mapRows(c, rows, b)
+	s, err := mapRows(ctx, rows, b)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
 
 	_, err = db.Exec("delete from product")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 }
 
@@ -219,18 +230,20 @@ func TestBuildPrimitivePtr(t *testing.T) {
 	//primitive
 	stmt, err := db.Prepare("select name from product where id = $1")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query("4")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 	sType := reflect.TypeOf((*string)(nil))
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	b, _ := mapper.MakeBuilder(c, sType)
-	s, err := mapRows(c, rows, b)
+	ctx := context.Background()
+	b, _ := mapper.MakeBuilder(ctx, sType)
+	s, err := mapRows(ctx, rows, b)
 	if err != nil {
 		t.Error(err)
 	}
@@ -246,14 +259,15 @@ func TestBuildPrimitivePtr(t *testing.T) {
 		}
 	}
 
-	s, err = mapRows(c, rows, b)
+	s, err = mapRows(ctx, rows, b)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
 
 	_, err = db.Exec("delete from product")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 }
 
@@ -264,18 +278,20 @@ func TestBuildPrimitivePtrNil(t *testing.T) {
 	//primitive
 	stmt, err := db.Prepare("select name from product where id = $1")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query("3")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 	sType := reflect.TypeOf((*string)(nil))
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	b, _ := mapper.MakeBuilder(c, sType)
-	s, err := mapRows(c, rows, b)
+	ctx := context.Background()
+	b, _ := mapper.MakeBuilder(ctx, sType)
+	s, err := mapRows(ctx, rows, b)
 	if err != nil {
 		t.Error(err)
 	}
@@ -288,14 +304,15 @@ func TestBuildPrimitivePtrNil(t *testing.T) {
 		}
 	}
 
-	s, err = mapRows(c, rows, b)
+	s, err = mapRows(ctx, rows, b)
 	if s != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
 
 	_, err = db.Exec("delete from product")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 }
 
@@ -305,17 +322,18 @@ func TestBuildMap(t *testing.T) {
 
 	rows, err := db.Query("select id, name, cost from product")
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 	defer rows.Close()
 
 	var m map[string]interface{}
 
 	mType := reflect.TypeOf(m)
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	b, _ := mapper.MakeBuilder(c, mType)
+	ctx := context.Background()
+	b, _ := mapper.MakeBuilder(ctx, mType)
 	for i := 0; i < 5; i++ {
-		prod, err := mapRows(c, rows, b)
+		prod, err := mapRows(ctx, rows, b)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -363,7 +381,7 @@ func TestBuildMap(t *testing.T) {
 	if rows.Next() {
 		t.Error("Expected no more rows, but had some")
 	}
-	prod, err := mapRows(c, rows, b)
+	prod, err := mapRows(ctx, rows, b)
 	if prod != nil || err != nil {
 		t.Error("Expected to be at end, but wasn't")
 	}
