@@ -4,14 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"math"
+	"os"
 	"time"
 
 	"github.com/jonbodner/proteus"
 	"github.com/jonbodner/stackerr"
 	_ "github.com/lib/pq"
 	"github.com/pkg/profile"
-	log "github.com/sirupsen/logrus"
 )
 
 func SelectProteus(ctx context.Context, db *sql.DB) time.Duration {
@@ -122,7 +123,8 @@ func setupDbPostgres(ctx context.Context) *sql.DB {
 	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("error", "err", slog.AnyValue(err))
+		os.Exit(1)
 	}
 	sqlStmt := `
 	drop table if exists product;
@@ -130,7 +132,7 @@ func setupDbPostgres(ctx context.Context) *sql.DB {
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		log.Fatalf("%q: %s\n", err, sqlStmt)
+		slog.Error("error", "err", slog.AnyValue(err), "statement", slog.StringValue(sqlStmt))
 		return nil
 	}
 	populate(ctx, db)
@@ -142,7 +144,8 @@ func populate(ctx context.Context, db *sql.DB) {
 	proteus.Build(&productDao, proteus.Postgres)
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("error", "err", slog.AnyValue(err))
+		os.Exit(1)
 	}
 	defer tx.Commit()
 
@@ -154,8 +157,9 @@ func populate(ctx context.Context, db *sql.DB) {
 		}
 		rowCount, err := productDao.Insert(ctx, tx, i, fmt.Sprintf("person%d", i), cost)
 		if err != nil {
-			log.Fatal(err)
+			slog.Error("error", "err", slog.AnyValue(err))
+			os.Exit(1)
 		}
-		log.Debug(rowCount)
+		slog.Debug("rowCount", "rowCount", rowCount)
 	}
 }

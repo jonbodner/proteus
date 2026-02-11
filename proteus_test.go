@@ -12,7 +12,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	pcmp "github.com/jonbodner/proteus/cmp"
-	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/stackerr"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -20,7 +19,7 @@ import (
 )
 
 func TestValidIdentifier(t *testing.T) {
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	ctx := context.Background()
 	values := map[string]bool{
 		"a":             true,
 		"main":          true,
@@ -37,7 +36,7 @@ func TestValidIdentifier(t *testing.T) {
 		"a.b //comment": true, //yeah, we can do comments
 	}
 	for k, v := range values {
-		if _, err := validIdentifier(c, k); v != (err == nil) {
+		if _, err := validIdentifier(ctx, k); v != (err == nil) {
 			t.Errorf("failed for %s == %v ", k, v)
 		}
 	}
@@ -117,12 +116,12 @@ func TestConvertToPositionalParameters(t *testing.T) {
 		},
 	}
 
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	ctx := context.Background()
 	for k, v := range values {
-		q, qps, err := buildFixedQueryAndParamOrder(c, k, v.paramMap, v.funcType, MySQL)
+		q, qps, err := buildFixedQueryAndParamOrder(ctx, k, v.paramMap, v.funcType, MySQL)
 		var qSimple string
 		if err == nil {
-			qSimple, _ = q.finalize(c, nil)
+			qSimple, _ = q.finalize(ctx, nil)
 		}
 		if qSimple != v.query || !reflect.DeepEqual(qps, v.qps) || !pcmp.Errors(err, v.err) {
 			t.Errorf("failed for %s -> %#v: %v", k, v, err)
@@ -279,8 +278,8 @@ func TestNilScanner(t *testing.T) {
 
 	doTest := func(t *testing.T, setup setup, create string) {
 		productDao := ScannerProductDao{}
-		c := logger.WithLevel(context.Background(), logger.DEBUG)
-		db, err := setup(c, &productDao)
+		ctx := context.Background()
+		db, err := setup(ctx, &productDao)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -321,10 +320,10 @@ func TestNilScanner(t *testing.T) {
 	})
 }
 
-type setup func(c context.Context, dao interface{}) (*sql.DB, error)
+type setup func(ctx context.Context, dao interface{}) (*sql.DB, error)
 
-func setupPostgres(c context.Context, dao interface{}) (*sql.DB, error) {
-	err := ShouldBuild(c, dao, Postgres)
+func setupPostgres(ctx context.Context, dao interface{}) (*sql.DB, error) {
+	err := ShouldBuild(ctx, dao, Postgres)
 	if err != nil {
 		return nil, err
 	}
@@ -336,8 +335,8 @@ func setupPostgres(c context.Context, dao interface{}) (*sql.DB, error) {
 	return db, err
 }
 
-func setupMySQL(c context.Context, dao interface{}) (*sql.DB, error) {
-	err := ShouldBuild(c, dao, MySQL)
+func setupMySQL(ctx context.Context, dao interface{}) (*sql.DB, error) {
+	err := ShouldBuild(ctx, dao, MySQL)
 	if err != nil {
 		return nil, err
 	}
@@ -365,8 +364,8 @@ func TestNoParams(t *testing.T) {
 
 	doTest := func(t *testing.T, setup setup, create string) {
 		productDao := ScannerProductDao{}
-		c := logger.WithLevel(context.Background(), logger.DEBUG)
-		db, err := setup(c, &productDao)
+		ctx := context.Background()
+		db, err := setup(ctx, &productDao)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -574,8 +573,8 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 
 	doTest := func(t *testing.T, setup setup, create string) {
 		productDao := ProductDao{}
-		c := logger.WithLevel(context.Background(), logger.DEBUG)
-		db, err := setup(c, &productDao)
+		ctx := context.Background()
+		db, err := setup(ctx, &productDao)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -653,8 +652,8 @@ func TestPositionalVariables(t *testing.T) {
 	}
 
 	productDao := ProductDao{}
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Postgres)
+	ctx := context.Background()
+	err := ShouldBuild(ctx, &productDao, Postgres)
 	if err != nil {
 		t.Error(err)
 	}
@@ -675,8 +674,8 @@ func TestVariableMultipleUsage(t *testing.T) {
 
 	doTest := func(t *testing.T, setup setup, create string) {
 		productDao := ProductDao{}
-		c := logger.WithLevel(context.Background(), logger.DEBUG)
-		db, err := setup(c, &productDao)
+		ctx := context.Background()
+		db, err := setup(ctx, &productDao)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -725,8 +724,8 @@ func TestShouldBuild(t *testing.T) {
 	}
 
 	productDao := ProductDao{}
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
-	err := ShouldBuild(c, &productDao, Postgres)
+	ctx := context.Background()
+	err := ShouldBuild(ctx, &productDao, Postgres)
 	if err == nil {
 		t.Fatal("This should have errors")
 	}
@@ -749,7 +748,7 @@ func TestShouldBuild(t *testing.T) {
 	}
 
 	productDao2 := ProductDao2{}
-	err2 := ShouldBuild(c, &productDao2, Postgres)
+	err2 := ShouldBuild(ctx, &productDao2, Postgres)
 	if err2 == nil {
 		t.Error(err2)
 	}
@@ -777,8 +776,8 @@ func TestShouldBuildEmbedded(t *testing.T) {
 
 	doTest := func(t *testing.T, setup setup, create string) {
 		productDao := ProductDao{}
-		c := logger.WithLevel(context.Background(), logger.DEBUG)
-		db, err := setup(c, &productDao)
+		ctx := context.Background()
+		db, err := setup(ctx, &productDao)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -833,9 +832,9 @@ func TestShouldBinaryColumn(t *testing.T) {
 
 	doTest := func(t *testing.T, setup setup, create string) {
 		productDao := ProductDao{}
-		c := logger.WithLevel(context.Background(), logger.DEBUG)
+		ctx := context.Background()
 
-		db, err := setup(c, &productDao)
+		db, err := setup(ctx, &productDao)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -894,9 +893,9 @@ func TestShouldTimeColumn(t *testing.T) {
 
 	doTest := func(t *testing.T, setup setup, create string) {
 		productDao := ProductDao{}
-		c := logger.WithLevel(context.Background(), logger.DEBUG)
+		ctx := context.Background()
 
-		db, err := setup(c, &productDao)
+		db, err := setup(ctx, &productDao)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -961,9 +960,9 @@ func TestArray(t *testing.T) {
 
 	doTest := func(t *testing.T, setup setup, create string) {
 		productDao := ProductDao{}
-		c := logger.WithLevel(context.Background(), logger.DEBUG)
+		ctx := context.Background()
 
-		db, err := setup(c, &productDao)
+		db, err := setup(ctx, &productDao)
 		if err != nil {
 			t.Fatalf("%+v\n", err)
 		}
@@ -1044,9 +1043,9 @@ func TestNested(t *testing.T) {
 
 	doTest := func(t *testing.T, setup setup, create string) {
 		personDao := PersonDao{}
-		c := logger.WithLevel(context.Background(), logger.DEBUG)
+		ctx := context.Background()
 
-		db, err := setup(c, &personDao)
+		db, err := setup(ctx, &personDao)
 		if err != nil {
 			t.Fatalf("%+v\n", errors.Unwrap(err))
 		}

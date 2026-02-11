@@ -1,6 +1,6 @@
 module github.com/jonbodner/proteus
 
-go 1.19
+go 1.25
 
 require (
 	github.com/go-sql-driver/mysql v1.5.0
@@ -11,11 +11,9 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/pkg/profile v1.7.0
 	github.com/rickar/props v1.0.0
-	github.com/sirupsen/logrus v1.9.1
 )
 
 require (
 	github.com/felixge/fgprof v0.9.3 // indirect
 	github.com/google/pprof v0.0.0-20230429030804-905365eefe3e // indirect
-	golang.org/x/sys v0.7.0 // indirect
 )

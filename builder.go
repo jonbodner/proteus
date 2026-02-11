@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"go/scanner"
 	"go/token"
+	"log/slog"
 	"reflect"
 	"strings"
 	"text/template"
 
 	"database/sql/driver"
 
-	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
 	"github.com/jonbodner/stackerr"
 )
@@ -36,12 +36,12 @@ func buildDummyParameters(paramCount int, startPos int) map[string]int {
 
 // template slice support
 type queryHolder interface {
-	finalize(c context.Context, args []reflect.Value) (string, error)
+	finalize(ctx context.Context, args []reflect.Value) (string, error)
 }
 
 type simpleQueryHolder string
 
-func (sq simpleQueryHolder) finalize(c context.Context, args []reflect.Value) (string, error) {
+func (sq simpleQueryHolder) finalize(ctx context.Context, args []reflect.Value) (string, error) {
 	return string(sq), nil
 }
 
@@ -51,8 +51,8 @@ type templateQueryHolder struct {
 	paramOrder  []paramInfo
 }
 
-func (tq templateQueryHolder) finalize(c context.Context, args []reflect.Value) (string, error) {
-	return doFinalize(c, tq.queryString, tq.paramOrder, tq.pa, args)
+func (tq templateQueryHolder) finalize(ctx context.Context, args []reflect.Value) (string, error) {
+	return doFinalize(ctx, tq.queryString, tq.paramOrder, tq.pa, args)
 }
 
 var (
@@ -63,7 +63,7 @@ type posType interface {
 	In(i int) reflect.Type
 }
 
-func buildFixedQueryAndParamOrder(c context.Context, query string, nameOrderMap map[string]int, funcType posType, pa ParamAdapter) (queryHolder, []paramInfo, error) {
+func buildFixedQueryAndParamOrder(ctx context.Context, query string, nameOrderMap map[string]int, funcType posType, pa ParamAdapter) (queryHolder, []paramInfo, error) {
 	var out bytes.Buffer
 
 	var paramOrder []paramInfo
@@ -91,7 +91,7 @@ func buildFixedQueryAndParamOrder(c context.Context, query string, nameOrderMap 
 					return nil, nil, stackerr.Errorf("empty variable declaration at position %d", k)
 				}
 				curVarS := string(curVar)
-				id, err := validIdentifier(c, curVarS)
+				id, err := validIdentifier(ctx, curVarS)
 				if err != nil {
 					//error, identifier must be valid go identifier with . for path
 					return nil, nil, err
@@ -117,7 +117,7 @@ func buildFixedQueryAndParamOrder(c context.Context, query string, nameOrderMap 
 							return nil, nil, stackerr.Errorf("query Parameter %s has a path, but the incoming parameter is not a map or a struct", paramName)
 						}
 					}
-					pathType, err := mapper.ExtractType(c, paramType, path)
+					pathType, err := mapper.ExtractType(ctx, paramType, path)
 					if err != nil {
 						return nil, nil, err
 					}
@@ -154,7 +154,7 @@ func buildFixedQueryAndParamOrder(c context.Context, query string, nameOrderMap 
 
 	if !hasSlice {
 		//no slices, so last param is never going to be referenced in doFinalize
-		queryString, err := doFinalize(c, queryString, paramOrder, pa, nil)
+		queryString, err := doFinalize(ctx, queryString, paramOrder, pa, nil)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -163,7 +163,7 @@ func buildFixedQueryAndParamOrder(c context.Context, query string, nameOrderMap 
 	return templateQueryHolder{queryString: queryString, pa: pa, paramOrder: paramOrder}, paramOrder, nil
 }
 
-func doFinalize(c context.Context, queryString string, paramOrder []paramInfo, pa ParamAdapter, args []reflect.Value) (string, error) {
+func doFinalize(ctx context.Context, queryString string, paramOrder []paramInfo, pa ParamAdapter, args []reflect.Value) (string, error) {
 	temp, err := template.New("query").Funcs(template.FuncMap{"join": joinFactory(1, pa)}).Parse(queryString)
 	if err != nil {
 		return "", err
@@ -174,7 +174,7 @@ func doFinalize(c context.Context, queryString string, paramOrder []paramInfo, p
 	for _, v := range paramOrder {
 		if v.isSlice {
 			var val interface{}
-			val, err = mapper.Extract(c, args[v.posInParams].Interface(), strings.Split(v.name, "."))
+			val, err = mapper.Extract(ctx, args[v.posInParams].Interface(), strings.Split(v.name, "."))
 			if err != nil {
 				break
 			}
@@ -229,7 +229,7 @@ func addSlice(sliceName string) string {
 	return fmt.Sprintf(sliceTemplate, fixNameForTemplate(sliceName))
 }
 
-func validIdentifier(c context.Context, curVar string) (string, error) {
+func validIdentifier(ctx context.Context, curVar string) (string, error) {
 	if strings.Contains(curVar, ";") {
 		return "", stackerr.Errorf("; is not allowed in an identifier: %s", curVar)
 	}
@@ -248,7 +248,7 @@ func validIdentifier(c context.Context, curVar string) (string, error) {
 loop:
 	for {
 		pos, tok, lit := s.Scan()
-		logger.Log(c, logger.DEBUG, fmt.Sprintf("%s\t%s\t%q\n", fset.Position(pos), tok, lit))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintf("%s\t%s\t%q\n", fset.Position(pos), tok, lit))
 		switch tok {
 		case token.EOF:
 			if first || lastPeriod {

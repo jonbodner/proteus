@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 
-	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
 	"github.com/jonbodner/stackerr"
 )
@@ -24,14 +24,7 @@ func NewBuilder(adapter ParamAdapter, mappers ...QueryMapper) Builder {
 	}
 }
 
-func (fb Builder) BuildFunction(c context.Context, f interface{}, query string, names []string) error {
-	//if log level is set and not in the context, use it
-	if _, ok := logger.LevelFromContext(c); !ok && l != logger.OFF {
-		rw.RLock()
-		c = logger.WithLevel(c, l)
-		rw.RUnlock()
-	}
-
+func (fb Builder) BuildFunction(ctx context.Context, f interface{}, query string, names []string) error {
 	// make sure that f is of the right type (pointer to function)
 	funcPointerType := reflect.TypeOf(f)
 	//must be a pointer to func
@@ -67,7 +60,7 @@ func (fb Builder) BuildFunction(c context.Context, f interface{}, query string, 
 		return err
 	}
 
-	implementation, err := makeImplementation(c, funcType, query, fb.adapter, nameOrderMap)
+	implementation, err := makeImplementation(ctx, funcType, query, fb.adapter, nameOrderMap)
 	if err != nil {
 		return err
 	}
@@ -91,8 +84,8 @@ func (st sliceTypes) In(i int) reflect.Type {
 	return st[i]
 }
 
-func (fb Builder) Exec(c context.Context, e ContextExecutor, query string, params map[string]interface{}) (int64, error) {
-	result, err := fb.ExecResult(c, e, query, params)
+func (fb Builder) Exec(ctx context.Context, e ContextExecutor, query string, params map[string]interface{}) (int64, error) {
+	result, err := fb.ExecResult(ctx, e, query, params)
 	if err != nil {
 		return 0, err
 	}
@@ -100,57 +93,43 @@ func (fb Builder) Exec(c context.Context, e ContextExecutor, query string, param
 	return count, err
 }
 
-func (fb Builder) ExecResult(c context.Context, e ContextExecutor, query string, params map[string]interface{}) (sql.Result, error) {
-	//if log level is set and not in the context, use it
-	if _, ok := logger.LevelFromContext(c); !ok && l != logger.OFF {
-		rw.RLock()
-		c = logger.WithLevel(c, l)
-		rw.RUnlock()
-	}
-
-	finalQuery, queryArgs, err := fb.setupDynamicQueries(c, query, params)
+func (fb Builder) ExecResult(ctx context.Context, e ContextExecutor, query string, params map[string]interface{}) (sql.Result, error) {
+	finalQuery, queryArgs, err := fb.setupDynamicQueries(ctx, query, params)
 	if err != nil {
 		return nil, err
 	}
 
-	logger.Log(c, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
-	result, err := e.ExecContext(c, finalQuery, queryArgs...)
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+	result, err := e.ExecContext(ctx, finalQuery, queryArgs...)
 	return result, err
 }
 
-func (fb Builder) Query(c context.Context, q ContextQuerier, query string, params map[string]interface{}, output interface{}) error {
-	//if log level is set and not in the context, use it
-	if _, ok := logger.LevelFromContext(c); !ok && l != logger.OFF {
-		rw.RLock()
-		c = logger.WithLevel(c, l)
-		rw.RUnlock()
-	}
-
+func (fb Builder) Query(ctx context.Context, q ContextQuerier, query string, params map[string]interface{}, output interface{}) error {
 	// make sure that output is a pointer to something
 	outputPointerType := reflect.TypeOf(output)
 	if outputPointerType.Kind() != reflect.Ptr {
 		return stackerr.New("not a pointer")
 	}
 
-	finalQuery, queryArgs, err := fb.setupDynamicQueries(c, query, params)
+	finalQuery, queryArgs, err := fb.setupDynamicQueries(ctx, query, params)
 	if err != nil {
 		return err
 	}
 
-	logger.Log(c, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
-	rows, err := q.QueryContext(c, finalQuery, queryArgs...)
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+	rows, err := q.QueryContext(ctx, finalQuery, queryArgs...)
 	if err != nil {
 		return err
 	}
 
 	sType := outputPointerType.Elem()
 	qZero := reflect.Zero(sType)
-	builder, err := mapper.MakeBuilder(c, sType)
+	builder, err := mapper.MakeBuilder(ctx, sType)
 	if err != nil {
 		return err
 	}
 
-	val, err := handleMapping(c, sType, rows, builder)
+	val, err := handleMapping(ctx, sType, rows, builder)
 	if err != nil {
 		return err
 	}
@@ -164,7 +143,7 @@ func (fb Builder) Query(c context.Context, q ContextQuerier, query string, param
 	return nil
 }
 
-func (fb Builder) setupDynamicQueries(c context.Context, query string, paramsAndNames map[string]interface{}) (string, []interface{}, error) {
+func (fb Builder) setupDynamicQueries(ctx context.Context, query string, paramsAndNames map[string]interface{}) (string, []interface{}, error) {
 	params := make([]interface{}, 0, len(paramsAndNames))
 	names := make([]string, 0, len(paramsAndNames))
 	for k, v := range paramsAndNames {
@@ -187,17 +166,17 @@ func (fb Builder) setupDynamicQueries(c context.Context, query string, paramsAnd
 		args = append(args, reflect.ValueOf(v))
 	}
 
-	fixedQuery, paramOrder, err := buildFixedQueryAndParamOrder(c, query, nameOrderMap, st, fb.adapter)
+	fixedQuery, paramOrder, err := buildFixedQueryAndParamOrder(ctx, query, nameOrderMap, st, fb.adapter)
 	if err != nil {
 		return "", nil, err
 	}
 
-	finalQuery, err := fixedQuery.finalize(c, args)
+	finalQuery, err := fixedQuery.finalize(ctx, args)
 	if err != nil {
 		return "", nil, err
 	}
 
-	queryArgs, err := buildQueryArgs(c, args, paramOrder)
+	queryArgs, err := buildQueryArgs(ctx, args, paramOrder)
 	if err != nil {
 		return "", nil, err
 	}

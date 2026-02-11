@@ -7,14 +7,13 @@ import (
 	"testing"
 
 	"github.com/jonbodner/proteus/cmp"
-	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/stackerr"
 )
 
 func TestExtractPointer(t *testing.T) {
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	ctx := context.Background()
 	f := func(in interface{}, path []string, expected *int) {
-		v, err := Extract(c, in, path)
+		v, err := Extract(ctx, in, path)
 		if err != nil {
 			t.Errorf("Expected no error, got %s", err)
 		}
@@ -74,9 +73,9 @@ func TestExtractPointer(t *testing.T) {
 }
 
 func TestExtract(t *testing.T) {
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	ctx := context.Background()
 	f := func(in interface{}, path []string, expected int) {
-		v, err := Extract(c, in, path)
+		v, err := Extract(ctx, in, path)
 		if err != nil {
 			t.Errorf("Expected no error, got %s", err)
 		}
@@ -118,9 +117,9 @@ func TestExtract(t *testing.T) {
 }
 
 func TestExtractFail(t *testing.T) {
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	ctx := context.Background()
 	f := func(in interface{}, path []string, msg string) {
-		_, err := Extract(c, in, path)
+		_, err := Extract(ctx, in, path)
 		if err == nil {
 			t.Errorf("Expected an error %s, got none", msg)
 		}
@@ -146,12 +145,12 @@ func TestExtractFail(t *testing.T) {
 }
 
 func TestExtractType(t *testing.T) {
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	ctx := context.Background()
 	fmt.Println("asdf")
 	type pp struct {
 		Name string
 		Cost float64
 	}
-	myType, err := ExtractType(c, reflect.TypeOf(pp{}), []string{"p", "Name"})
+	myType, err := ExtractType(ctx, reflect.TypeOf(pp{}), []string{"p", "Name"})
 	fmt.Printf("%v, %s, %v\n", myType, myType.Kind(), err)
 }

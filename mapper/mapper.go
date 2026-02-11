@@ -4,22 +4,22 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 	"unsafe"
 
-	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/stackerr"
 )
 
-func ptrConverter(c context.Context, isPtr bool, sType reflect.Type, out reflect.Value, err error) (interface{}, error) {
+func ptrConverter(ctx context.Context, isPtr bool, sType reflect.Type, out reflect.Value, err error) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
 	if isPtr {
 		out2 := reflect.New(sType)
 		k := out.Type().Kind()
-		logger.Log(c, logger.DEBUG, fmt.Sprintln("kind of out", k))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("kind of out", k))
 		if (k == reflect.Interface || k == reflect.Ptr) && out.IsNil() {
 			out2 = reflect.NewAt(sType, unsafe.Pointer(nil))
 		} else {
@@ -34,7 +34,7 @@ func ptrConverter(c context.Context, isPtr bool, sType reflect.Type, out reflect
 	return out.Interface(), nil
 }
 
-func MakeBuilder(c context.Context, sType reflect.Type) (Builder, error) {
+func MakeBuilder(ctx context.Context, sType reflect.Type) (Builder, error) {
 	if sType == nil {
 		return nil, stackerr.New("sType cannot be nil")
 	}
@@ -55,23 +55,23 @@ func MakeBuilder(c context.Context, sType reflect.Type) (Builder, error) {
 			return nil, stackerr.New("only maps with string keys are supported")
 		}
 		return func(cols []string, vals []interface{}) (interface{}, error) {
-			out, err := buildMap(c, sType, cols, vals)
-			return ptrConverter(c, isPtr, sType, out, err)
+			out, err := buildMap(ctx, sType, cols, vals)
+			return ptrConverter(ctx, isPtr, sType, out, err)
 		}, nil
 	} else if sType.Kind() == reflect.Struct {
 		//build map of col names to field names (makes this 2N instead of N^2)
 		colFieldMap := map[string]fieldInfo{}
 		buildColFieldMap(sType, fieldInfo{}, colFieldMap)
 		return func(cols []string, vals []interface{}) (interface{}, error) {
-			out, err := buildStruct(c, sType, cols, vals, colFieldMap)
-			return ptrConverter(c, isPtr, sType, out, err)
+			out, err := buildStruct(ctx, sType, cols, vals, colFieldMap)
+			return ptrConverter(ctx, isPtr, sType, out, err)
 		}, nil
 
 	} else {
 		// assume primitive
 		return func(cols []string, vals []interface{}) (interface{}, error) {
-			out, err := buildPrimitive(c, sType, cols, vals)
-			return ptrConverter(c, isPtr, sType, out, err)
+			out, err := buildPrimitive(ctx, sType, cols, vals)
+			return ptrConverter(ctx, isPtr, sType, out, err)
 		}, nil
 	}
 }
@@ -95,7 +95,7 @@ func buildColFieldMap(sType reflect.Type, parentFieldInfo fieldInfo, colFieldMap
 			// prepend the parent struct and store off a fieldi
 			// only if this doesn't implement a scanner. If it does, then go with the scanner
 			// another special case: time.Time isn't recursed into
-			if sf.Type.Kind() == reflect.Struct && !reflect.PtrTo(sf.Type).Implements(scannerType) && sf.Type.Name() != "Time" && sf.Type.PkgPath() != "time" {
+			if sf.Type.Kind() == reflect.Struct && !reflect.PointerTo(sf.Type).Implements(scannerType) && sf.Type.Name() != "Time" && sf.Type.PkgPath() != "time" {
 				buildColFieldMap(sf.Type, childFieldInfo, colFieldMap)
 			} else {
 				colFieldMap[strings.SplitN(tagVal, ",", 2)[0]] = childFieldInfo
@@ -126,7 +126,7 @@ type fieldInfo struct {
 	pos       []int
 }
 
-func buildMap(c context.Context, sType reflect.Type, cols []string, vals []interface{}) (reflect.Value, error) {
+func buildMap(ctx context.Context, sType reflect.Type, cols []string, vals []interface{}) (reflect.Value, error) {
 	out := reflect.MakeMap(sType)
 	for k, v := range cols {
 		curVal := vals[k]
@@ -147,14 +147,14 @@ var (
 	scannerType = reflect.TypeOf((*sql.Scanner)(nil)).Elem()
 )
 
-func buildStruct(c context.Context, sType reflect.Type, cols []string, vals []interface{}, colFieldMap map[string]fieldInfo) (reflect.Value, error) {
-	logger.Log(c, logger.DEBUG, fmt.Sprintf("sType: %s cols: %v vals: %+v colFieldMap: %+v", sType, cols, vals, colFieldMap))
+func buildStruct(ctx context.Context, sType reflect.Type, cols []string, vals []interface{}, colFieldMap map[string]fieldInfo) (reflect.Value, error) {
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintf("sType: %s cols: %v vals: %+v colFieldMap: %+v", sType, cols, vals, colFieldMap))
 	out := reflect.New(sType).Elem()
 	for k, v := range cols {
 		if sf, ok := colFieldMap[v]; ok {
 			curVal := vals[k]
 			rv := reflect.ValueOf(curVal)
-			err := buildStructInner(c, sType, out, sf, curVal, rv, 0)
+			err := buildStructInner(ctx, sType, out, sf, curVal, rv, 0)
 			if err != nil {
 				return out, err
 			}
@@ -163,16 +163,16 @@ func buildStruct(c context.Context, sType reflect.Type, cols []string, vals []in
 	return out, nil
 }
 
-func buildStructInner(c context.Context, sType reflect.Type, out reflect.Value, sf fieldInfo, curVal interface{}, rv reflect.Value, depth int) error {
+func buildStructInner(ctx context.Context, sType reflect.Type, out reflect.Value, sf fieldInfo, curVal interface{}, rv reflect.Value, depth int) error {
 	field := out.Field(sf.pos[depth])
 	curFieldType := sf.fieldType[depth]
 	if curFieldType.Kind() == reflect.Ptr {
-		logger.Log(c, logger.DEBUG, fmt.Sprintln("isPtr", sf, rv, rv.Type(), rv.Elem(), curVal, sType))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("isPtr", sf, rv, rv.Type(), rv.Elem(), curVal, sType))
 		if rv.Elem().IsNil() {
-			logger.Log(c, logger.DEBUG, fmt.Sprintln("nil", sf, rv, curVal, sType))
+			slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("nil", sf, rv, curVal, sType))
 			return nil
 		}
-		logger.Log(c, logger.DEBUG, fmt.Sprintln("isPtr Not Nil", rv.Elem().Type()))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("isPtr Not Nil", rv.Elem().Type()))
 		if curFieldType.Implements(scannerType) {
 			toScan := (reflect.New(curFieldType).Elem().Interface()).(sql.Scanner)
 			err := toScan.Scan(rv.Elem().Elem().Interface())
@@ -184,11 +184,11 @@ func buildStructInner(c context.Context, sType reflect.Type, out reflect.Value, 
 			field.Set(reflect.New(curFieldType.Elem()))
 			field.Elem().Set(rv.Elem().Elem().Convert(curFieldType.Elem()))
 		} else {
-			logger.Log(c, logger.ERROR, fmt.Sprintln("can't find the field"))
+			slog.Log(ctx, slog.LevelError, fmt.Sprintln("can't find the field"))
 			return stackerr.Errorf("unable to assign pointer to value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name[depth], curFieldType)
 		}
 	} else {
-		if reflect.PtrTo(curFieldType).Implements(scannerType) {
+		if reflect.PointerTo(curFieldType).Implements(scannerType) {
 			toScan := (reflect.New(curFieldType).Interface()).(sql.Scanner)
 			err := toScan.Scan(rv.Elem().Interface())
 			if err != nil {
@@ -196,24 +196,24 @@ func buildStructInner(c context.Context, sType reflect.Type, out reflect.Value, 
 			}
 			field.Set(reflect.ValueOf(toScan).Elem())
 		} else if field.Kind() == reflect.Struct && field.Type().Name() != "Time" && field.Type().PkgPath() != "time" {
-			err := buildStructInner(c, field.Type(), field, sf, curVal, rv, depth+1)
+			err := buildStructInner(ctx, field.Type(), field, sf, curVal, rv, depth+1)
 			if err != nil {
 				return err
 			}
 		} else if rv.Elem().IsNil() {
-			logger.Log(c, logger.ERROR, fmt.Sprintln("Attempting to assign a nil to a non-pointer field"))
+			slog.Log(ctx, slog.LevelError, fmt.Sprintln("Attempting to assign a nil to a non-pointer field"))
 			return stackerr.Errorf("unable to assign nil value to non-pointer struct field %s of type %v", sf.name[depth], curFieldType)
 		} else if rv.Elem().Elem().Type().ConvertibleTo(curFieldType) {
 			field.Set(rv.Elem().Elem().Convert(curFieldType))
 		} else {
-			logger.Log(c, logger.ERROR, fmt.Sprintln("can't find the field"))
+			slog.Log(ctx, slog.LevelError, fmt.Sprintln("can't find the field"))
 			return stackerr.Errorf("unable to assign value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name[depth], curFieldType)
 		}
 	}
 	return nil
 }
 
-func buildPrimitive(c context.Context, sType reflect.Type, cols []string, vals []interface{}) (reflect.Value, error) {
+func buildPrimitive(ctx context.Context, sType reflect.Type, cols []string, vals []interface{}) (reflect.Value, error) {
 	out := reflect.New(sType).Elem()
 	//vals[0] is of type *interface{}, because everything in vals is of type *interface{}
 	rv := reflect.ValueOf(vals[0])

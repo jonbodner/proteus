@@ -3,22 +3,22 @@ package proteus
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 
 	"database/sql"
 
-	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/proteus/mapper"
 	"github.com/jonbodner/stackerr"
 )
 
-func buildQueryArgs(c context.Context, funcArgs []reflect.Value, paramOrder []paramInfo) ([]interface{}, error) {
+func buildQueryArgs(ctx context.Context, funcArgs []reflect.Value, paramOrder []paramInfo) ([]interface{}, error) {
 
 	//walk through the rest of the input parameters and build a slice for args
 	var out []interface{}
 	for _, v := range paramOrder {
-		val, err := mapper.Extract(c, funcArgs[v.posInParams].Interface(), strings.Split(v.name, "."))
+		val, err := mapper.Extract(ctx, funcArgs[v.posInParams].Interface(), strings.Split(v.name, "."))
 		if err != nil {
 			return nil, err
 		}
@@ -43,24 +43,12 @@ var (
 	sqlResultType = reflect.TypeOf((*sql.Result)(nil)).Elem()
 )
 
-func makeContextExecutorImplementation(c context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) func(args []reflect.Value) []reflect.Value {
+func makeContextExecutorImplementation(ctx context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) func(args []reflect.Value) []reflect.Value {
 	buildRetVals := makeExecutorReturnVals(funcType)
 	return func(args []reflect.Value) []reflect.Value {
 
 		executor := args[1].Interface().(ContextExecutor)
 		ctx := args[0].Interface().(context.Context)
-
-		// if the passed-in context doesn't contain any logging settings, use the one that were supplied
-		// at build time
-		if _, ok := logger.LevelFromContext(ctx); !ok {
-			if defaultLevel, ok := logger.LevelFromContext(c); ok {
-				ctx = logger.WithLevel(ctx, defaultLevel)
-			}
-		}
-		// copy over any logging values that were supplied at build time
-		if defaultVals, ok := logger.ValuesFromContext(c); ok {
-			ctx = logger.WithValues(ctx, defaultVals...)
-		}
 
 		var result sql.Result
 		finalQuery, err := query.finalize(ctx, args)
@@ -75,33 +63,33 @@ func makeContextExecutorImplementation(c context.Context, funcType reflect.Type,
 			return buildRetVals(result, err)
 		}
 
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 		result, err = executor.ExecContext(ctx, finalQuery, queryArgs...)
 
 		return buildRetVals(result, err)
 	}
 }
 
-func makeExecutorImplementation(c context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) func(args []reflect.Value) []reflect.Value {
+func makeExecutorImplementation(ctx context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) func(args []reflect.Value) []reflect.Value {
 	buildRetVals := makeExecutorReturnVals(funcType)
 	return func(args []reflect.Value) []reflect.Value {
 
 		executor := args[0].Interface().(Executor)
 
 		var result sql.Result
-		finalQuery, err := query.finalize(c, args)
+		finalQuery, err := query.finalize(ctx, args)
 
 		if err != nil {
 			return buildRetVals(result, err)
 		}
 
-		queryArgs, err := buildQueryArgs(c, args, paramOrder)
+		queryArgs, err := buildQueryArgs(ctx, args, paramOrder)
 
 		if err != nil {
 			return buildRetVals(result, err)
 		}
 
-		logger.Log(c, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 		result, err = executor.Exec(finalQuery, queryArgs...)
 
 		return buildRetVals(result, err)
@@ -167,32 +155,20 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 	}
 }
 
-func makeContextQuerierImplementation(c context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) (func(args []reflect.Value) []reflect.Value, error) {
+func makeContextQuerierImplementation(ctx context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) (func(args []reflect.Value) []reflect.Value, error) {
 	numOut := funcType.NumOut()
 	var builder mapper.Builder
 	var err error
 	if numOut > 0 {
-		builder, err = mapper.MakeBuilder(c, funcType.Out(0))
+		builder, err = mapper.MakeBuilder(ctx, funcType.Out(0))
 		if err != nil {
 			return nil, err
 		}
 	}
-	buildRetVals := makeQuerierReturnVals(c, funcType, builder)
+	buildRetVals := makeQuerierReturnVals(ctx, funcType, builder)
 	return func(args []reflect.Value) []reflect.Value {
 		querier := args[1].Interface().(ContextQuerier)
 		ctx := args[0].Interface().(context.Context)
-
-		// if the passed-in context doesn't contain any logging settings, use the one that were supplied
-		// at build time
-		if _, ok := logger.LevelFromContext(ctx); !ok {
-			if defaultLevel, ok := logger.LevelFromContext(c); ok {
-				ctx = logger.WithLevel(ctx, defaultLevel)
-			}
-		}
-		// copy over any logging values that were supplied at build time
-		if defaultVals, ok := logger.ValuesFromContext(c); ok {
-			ctx = logger.WithValues(ctx, defaultVals...)
-		}
 
 		var rows *sql.Rows
 		finalQuery, err := query.finalize(ctx, args)
@@ -205,7 +181,7 @@ func makeContextQuerierImplementation(c context.Context, funcType reflect.Type, 
 			return buildRetVals(rows, err)
 		}
 
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 		// going to work around the defective Go MySQL driver, which refuses to convert the text protocol properly.
 		// It is used when doing a query without parameters.
 		if len(queryArgs) == 0 {
@@ -228,32 +204,32 @@ func makeContextQuerierImplementation(c context.Context, funcType reflect.Type, 
 	}, nil
 }
 
-func makeQuerierImplementation(c context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) (func(args []reflect.Value) []reflect.Value, error) {
+func makeQuerierImplementation(ctx context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) (func(args []reflect.Value) []reflect.Value, error) {
 	numOut := funcType.NumOut()
 	var builder mapper.Builder
 	var err error
 	if numOut > 0 {
-		builder, err = mapper.MakeBuilder(c, funcType.Out(0))
+		builder, err = mapper.MakeBuilder(ctx, funcType.Out(0))
 		if err != nil {
 			return nil, err
 		}
 	}
-	buildRetVals := makeQuerierReturnVals(c, funcType, builder)
+	buildRetVals := makeQuerierReturnVals(ctx, funcType, builder)
 	return func(args []reflect.Value) []reflect.Value {
 		querier := args[0].Interface().(Querier)
 
 		var rows *sql.Rows
-		finalQuery, err := query.finalize(c, args)
+		finalQuery, err := query.finalize(ctx, args)
 		if err != nil {
 			return buildRetVals(rows, err)
 		}
 
-		queryArgs, err := buildQueryArgs(c, args, paramOrder)
+		queryArgs, err := buildQueryArgs(ctx, args, paramOrder)
 		if err != nil {
 			return buildRetVals(rows, err)
 		}
 
-		logger.Log(c, logger.DEBUG, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
 		// going to work around the defective Go MySQL driver, which refuses to convert the text protocol properly.
 		// It is used when doing a query without parameters.
 		if len(queryArgs) == 0 {
@@ -276,7 +252,7 @@ func makeQuerierImplementation(c context.Context, funcType reflect.Type, query q
 	}, nil
 }
 
-func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder mapper.Builder) func(*sql.Rows, error) []reflect.Value {
+func makeQuerierReturnVals(ctx context.Context, funcType reflect.Type, builder mapper.Builder) func(*sql.Rows, error) []reflect.Value {
 	numOut := funcType.NumOut()
 
 	//handle the 0,1,2 out parameter cases
@@ -294,7 +270,7 @@ func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder map
 				return []reflect.Value{qZero}
 			}
 			// handle mapping
-			val, err := handleMapping(c, sType, rows, builder)
+			val, err := handleMapping(ctx, sType, rows, builder)
 			if err != nil {
 				return []reflect.Value{qZero}
 			}
@@ -311,7 +287,7 @@ func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder map
 				return []reflect.Value{qZero, reflect.ValueOf(err).Convert(eType)}
 			}
 			// handle mapping
-			val, err := handleMapping(c, sType, rows, builder)
+			val, err := handleMapping(ctx, sType, rows, builder)
 			var eVal reflect.Value
 			if err == nil {
 				eVal = errZero
@@ -331,14 +307,14 @@ func makeQuerierReturnVals(c context.Context, funcType reflect.Type, builder map
 	}
 }
 
-func handleMapping(c context.Context, sType reflect.Type, rows *sql.Rows, builder mapper.Builder) (interface{}, error) {
+func handleMapping(ctx context.Context, sType reflect.Type, rows *sql.Rows, builder mapper.Builder) (interface{}, error) {
 	var val interface{}
 	var err error
 	if sType.Kind() == reflect.Slice {
 		s := reflect.MakeSlice(sType, 0, 0)
 		var result interface{}
 		for {
-			result, err = mapRows(c, rows, builder)
+			result, err = mapRows(ctx, rows, builder)
 			if err != nil {
 				return nil, err
 			}
@@ -349,7 +325,7 @@ func handleMapping(c context.Context, sType reflect.Type, rows *sql.Rows, builde
 		}
 		val = s.Interface()
 	} else {
-		val, err = mapRows(c, rows, builder)
+		val, err = mapRows(ctx, rows, builder)
 	}
 	rows.Close()
 	return val, err
@@ -364,7 +340,7 @@ func handleMapping(c context.Context, sType reflect.Type, rows *sql.Rows, builde
 // If next returns false, then nil is returned for both the interface and the error
 // If an error occurs while processing the current row, nil is returned for the interface and the error is non-nil
 // If a value is successfully extracted from the current row, the instance is returned and the error is nil
-func mapRows(c context.Context, rows *sql.Rows, builder mapper.Builder) (interface{}, error) {
+func mapRows(ctx context.Context, rows *sql.Rows, builder mapper.Builder) (interface{}, error) {
 	//fmt.Println(sType)
 	if rows == nil {
 		return nil, stackerr.New("rows must be non-nil")
@@ -397,7 +373,7 @@ func mapRows(c context.Context, rows *sql.Rows, builder mapper.Builder) (interfa
 
 	err = rows.Scan(vals...)
 	if err != nil {
-		logger.Log(c, logger.WARN, "scan failed")
+		slog.Log(ctx, slog.LevelWarn, "scan failed")
 		return nil, err
 	}
 

@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 
 	"github.com/jonbodner/dbtimer"
 	"github.com/jonbodner/proteus"
-	"github.com/jonbodner/proteus/logger"
 	_ "github.com/lib/pq"
 )
 
@@ -40,16 +40,12 @@ type ProductDAO struct {
 	FindByNameAndCostUnlabeled    func(e proteus.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
 }
 
-type setupDb func(c context.Context, p ProductDAO) *sql.DB
+type setupDb func(ctx context.Context, p ProductDAO) *sql.DB
 
 func main() {
 	dbtimer.SetTimerLoggerFunc(func(ti dbtimer.TimerInfo) {
 		fmt.Printf("%s %s %v %v %d\n", ti.Method, ti.Query, ti.Args, ti.Err, ti.End.Sub(ti.Start).Nanoseconds()/1000)
 	})
-	logger.Config(logger.LoggerFunc(func(vals ...interface{}) error {
-		fmt.Printf("%s: (%s) - %+v\n", vals[1], vals[3], vals[5])
-		return nil
-	}))
 
 	var productDaoPostgres ProductDAO
 	err := proteus.Build(&productDaoPostgres, proteus.Postgres)
@@ -61,7 +57,7 @@ func main() {
 }
 
 func run(setupDb setupDb, productDAO ProductDAO) {
-	ctx := logger.WithLevel(context.Background(), logger.DEBUG)
+	ctx := context.Background()
 	db := setupDb(ctx, productDAO)
 	defer db.Close()
 	tx, err := db.Begin()
@@ -70,44 +66,44 @@ func run(setupDb setupDb, productDAO ProductDAO) {
 	}
 	defer tx.Commit()
 
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln(productDAO.FindByID(tx, 10)))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDAO.FindByID(tx, 10)))
 	cost := new(float64)
 	*cost = 56.23
 	p := Product{10, "Thingie", cost}
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln(productDAO.Update(tx, p)))
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln(productDAO.FindByID(tx, 10)))
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln(productDAO.FindByNameAndCost(tx, "fred", 54.10)))
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln(productDAO.FindByNameAndCost(tx, "Thingie", 56.23)))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDAO.Update(tx, p)))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDAO.FindByID(tx, 10)))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDAO.FindByNameAndCost(tx, "fred", 54.10)))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDAO.FindByNameAndCost(tx, "Thingie", 56.23)))
 
 	//using a map of [string]interface{} works too!
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln((productDAO.FindByIDMap(tx, 10))))
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln((productDAO.FindByNameAndCostMap(tx, "Thingie", 56.23))))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByIDMap(tx, 10))))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByNameAndCostMap(tx, "Thingie", 56.23))))
 
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln((productDAO.FindByID(tx, 11))))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByID(tx, 11))))
 	m := map[string]interface{}{
 		"Id":   11,
 		"Name": "bobbo",
 		"Cost": 12.94,
 	}
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln((productDAO.UpdateMap(tx, m))))
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln((productDAO.FindByID(tx, 11))))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.UpdateMap(tx, m))))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByID(tx, 11))))
 
 	//searching using a slice
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln((productDAO.FindByIDSlice(tx, []int{1, 3, 5}))))
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln((productDAO.FindByIDSliceAndName(tx, []int{1, 3, 5}, "person1"))))
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln((productDAO.FindByIDSliceNameAndCost(tx, []int{1, 3, 5}, "person3", nil))))
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln((productDAO.FindByIDSliceCostAndNameSlice(tx, []int{1, 3, 5}, []string{"person3", "person5"}, nil))))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByIDSlice(tx, []int{1, 3, 5}))))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByIDSliceAndName(tx, []int{1, 3, 5}, "person1"))))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByIDSliceNameAndCost(tx, []int{1, 3, 5}, "person3", nil))))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByIDSliceCostAndNameSlice(tx, []int{1, 3, 5}, []string{"person3", "person5"}, nil))))
 
 	//using positional parameters instead of names
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln((productDAO.FindByNameAndCostUnlabeled(tx, "Thingie", 56.23))))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByNameAndCostUnlabeled(tx, "Thingie", 56.23))))
 }
 
-func setupDbPostgres(c context.Context, productDAO ProductDAO) *sql.DB {
+func setupDbPostgres(ctx context.Context, productDAO ProductDAO) *sql.DB {
 	//db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	db, err := sql.Open("timer", "postgres postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 
 	if err != nil {
-		logger.Log(c, logger.FATAL, fmt.Sprintln(err))
+		slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
 	}
 	sqlStmt := `
 	drop table if exists product;
@@ -115,17 +111,17 @@ func setupDbPostgres(c context.Context, productDAO ProductDAO) *sql.DB {
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		logger.Log(c, logger.FATAL, fmt.Sprintf("%q: %s\n", err, sqlStmt))
+		slog.Log(ctx, slog.LevelError, fmt.Sprintf("%q: %s\n", err, sqlStmt))
 		return nil
 	}
-	populate(c, db, productDAO)
+	populate(ctx, db, productDAO)
 	return db
 }
 
 func populate(ctx context.Context, db *sql.DB, productDao ProductDAO) {
 	tx, err := db.Begin()
 	if err != nil {
-		logger.Log(ctx, logger.FATAL, fmt.Sprintln(err))
+		slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
 	}
 	defer tx.Commit()
 
@@ -137,8 +133,8 @@ func populate(ctx context.Context, db *sql.DB, productDao ProductDAO) {
 		}
 		rowCount, err := productDao.Insert(tx, i, fmt.Sprintf("person%d", i), cost)
 		if err != nil {
-			logger.Log(ctx, logger.FATAL, fmt.Sprintln(err))
+			slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
 		}
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintln(rowCount))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(rowCount))
 	}
 }

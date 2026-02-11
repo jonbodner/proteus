@@ -2,11 +2,9 @@ package proteus
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/jonbodner/proteus/logger"
 )
 
 func TestBuilder_BuildFunctionErrors(t *testing.T) {
@@ -81,7 +79,7 @@ func TestBuilder_BuildFunction(t *testing.T) {
 	defer db.Close()
 	ctx := context.Background()
 
-	var f func(c context.Context, e ContextExecutor, name string, age int) (int64, error)
+	var f func(ctx context.Context, e ContextExecutor, name string, age int) (int64, error)
 	err := b.BuildFunction(ctx, &f, "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)", []string{"name", "age"})
 	if err != nil {
 		t.Fatalf("build function failed: %v", err)
@@ -106,7 +104,7 @@ func TestBuilder_BuildFunction(t *testing.T) {
 		t.Error("Expected 1 row modified, got ", rows)
 	}
 
-	var g func(c context.Context, q ContextQuerier, id int) (*Person, error)
+	var g func(ctx context.Context, q ContextQuerier, id int) (*Person, error)
 	err = b.BuildFunction(ctx, &g, "SELECT * FROM PERSON WHERE id = :id:", []string{"id"})
 	if err != nil {
 		t.Fatalf("build function 2 failed: %v", err)
@@ -120,16 +118,13 @@ func TestBuilder_BuildFunction(t *testing.T) {
 		t.Error("Unexpected output: ", p)
 	}
 
-	var lines []string
-	logger.Config(logger.LoggerFunc(func(vals ...interface{}) error {
-		lines = append(lines, fmt.Sprintln(vals))
-		return nil
-	}))
-	SetLogLevel(logger.DEBUG)
+	// need a lines logger
+	linesFunc := RegisterLineLogger(t)
 	err = b.BuildFunction(ctx, &g, "SELECT * FROM PERSON WHERE id = :id:", []string{"id"})
 	if err != nil {
 		t.Fatalf("build function 2a failed: %v", err)
 	}
+	lines := linesFunc()
 	if len(lines) != 3 {
 		t.Errorf("Expected %d lines, got %d: %#v", 3, len(lines), lines)
 	}
@@ -142,16 +137,8 @@ func TestBuilder_Execute(t *testing.T) {
 	defer db.Close()
 	ctx := context.Background()
 
-	var lines []string
-	logger.Config(logger.LoggerFunc(func(vals ...interface{}) error {
-		lines = append(lines, fmt.Sprintln(vals))
-		return nil
-	}))
-
 	data := []struct {
 		name      string
-		ctx       context.Context
-		logLevel  logger.Level
 		query     string
 		params    map[string]interface{}
 		rows      int64
@@ -204,16 +191,7 @@ func TestBuilder_Execute(t *testing.T) {
 			errMsg: "no query found for name nope",
 		},
 		{
-			name:      "logging context",
-			ctx:       logger.WithLevel(ctx, logger.DEBUG),
-			query:     "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)",
-			params:    map[string]interface{}{"name": "Fred", "age": 20},
-			rows:      1,
-			lineCount: 7,
-		},
-		{
-			name:      "logging default",
-			logLevel:  logger.DEBUG,
+			name:      "logging",
 			query:     "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)",
 			params:    map[string]interface{}{"name": "Fred", "age": 20},
 			rows:      1,
@@ -222,13 +200,8 @@ func TestBuilder_Execute(t *testing.T) {
 	}
 	for _, v := range data {
 		t.Run(v.name, func(t *testing.T) {
-			lines = nil
-			SetLogLevel(v.logLevel)
-			c := ctx
-			if v.ctx != nil {
-				c = v.ctx
-			}
-			rows, err := b.Exec(c, db, v.query, v.params)
+			linesFunc := RegisterLineLogger(t)
+			rows, err := b.Exec(ctx, db, v.query, v.params)
 			var errMsg string
 			if err != nil {
 				errMsg = err.Error()
@@ -239,11 +212,13 @@ func TestBuilder_Execute(t *testing.T) {
 			if rows != v.rows {
 				t.Error("Unexpected # rows: ", rows)
 			}
-			if v.lineCount != len(lines) {
-				t.Errorf("Expected %d lines of debug, got %d: %#v", v.lineCount, len(lines), lines)
+			if v.lineCount > 0 {
+				lines := linesFunc()
+				if v.lineCount != len(lines) {
+					t.Errorf("Expected %d lines of debug, got %d: %#v", v.lineCount, len(lines), lines)
+				}
 			}
-			lines = nil
-			result, err := b.ExecResult(c, db, v.query, v.params)
+			result, err := b.ExecResult(ctx, db, v.query, v.params)
 			errMsg = ""
 			if err != nil {
 				errMsg = err.Error()
@@ -259,8 +234,11 @@ func TestBuilder_Execute(t *testing.T) {
 				if rowsAffected != v.rows {
 					t.Error("Unexpected # rows: ", rows)
 				}
-				if v.lineCount != len(lines) {
-					t.Errorf("Expected %d lines of debug, got %d: %#v", v.lineCount, len(lines), lines)
+				if v.lineCount > 0 {
+					lines := linesFunc()
+					if v.lineCount != len(lines) {
+						t.Errorf("Expected %d lines of debug, got %d: %#v", v.lineCount, len(lines), lines)
+					}
 				}
 			}
 		})
@@ -293,16 +271,8 @@ func TestBuilder_Query(t *testing.T) {
 		Age  string `prof:"age"`
 	}
 
-	var lines []string
-	logger.Config(logger.LoggerFunc(func(vals ...interface{}) error {
-		lines = append(lines, fmt.Sprintln(vals))
-		return nil
-	}))
-
 	data := []struct {
 		name      string
-		ctx       context.Context
-		logLevel  logger.Level
 		query     string
 		params    map[string]interface{}
 		out       interface{}
@@ -394,7 +364,6 @@ func TestBuilder_Query(t *testing.T) {
 		},
 		{
 			name:      "nothing returned logging context",
-			ctx:       logger.WithLevel(ctx, logger.DEBUG),
 			query:     "SELECT * FROM PERSON WHERE id = :id:",
 			params:    map[string]interface{}{"id": 100},
 			out:       &Person{},
@@ -403,7 +372,6 @@ func TestBuilder_Query(t *testing.T) {
 		},
 		{
 			name:      "nothing returned logging default",
-			logLevel:  logger.DEBUG,
 			query:     "SELECT * FROM PERSON WHERE id = :id:",
 			params:    map[string]interface{}{"id": 100},
 			out:       &Person{},
@@ -462,13 +430,8 @@ func TestBuilder_Query(t *testing.T) {
 	}
 	for _, v := range data {
 		t.Run(v.name, func(t *testing.T) {
-			lines = nil
-			SetLogLevel(v.logLevel)
-			c := ctx
-			if v.ctx != nil {
-				c = v.ctx
-			}
-			err := b.Query(c, db, v.query, v.params, v.out)
+			linesFunc := RegisterLineLogger(t)
+			err := b.Query(ctx, db, v.query, v.params, v.out)
 			var errMsg string
 			if err != nil {
 				errMsg = err.Error()
@@ -477,10 +440,13 @@ func TestBuilder_Query(t *testing.T) {
 				t.Errorf("Expected error `%s`, got `%s`", v.errMsg, errMsg)
 			}
 			if diff := cmp.Diff(v.out, v.expected); diff != "" {
-				t.Errorf(diff)
+				t.Error(diff)
 			}
-			if v.lineCount != len(lines) {
-				t.Errorf("Expected %d lines of debug, got %d: %#v", v.lineCount, len(lines), lines)
+			if v.lineCount > 0 {
+				lines := linesFunc()
+				if v.lineCount != len(lines) {
+					t.Errorf("Expected %d lines of debug, got %d: %#v", v.lineCount, len(lines), lines)
+				}
 			}
 		})
 	}

@@ -2,11 +2,10 @@ package proteus
 
 import (
 	"context"
-	"github.com/google/go-cmp/cmp"
 	"reflect"
 	"testing"
 
-	"github.com/jonbodner/proteus/logger"
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestFixNameForTemplate(t *testing.T) {
@@ -123,9 +122,9 @@ func Test_convertToPositionalParameters(t *testing.T) {
 	}{
 		// TODO: Add test cases.
 	}
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	ctx := context.Background()
 	for _, tt := range tests {
-		got, got1, err := buildFixedQueryAndParamOrder(c, tt.args.query, tt.args.paramMap, tt.args.funcType, tt.args.pa)
+		got, got1, err := buildFixedQueryAndParamOrder(ctx, tt.args.query, tt.args.paramMap, tt.args.funcType, tt.args.pa)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. buildFixedQueryAndParamOrder() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
@@ -206,9 +205,9 @@ func Test_validIdentifier(t *testing.T) {
 	}{
 		// TODO: Add test cases.
 	}
-	c := logger.WithLevel(context.Background(), logger.DEBUG)
+	ctx := context.Background()
 	for _, tt := range tests {
-		got, err := validIdentifier(c, tt.args.curVar)
+		got, err := validIdentifier(ctx, tt.args.curVar)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. validIdentifier() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
