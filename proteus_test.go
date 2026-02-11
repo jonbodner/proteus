@@ -321,10 +321,10 @@ func TestNilScanner(t *testing.T) {
 	})
 }
 
-type setup func(c context.Context, dao interface{}) (*sql.DB, error)
+type setup func(ctx context.Context, dao interface{}) (*sql.DB, error)
 
-func setupPostgres(c context.Context, dao interface{}) (*sql.DB, error) {
-	err := ShouldBuild(c, dao, Postgres)
+func setupPostgres(ctx context.Context, dao interface{}) (*sql.DB, error) {
+	err := ShouldBuild(ctx, dao, Postgres)
 	if err != nil {
 		return nil, err
 	}
@@ -336,8 +336,8 @@ func setupPostgres(c context.Context, dao interface{}) (*sql.DB, error) {
 	return db, err
 }
 
-func setupMySQL(c context.Context, dao interface{}) (*sql.DB, error) {
-	err := ShouldBuild(c, dao, MySQL)
+func setupMySQL(ctx context.Context, dao interface{}) (*sql.DB, error) {
+	err := ShouldBuild(ctx, dao, MySQL)
 	if err != nil {
 		return nil, err
 	}

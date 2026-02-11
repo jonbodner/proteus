@@ -88,17 +88,17 @@ func defineSchema(ctx context.Context, tx proteus.ContextWrapper) error {
 	return nil
 }
 
-func setupDBPostgres(c context.Context) (proteus.ContextWrapper, closer) {
+func setupDBPostgres(ctx context.Context) (proteus.ContextWrapper, closer) {
 	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 
 	if err != nil {
-		logger.Log(c, logger.FATAL, fmt.Sprintln(err))
+		logger.Log(ctx, logger.FATAL, fmt.Sprintln(err))
 		os.Exit(1)
 	}
 
 	tx, err := db.Begin()
 	if err != nil {
-		logger.Log(c, logger.FATAL, fmt.Sprintln(err))
+		logger.Log(ctx, logger.FATAL, fmt.Sprintln(err))
 		os.Exit(1)
 	}
 

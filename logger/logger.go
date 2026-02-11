@@ -79,43 +79,43 @@ func Config(i Logger) {
 	impl = i
 }
 
-func WithLevel(c context.Context, l Level) context.Context {
-	return context.WithValue(c, level, l)
+func WithLevel(ctx context.Context, l Level) context.Context {
+	return context.WithValue(ctx, level, l)
 }
 
-func WithValues(c context.Context, vals ...Pair) context.Context {
+func WithValues(ctx context.Context, vals ...Pair) context.Context {
 	//if there are any existing pairs, copy them into this vals as well
 	var pairs []Pair
-	if curVals, ok := c.Value(values).([]Pair); ok {
+	if curVals, ok := ctx.Value(values).([]Pair); ok {
 		pairs = append(pairs, curVals...)
 	}
 	pairs = append(pairs, vals...)
 
-	return context.WithValue(c, values, pairs)
+	return context.WithValue(ctx, values, pairs)
 }
 
-func LevelFromContext(c context.Context) (Level, bool) {
-	if l := c.Value(level); l != nil {
+func LevelFromContext(ctx context.Context) (Level, bool) {
+	if l := ctx.Value(level); l != nil {
 		return l.(Level), true
 	}
 	return 0, false
 }
 
-func ValuesFromContext(c context.Context) ([]Pair, bool) {
-	if p := c.Value(values); p != nil {
+func ValuesFromContext(ctx context.Context) ([]Pair, bool) {
+	if p := ctx.Value(values); p != nil {
 		return p.([]Pair), true
 	}
 	return nil, false
 }
 
-func Log(c context.Context, l Level, message string, vals ...Pair) {
-	curLevelVal := c.Value(level)
+func Log(ctx context.Context, l Level, message string, vals ...Pair) {
+	curLevelVal := ctx.Value(level)
 	if curLevel, ok := curLevelVal.(Level); !ok || curLevel == OFF || curLevel > l {
 		return
 	}
 	outVals := []interface{}{"time", time.Now().UTC(), "level", l, "message", message}
 
-	if curVals, ok := c.Value(values).([]Pair); ok {
+	if curVals, ok := ctx.Value(values).([]Pair); ok {
 		for _, v := range curVals {
 			outVals = append(outVals, v.Key)
 			outVals = append(outVals, v.Value)

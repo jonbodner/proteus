@@ -40,7 +40,7 @@ type ProductDAO struct {
 	FindByNameAndCostUnlabeled    func(e proteus.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
 }
 
-type setupDb func(c context.Context, p ProductDAO) *sql.DB
+type setupDb func(ctx context.Context, p ProductDAO) *sql.DB
 
 func main() {
 	dbtimer.SetTimerLoggerFunc(func(ti dbtimer.TimerInfo) {
@@ -102,12 +102,12 @@ func run(setupDb setupDb, productDAO ProductDAO) {
 	logger.Log(ctx, logger.DEBUG, fmt.Sprintln((productDAO.FindByNameAndCostUnlabeled(tx, "Thingie", 56.23))))
 }
 
-func setupDbPostgres(c context.Context, productDAO ProductDAO) *sql.DB {
+func setupDbPostgres(ctx context.Context, productDAO ProductDAO) *sql.DB {
 	//db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	db, err := sql.Open("timer", "postgres postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 
 	if err != nil {
-		logger.Log(c, logger.FATAL, fmt.Sprintln(err))
+		logger.Log(ctx, logger.FATAL, fmt.Sprintln(err))
 	}
 	sqlStmt := `
 	drop table if exists product;
@@ -115,10 +115,10 @@ func setupDbPostgres(c context.Context, productDAO ProductDAO) *sql.DB {
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		logger.Log(c, logger.FATAL, fmt.Sprintf("%q: %s\n", err, sqlStmt))
+		logger.Log(ctx, logger.FATAL, fmt.Sprintf("%q: %s\n", err, sqlStmt))
 		return nil
 	}
-	populate(c, db, productDAO)
+	populate(ctx, db, productDAO)
 	return db
 }
 
