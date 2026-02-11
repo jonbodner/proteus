@@ -81,7 +81,7 @@ func TestBuilder_BuildFunction(t *testing.T) {
 	defer db.Close()
 	ctx := context.Background()
 
-	var f func(c context.Context, e ContextExecutor, name string, age int) (int64, error)
+	var f func(ctx context.Context, e ContextExecutor, name string, age int) (int64, error)
 	err := b.BuildFunction(ctx, &f, "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)", []string{"name", "age"})
 	if err != nil {
 		t.Fatalf("build function failed: %v", err)
@@ -106,7 +106,7 @@ func TestBuilder_BuildFunction(t *testing.T) {
 		t.Error("Expected 1 row modified, got ", rows)
 	}
 
-	var g func(c context.Context, q ContextQuerier, id int) (*Person, error)
+	var g func(ctx context.Context, q ContextQuerier, id int) (*Person, error)
 	err = b.BuildFunction(ctx, &g, "SELECT * FROM PERSON WHERE id = :id:", []string{"id"})
 	if err != nil {
 		t.Fatalf("build function 2 failed: %v", err)
@@ -477,7 +477,7 @@ func TestBuilder_Query(t *testing.T) {
 				t.Errorf("Expected error `%s`, got `%s`", v.errMsg, errMsg)
 			}
 			if diff := cmp.Diff(v.out, v.expected); diff != "" {
-				t.Errorf(diff)
+				t.Error(diff)
 			}
 			if v.lineCount != len(lines) {
 				t.Errorf("Expected %d lines of debug, got %d: %#v", v.lineCount, len(lines), lines)

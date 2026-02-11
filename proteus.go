@@ -82,11 +82,11 @@ func SetLogLevel(ll logger.Level) {
 // 2. The context passed in to ShouldBuild can be used to specify the logging level used during ShouldBuild and
 // when the generated functions are invoked. This overrides any logging level specified using the SetLogLevel
 // function.
-func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
+func ShouldBuild(ctx context.Context, dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 	//if log level is set and not in the context, use it
-	if _, ok := logger.LevelFromContext(c); !ok && l != logger.OFF {
+	if _, ok := logger.LevelFromContext(ctx); !ok && l != logger.OFF {
 		rw.RLock()
-		c = logger.WithLevel(c, l)
+		ctx = logger.WithLevel(ctx, l)
 		rw.RUnlock()
 	}
 
@@ -112,7 +112,7 @@ func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, 
 		//recurse
 		if curField.Type.Kind() == reflect.Struct && curField.Anonymous {
 			pv := reflect.New(curField.Type)
-			embeddedErrs := ShouldBuild(c, pv.Interface(), paramAdapter, mappers...)
+			embeddedErrs := ShouldBuild(ctx, pv.Interface(), paramAdapter, mappers...)
 			if embeddedErrs != nil {
 				out = multierr.Append(out, embeddedErrs)
 			} else {
@@ -153,7 +153,7 @@ func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, 
 			continue
 		}
 
-		implementation, err := makeImplementation(c, funcType, query, paramAdapter, nameOrderMap)
+		implementation, err := makeImplementation(ctx, funcType, query, paramAdapter, nameOrderMap)
 		if err != nil {
 			out = multierr.Append(out, Error{FuncName: curField.Name, FieldOrder: i, OriginalError: err})
 			continue
@@ -178,7 +178,7 @@ func ShouldBuild(c context.Context, dao interface{}, paramAdapter ParamAdapter, 
 // proteus.ShouldBuild over proteus.Build.
 func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 	rw.RLock()
-	c := logger.WithLevel(context.Background(), l)
+	ctx := logger.WithLevel(context.Background(), l)
 	rw.RUnlock()
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
@@ -218,7 +218,7 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 		//validate to make sure that the function matches what we expect
 		hasCtx, err := validateFunction(funcType)
 		if err != nil {
-			logger.Log(c, logger.WARN, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
+			logger.Log(ctx, logger.WARN, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
 			outErr = multierr.Append(outErr, err)
 			continue
 		}
@@ -238,14 +238,14 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 		//check to see if the query is in a QueryMapper
 		query, err = lookupQuery(query, mappers)
 		if err != nil {
-			logger.Log(c, logger.WARN, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
+			logger.Log(ctx, logger.WARN, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
 			outErr = multierr.Append(outErr, err)
 			continue
 		}
 
-		implementation, err := makeImplementation(c, funcType, query, paramAdapter, nameOrderMap)
+		implementation, err := makeImplementation(ctx, funcType, query, paramAdapter, nameOrderMap)
 		if err != nil {
-			logger.Log(c, logger.WARN, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
+			logger.Log(ctx, logger.WARN, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
 			outErr = multierr.Append(outErr, err)
 			continue
 		}
@@ -333,8 +333,8 @@ func validateFunction(funcType reflect.Type) (bool, error) {
 	return hasContext, nil
 }
 
-func makeImplementation(c context.Context, funcType reflect.Type, query string, paramAdapter ParamAdapter, nameOrderMap map[string]int) (func([]reflect.Value) []reflect.Value, error) {
-	fixedQuery, paramOrder, err := buildFixedQueryAndParamOrder(c, query, nameOrderMap, funcType, paramAdapter)
+func makeImplementation(ctx context.Context, funcType reflect.Type, query string, paramAdapter ParamAdapter, nameOrderMap map[string]int) (func([]reflect.Value) []reflect.Value, error) {
+	fixedQuery, paramOrder, err := buildFixedQueryAndParamOrder(ctx, query, nameOrderMap, funcType, paramAdapter)
 	if err != nil {
 		return nil, err
 	}
@@ -343,14 +343,14 @@ func makeImplementation(c context.Context, funcType reflect.Type, query string, 
 	case fType.Implements(contextType):
 		switch fType2 := funcType.In(1); {
 		case fType2.Implements(conExType):
-			return makeContextExecutorImplementation(c, funcType, fixedQuery, paramOrder), nil
+			return makeContextExecutorImplementation(ctx, funcType, fixedQuery, paramOrder), nil
 		case fType2.Implements(conQType):
-			return makeContextQuerierImplementation(c, funcType, fixedQuery, paramOrder)
+			return makeContextQuerierImplementation(ctx, funcType, fixedQuery, paramOrder)
 		}
 	case fType.Implements(exType):
-		return makeExecutorImplementation(c, funcType, fixedQuery, paramOrder), nil
+		return makeExecutorImplementation(ctx, funcType, fixedQuery, paramOrder), nil
 	case fType.Implements(qType):
-		return makeQuerierImplementation(c, funcType, fixedQuery, paramOrder)
+		return makeQuerierImplementation(ctx, funcType, fixedQuery, paramOrder)
 	}
 	//this should impossible, since we already validated that the first parameter is either an executor or a querier
 	return nil, stackerr.New("first parameter must be of type Executor or Querier")

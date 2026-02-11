@@ -40,7 +40,7 @@ type ProductDAO struct {
 	FindByNameAndCostUnlabeled    func(ctx context.Context, e proteus.ContextQuerier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:$1: and cost=:$2:"`
 }
 
-type setupDb func(c context.Context, p ProductDAO) *sql.DB
+type setupDb func(ctx context.Context, p ProductDAO) *sql.DB
 
 func main() {
 	dbtimer.SetTimerLoggerFunc(func(ti dbtimer.TimerInfo) {
