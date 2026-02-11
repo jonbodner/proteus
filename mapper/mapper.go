@@ -95,7 +95,7 @@ func buildColFieldMap(sType reflect.Type, parentFieldInfo fieldInfo, colFieldMap
 			// prepend the parent struct and store off a fieldi
 			// only if this doesn't implement a scanner. If it does, then go with the scanner
 			// another special case: time.Time isn't recursed into
-			if sf.Type.Kind() == reflect.Struct && !reflect.PtrTo(sf.Type).Implements(scannerType) && sf.Type.Name() != "Time" && sf.Type.PkgPath() != "time" {
+			if sf.Type.Kind() == reflect.Struct && !reflect.PointerTo(sf.Type).Implements(scannerType) && sf.Type.Name() != "Time" && sf.Type.PkgPath() != "time" {
 				buildColFieldMap(sf.Type, childFieldInfo, colFieldMap)
 			} else {
 				colFieldMap[strings.SplitN(tagVal, ",", 2)[0]] = childFieldInfo
@@ -188,7 +188,7 @@ func buildStructInner(ctx context.Context, sType reflect.Type, out reflect.Value
 			return stackerr.Errorf("unable to assign pointer to value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name[depth], curFieldType)
 		}
 	} else {
-		if reflect.PtrTo(curFieldType).Implements(scannerType) {
+		if reflect.PointerTo(curFieldType).Implements(scannerType) {
 			toScan := (reflect.New(curFieldType).Interface()).(sql.Scanner)
 			err := toScan.Scan(rv.Elem().Interface())
 			if err != nil {
