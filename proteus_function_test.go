@@ -477,7 +477,7 @@ func TestBuilder_Query(t *testing.T) {
 				t.Errorf("Expected error `%s`, got `%s`", v.errMsg, errMsg)
 			}
 			if diff := cmp.Diff(v.out, v.expected); diff != "" {
-				t.Errorf(diff)
+				t.Error(diff)
 			}
 			if v.lineCount != len(lines) {
 				t.Errorf("Expected %d lines of debug, got %d: %#v", v.lineCount, len(lines), lines)
