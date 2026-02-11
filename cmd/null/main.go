@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/jonbodner/proteus"
-	"github.com/jonbodner/proteus/logger"
 	_ "github.com/lib/pq"
 )
 
@@ -35,11 +35,7 @@ type Product2Dao struct {
 type closer func(error) error
 
 func main() {
-	proteus.SetLogLevel(logger.DEBUG)
-	logger.Config(logger.LoggerFunc(func(vals ...interface{}) error {
-		fmt.Printf("%s: (%s) - %s\n", vals[1], vals[3], vals[5])
-		return nil
-	}))
+	slog.SetLogLoggerLevel(slog.LevelDebug)
 	var product2DaoPostgres Product2Dao
 	err := proteus.Build(&product2DaoPostgres, proteus.Postgres)
 	if err != nil {
@@ -49,7 +45,7 @@ func main() {
 }
 
 func run(productDao Product2Dao) {
-	ctx := logger.WithLevel(context.Background(), logger.DEBUG)
+	ctx := context.Background()
 	tx, closer := setupDBPostgres(ctx)
 	var err error
 	defer func() {
@@ -63,16 +59,16 @@ func run(productDao Product2Dao) {
 
 	populate(ctx, tx, productDao)
 
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln(productDao.FindByID(ctx, tx, 10)))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDao.FindByID(ctx, tx, 10)))
 	cost := sql.NullFloat64{
 		Float64: 56.23,
 		Valid:   true,
 	}
 	p := Product2{10, "Thingie", cost}
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln(productDao.Update(ctx, tx, p)))
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln(productDao.FindByID(ctx, tx, 10)))
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln(productDao.FindByNameAndCost(ctx, tx, "fred", 54.10)))
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintln(productDao.FindByNameAndCost(ctx, tx, "Thingie", 56.23)))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDao.Update(ctx, tx, p)))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDao.FindByID(ctx, tx, 10)))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDao.FindByNameAndCost(ctx, tx, "fred", 54.10)))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDao.FindByNameAndCost(ctx, tx, "Thingie", 56.23)))
 }
 
 func defineSchema(ctx context.Context, tx proteus.ContextWrapper) error {
@@ -82,7 +78,7 @@ func defineSchema(ctx context.Context, tx proteus.ContextWrapper) error {
 	`
 	_, err := tx.ExecContext(ctx, sqlStmt)
 	if err != nil {
-		logger.Log(ctx, logger.FATAL, fmt.Sprintf("%q: %s\n", err, sqlStmt))
+		slog.Log(ctx, slog.LevelError, fmt.Sprintf("%q: %s\n", err, sqlStmt))
 		return err
 	}
 	return nil
@@ -92,13 +88,13 @@ func setupDBPostgres(ctx context.Context) (proteus.ContextWrapper, closer) {
 	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 
 	if err != nil {
-		logger.Log(ctx, logger.FATAL, fmt.Sprintln(err))
+		slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
 		os.Exit(1)
 	}
 
 	tx, err := db.Begin()
 	if err != nil {
-		logger.Log(ctx, logger.FATAL, fmt.Sprintln(err))
+		slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
 		os.Exit(1)
 	}
 
@@ -118,9 +114,9 @@ func populate(ctx context.Context, w proteus.ContextWrapper, productDao Product2
 		}
 		rowCount, err := productDao.Insert(ctx, w, i, fmt.Sprintf("person%d", i), cost)
 		if err != nil {
-			logger.Log(ctx, logger.FATAL, fmt.Sprintln(err))
+			slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
 			os.Exit(1)
 		}
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintln(rowCount))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(rowCount))
 	}
 }

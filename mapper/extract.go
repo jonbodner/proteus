@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql/driver"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strconv"
 
-	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/stackerr"
 )
 
@@ -65,10 +65,10 @@ func Extract(ctx context.Context, s interface{}, path []string) (interface{}, er
 		if sv.Type().Key().Kind() != reflect.String {
 			return nil, stackerr.New("cannot extract value; map does not have a string key")
 		}
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintln(path[1]))
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintln(sv.MapKeys()))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(path[1]))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(sv.MapKeys()))
 		v := sv.MapIndex(reflect.ValueOf(path[1]))
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintln(v))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(v))
 		if !v.IsValid() {
 			return nil, stackerr.New("cannot extract value; no such map key " + path[1])
 		}

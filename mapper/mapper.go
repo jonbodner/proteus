@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 	"unsafe"
 
-	"github.com/jonbodner/proteus/logger"
 	"github.com/jonbodner/stackerr"
 )
 
@@ -19,7 +19,7 @@ func ptrConverter(ctx context.Context, isPtr bool, sType reflect.Type, out refle
 	if isPtr {
 		out2 := reflect.New(sType)
 		k := out.Type().Kind()
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintln("kind of out", k))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("kind of out", k))
 		if (k == reflect.Interface || k == reflect.Ptr) && out.IsNil() {
 			out2 = reflect.NewAt(sType, unsafe.Pointer(nil))
 		} else {
@@ -148,7 +148,7 @@ var (
 )
 
 func buildStruct(ctx context.Context, sType reflect.Type, cols []string, vals []interface{}, colFieldMap map[string]fieldInfo) (reflect.Value, error) {
-	logger.Log(ctx, logger.DEBUG, fmt.Sprintf("sType: %s cols: %v vals: %+v colFieldMap: %+v", sType, cols, vals, colFieldMap))
+	slog.Log(ctx, slog.LevelDebug, fmt.Sprintf("sType: %s cols: %v vals: %+v colFieldMap: %+v", sType, cols, vals, colFieldMap))
 	out := reflect.New(sType).Elem()
 	for k, v := range cols {
 		if sf, ok := colFieldMap[v]; ok {
@@ -167,12 +167,12 @@ func buildStructInner(ctx context.Context, sType reflect.Type, out reflect.Value
 	field := out.Field(sf.pos[depth])
 	curFieldType := sf.fieldType[depth]
 	if curFieldType.Kind() == reflect.Ptr {
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintln("isPtr", sf, rv, rv.Type(), rv.Elem(), curVal, sType))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("isPtr", sf, rv, rv.Type(), rv.Elem(), curVal, sType))
 		if rv.Elem().IsNil() {
-			logger.Log(ctx, logger.DEBUG, fmt.Sprintln("nil", sf, rv, curVal, sType))
+			slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("nil", sf, rv, curVal, sType))
 			return nil
 		}
-		logger.Log(ctx, logger.DEBUG, fmt.Sprintln("isPtr Not Nil", rv.Elem().Type()))
+		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("isPtr Not Nil", rv.Elem().Type()))
 		if curFieldType.Implements(scannerType) {
 			toScan := (reflect.New(curFieldType).Elem().Interface()).(sql.Scanner)
 			err := toScan.Scan(rv.Elem().Elem().Interface())
@@ -184,7 +184,7 @@ func buildStructInner(ctx context.Context, sType reflect.Type, out reflect.Value
 			field.Set(reflect.New(curFieldType.Elem()))
 			field.Elem().Set(rv.Elem().Elem().Convert(curFieldType.Elem()))
 		} else {
-			logger.Log(ctx, logger.ERROR, fmt.Sprintln("can't find the field"))
+			slog.Log(ctx, slog.LevelError, fmt.Sprintln("can't find the field"))
 			return stackerr.Errorf("unable to assign pointer to value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name[depth], curFieldType)
 		}
 	} else {
@@ -201,12 +201,12 @@ func buildStructInner(ctx context.Context, sType reflect.Type, out reflect.Value
 				return err
 			}
 		} else if rv.Elem().IsNil() {
-			logger.Log(ctx, logger.ERROR, fmt.Sprintln("Attempting to assign a nil to a non-pointer field"))
+			slog.Log(ctx, slog.LevelError, fmt.Sprintln("Attempting to assign a nil to a non-pointer field"))
 			return stackerr.Errorf("unable to assign nil value to non-pointer struct field %s of type %v", sf.name[depth], curFieldType)
 		} else if rv.Elem().Elem().Type().ConvertibleTo(curFieldType) {
 			field.Set(rv.Elem().Elem().Convert(curFieldType))
 		} else {
-			logger.Log(ctx, logger.ERROR, fmt.Sprintln("can't find the field"))
+			slog.Log(ctx, slog.LevelError, fmt.Sprintln("can't find the field"))
 			return stackerr.Errorf("unable to assign value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name[depth], curFieldType)
 		}
 	}
