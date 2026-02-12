@@ -308,6 +308,7 @@ func makeQuerierReturnVals(ctx context.Context, funcType reflect.Type, builder m
 }
 
 func handleMapping(ctx context.Context, sType reflect.Type, rows *sql.Rows, builder mapper.Builder) (interface{}, error) {
+	defer rows.Close()
 	var val interface{}
 	var err error
 	if sType.Kind() == reflect.Slice {
@@ -327,7 +328,6 @@ func handleMapping(ctx context.Context, sType reflect.Type, rows *sql.Rows, buil
 	} else {
 		val, err = mapRows(ctx, rows, builder)
 	}
-	rows.Close()
 	return val, err
 }
 
