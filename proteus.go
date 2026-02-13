@@ -75,7 +75,7 @@ func (pe Error) Unwrap() error {
 func ShouldBuild(ctx context.Context, dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
-	if daoPointerType.Kind() != reflect.Ptr {
+	if daoPointerType.Kind() != reflect.Pointer {
 		return stackerr.New("not a pointer")
 	}
 	daoType := daoPointerType.Elem()
@@ -163,7 +163,7 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 	ctx := context.Background()
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
-	if daoPointerType.Kind() != reflect.Ptr {
+	if daoPointerType.Kind() != reflect.Pointer {
 		return stackerr.New("not a pointer")
 	}
 	daoType := daoPointerType.Elem()
@@ -185,8 +185,9 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 			err := Build(pv.Interface(), paramAdapter, mappers...)
 			if err != nil {
 				outErr = multierr.Append(outErr, err)
+			} else {
+				daoValue.Field(i).Set(pv.Elem())
 			}
-			daoValue.Field(i).Set(pv.Elem())
 			continue
 		}
 
@@ -240,11 +241,12 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 }
 
 var (
-	exType      = reflect.TypeOf((*Executor)(nil)).Elem()
-	qType       = reflect.TypeOf((*Querier)(nil)).Elem()
-	contextType = reflect.TypeOf((*context.Context)(nil)).Elem()
-	conExType   = reflect.TypeOf((*ContextExecutor)(nil)).Elem()
-	conQType    = reflect.TypeOf((*ContextQuerier)(nil)).Elem()
+	exType      = reflect.TypeFor[Executor]()
+	qType       = reflect.TypeFor[Querier]()
+	contextType = reflect.TypeFor[context.Context]()
+	conExType   = reflect.TypeFor[ContextExecutor]()
+	conQType    = reflect.TypeFor[ContextQuerier]()
+	errType     = reflect.TypeFor[error]()
 )
 
 func validateFunction(funcType reflect.Type) (bool, error) {
@@ -290,7 +292,6 @@ func validateFunction(funcType reflect.Type) (bool, error) {
 
 	//if 2 return values, second is error
 	if funcType.NumOut() == 2 {
-		errType := reflect.TypeOf((*error)(nil)).Elem()
 		if !funcType.Out(1).Implements(errType) {
 			return false, stackerr.New("2nd output parameter must be of type error")
 		}
