@@ -56,8 +56,8 @@ func TestBug_PtrConverterNilPointerTrap(t *testing.T) {
 	// The key test: ptrVal should be a normal Go nil pointer, not an unsafe pointer to address 0.
 	// Verify that reflect sees it as a proper nil pointer.
 	rv := reflect.ValueOf(result)
-	if rv.Kind() == reflect.Ptr && !rv.IsNil() {
-		t.Errorf("result is a non-nil reflect.Ptr but concrete value is nil — this is the unsafe.Pointer(nil) trap")
+	if rv.Kind() == reflect.Pointer && !rv.IsNil() {
+		t.Errorf("result is a non-nil reflect.Pointer but concrete value is nil — this is the unsafe.Pointer(nil) trap")
 	}
 }
 

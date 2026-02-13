@@ -102,7 +102,7 @@ func Extract(ctx context.Context, s interface{}, path []string) (interface{}, er
 
 func fromPtr(s interface{}) interface{} {
 	st := reflect.TypeOf(s)
-	if st != nil && st.Kind() == reflect.Ptr {
+	if st != nil && st.Kind() == reflect.Pointer {
 		sp := reflect.ValueOf(s).Elem()
 		return sp.Interface()
 	}
@@ -113,7 +113,7 @@ func fromPtrType(s reflect.Type) reflect.Type {
 	if s == nil {
 		return nil
 	}
-	for s.Kind() == reflect.Ptr {
+	for s.Kind() == reflect.Pointer {
 		s = s.Elem()
 	}
 	return s

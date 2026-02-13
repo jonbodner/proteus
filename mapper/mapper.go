@@ -19,7 +19,7 @@ func ptrConverter(ctx context.Context, isPtr bool, sType reflect.Type, out refle
 		out2 := reflect.New(sType)
 		k := out.Type().Kind()
 		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("kind of out", k))
-		if (k == reflect.Interface || k == reflect.Ptr) && out.IsNil() {
+		if (k == reflect.Interface || k == reflect.Pointer) && out.IsNil() {
 			out2 = reflect.Zero(reflect.PointerTo(sType))
 		} else {
 			out2.Elem().Set(out)
@@ -27,7 +27,7 @@ func ptrConverter(ctx context.Context, isPtr bool, sType reflect.Type, out refle
 		return out2.Interface(), nil
 	}
 	k := out.Type().Kind()
-	if (k == reflect.Ptr || k == reflect.Interface) && out.IsNil() {
+	if (k == reflect.Pointer || k == reflect.Interface) && out.IsNil() {
 		return nil, stackerr.Errorf("attempting to return nil for non-pointer type %v", sType)
 	}
 	return out.Interface(), nil
@@ -165,7 +165,7 @@ func buildStruct(ctx context.Context, sType reflect.Type, cols []string, vals []
 func buildStructInner(ctx context.Context, sType reflect.Type, out reflect.Value, sf fieldInfo, curVal interface{}, rv reflect.Value, depth int) error {
 	field := out.Field(sf.pos[depth])
 	curFieldType := sf.fieldType[depth]
-	if curFieldType.Kind() == reflect.Ptr {
+	if curFieldType.Kind() == reflect.Pointer {
 		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("isPtr", sf, rv, rv.Type(), rv.Elem(), curVal, sType))
 		if rv.Elem().IsNil() {
 			slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("nil", sf, rv, curVal, sType))

@@ -28,7 +28,7 @@ func (fb Builder) BuildFunction(ctx context.Context, f interface{}, query string
 	// make sure that f is of the right type (pointer to function)
 	funcPointerType := reflect.TypeOf(f)
 	//must be a pointer to func
-	if funcPointerType.Kind() != reflect.Ptr {
+	if funcPointerType.Kind() != reflect.Pointer {
 		return stackerr.New("not a pointer")
 	}
 	funcType := funcPointerType.Elem()
@@ -107,7 +107,7 @@ func (fb Builder) ExecResult(ctx context.Context, e ContextExecutor, query strin
 func (fb Builder) Query(ctx context.Context, q ContextQuerier, query string, params map[string]interface{}, output interface{}) error {
 	// make sure that output is a pointer to something
 	outputPointerType := reflect.TypeOf(output)
-	if outputPointerType.Kind() != reflect.Ptr {
+	if outputPointerType.Kind() != reflect.Pointer {
 		return stackerr.New("not a pointer")
 	}
 

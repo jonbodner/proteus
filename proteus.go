@@ -75,7 +75,7 @@ func (pe Error) Unwrap() error {
 func ShouldBuild(ctx context.Context, dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
-	if daoPointerType.Kind() != reflect.Ptr {
+	if daoPointerType.Kind() != reflect.Pointer {
 		return stackerr.New("not a pointer")
 	}
 	daoType := daoPointerType.Elem()
@@ -163,7 +163,7 @@ func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) e
 	ctx := context.Background()
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
-	if daoPointerType.Kind() != reflect.Ptr {
+	if daoPointerType.Kind() != reflect.Pointer {
 		return stackerr.New("not a pointer")
 	}
 	daoType := daoPointerType.Elem()
