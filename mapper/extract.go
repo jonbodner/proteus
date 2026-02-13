@@ -22,6 +22,9 @@ func ExtractType(ctx context.Context, curType reflect.Type, path []string) (refl
 		return ss, nil
 	}
 	// length > 1, find a match for path[1], and recurse
+	if ss == nil {
+		return nil, stackerr.New("cannot find the type for the subfield of a nil")
+	}
 	switch ss.Kind() {
 	case reflect.Map:
 		//give up -- we can't figure out what's in the map, so just return the type of the value
@@ -87,6 +90,9 @@ func Extract(ctx context.Context, s interface{}, path []string) (interface{}, er
 		if err != nil {
 			return nil, stackerr.Errorf("invalid index: %s :%w", path[1], err)
 		}
+		if pos < 0 || pos >= sv.Len() {
+			return nil, stackerr.Errorf("invalid index: %s", path[1])
+		}
 		v := sv.Index(pos)
 		return Extract(ctx, v.Interface(), path[1:])
 	default:
@@ -96,15 +102,17 @@ func Extract(ctx context.Context, s interface{}, path []string) (interface{}, er
 
 func fromPtr(s interface{}) interface{} {
 	st := reflect.TypeOf(s)
-	if st.Kind() == reflect.Ptr {
+	if st != nil && st.Kind() == reflect.Ptr {
 		sp := reflect.ValueOf(s).Elem()
 		return sp.Interface()
-
 	}
 	return s
 }
 
 func fromPtrType(s reflect.Type) reflect.Type {
+	if s == nil {
+		return nil
+	}
 	for s.Kind() == reflect.Ptr {
 		s = s.Elem()
 	}

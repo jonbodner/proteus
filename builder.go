@@ -56,7 +56,7 @@ func (tq templateQueryHolder) finalize(ctx context.Context, args []reflect.Value
 }
 
 var (
-	valueType = reflect.TypeOf((*driver.Valuer)(nil)).Elem()
+	valueType = reflect.TypeFor[driver.Valuer]()
 )
 
 type posType interface {
@@ -110,11 +110,14 @@ func buildFixedQueryAndParamOrder(ctx context.Context, query string, nameOrderMa
 					//if the path has more than one part, make sure that the type of the function parameter is map or struct
 					paramType := funcType.In(paramPos)
 					if len(path) > 1 {
+						if paramType == nil {
+							return nil, nil, stackerr.Errorf("query Parameter %s has a path, but the incoming parameter is nil", paramName)
+						}
 						switch paramType.Kind() {
 						case reflect.Map, reflect.Struct:
 							//do nothing
 						default:
-							return nil, nil, stackerr.Errorf("query Parameter %s has a path, but the incoming parameter is not a map or a struct", paramName)
+							return nil, nil, stackerr.Errorf("query Parameter %s has a path, but the incoming parameter is not a map or a struct it is %s", paramName, paramType.Kind())
 						}
 					}
 					pathType, err := mapper.ExtractType(ctx, paramType, path)

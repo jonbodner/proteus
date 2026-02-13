@@ -18,7 +18,12 @@ func buildQueryArgs(ctx context.Context, funcArgs []reflect.Value, paramOrder []
 	//walk through the rest of the input parameters and build a slice for args
 	var out []interface{}
 	for _, v := range paramOrder {
-		val, err := mapper.Extract(ctx, funcArgs[v.posInParams].Interface(), strings.Split(v.name, "."))
+		value := funcArgs[v.posInParams]
+		var realValue any
+		if value.IsValid() {
+			realValue = value.Interface()
+		}
+		val, err := mapper.Extract(ctx, realValue, strings.Split(v.name, "."))
 		if err != nil {
 			return nil, err
 		}
@@ -36,11 +41,10 @@ func buildQueryArgs(ctx context.Context, funcArgs []reflect.Value, paramOrder []
 }
 
 var (
-	errType       = reflect.TypeOf((*error)(nil)).Elem()
 	errZero       = reflect.Zero(errType)
 	zeroInt64     = reflect.ValueOf(int64(0))
 	zeroSQLResult = reflect.ValueOf((sql.Result)(nil))
-	sqlResultType = reflect.TypeOf((*sql.Result)(nil)).Elem()
+	sqlResultType = reflect.TypeFor[sql.Result]()
 )
 
 func makeContextExecutorImplementation(ctx context.Context, funcType reflect.Type, query queryHolder, paramOrder []paramInfo) func(args []reflect.Value) []reflect.Value {
@@ -308,6 +312,9 @@ func makeQuerierReturnVals(ctx context.Context, funcType reflect.Type, builder m
 }
 
 func handleMapping(ctx context.Context, sType reflect.Type, rows *sql.Rows, builder mapper.Builder) (interface{}, error) {
+	if rows == nil {
+		return nil, stackerr.New("rows must be non-nil")
+	}
 	defer rows.Close()
 	var val interface{}
 	var err error

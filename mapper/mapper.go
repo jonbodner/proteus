@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"reflect"
 	"strings"
-	"unsafe"
 
 	"github.com/jonbodner/stackerr"
 )
@@ -21,7 +20,7 @@ func ptrConverter(ctx context.Context, isPtr bool, sType reflect.Type, out refle
 		k := out.Type().Kind()
 		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("kind of out", k))
 		if (k == reflect.Interface || k == reflect.Ptr) && out.IsNil() {
-			out2 = reflect.NewAt(sType, unsafe.Pointer(nil))
+			out2 = reflect.Zero(reflect.PointerTo(sType))
 		} else {
 			out2.Elem().Set(out)
 		}
@@ -40,7 +39,7 @@ func MakeBuilder(ctx context.Context, sType reflect.Type) (Builder, error) {
 	}
 
 	isPtr := false
-	if sType.Kind() == reflect.Ptr {
+	if sType.Kind() == reflect.Pointer {
 		sType = sType.Elem()
 		isPtr = true
 	}
@@ -50,7 +49,8 @@ func MakeBuilder(ctx context.Context, sType reflect.Type) (Builder, error) {
 		sType = sType.Elem()
 	}
 
-	if sType.Kind() == reflect.Map {
+	switch sType.Kind() {
+	case reflect.Map:
 		if sType.Key().Kind() != reflect.String {
 			return nil, stackerr.New("only maps with string keys are supported")
 		}
@@ -58,7 +58,7 @@ func MakeBuilder(ctx context.Context, sType reflect.Type) (Builder, error) {
 			out, err := buildMap(ctx, sType, cols, vals)
 			return ptrConverter(ctx, isPtr, sType, out, err)
 		}, nil
-	} else if sType.Kind() == reflect.Struct {
+	case reflect.Struct:
 		//build map of col names to field names (makes this 2N instead of N^2)
 		colFieldMap := map[string]fieldInfo{}
 		buildColFieldMap(sType, fieldInfo{}, colFieldMap)
@@ -66,8 +66,7 @@ func MakeBuilder(ctx context.Context, sType reflect.Type) (Builder, error) {
 			out, err := buildStruct(ctx, sType, cols, vals, colFieldMap)
 			return ptrConverter(ctx, isPtr, sType, out, err)
 		}, nil
-
-	} else {
+	default:
 		// assume primitive
 		return func(cols []string, vals []interface{}) (interface{}, error) {
 			out, err := buildPrimitive(ctx, sType, cols, vals)
@@ -144,7 +143,7 @@ func buildMap(ctx context.Context, sType reflect.Type, cols []string, vals []int
 }
 
 var (
-	scannerType = reflect.TypeOf((*sql.Scanner)(nil)).Elem()
+	scannerType = reflect.TypeFor[sql.Scanner]()
 )
 
 func buildStruct(ctx context.Context, sType reflect.Type, cols []string, vals []interface{}, colFieldMap map[string]fieldInfo) (reflect.Value, error) {

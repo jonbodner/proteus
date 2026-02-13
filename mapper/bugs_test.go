@@ -18,7 +18,7 @@ func TestBug_PtrConverterNilPointerTrap(t *testing.T) {
 	ctx := context.Background()
 
 	// Build a mapper for *int (pointer to int).
-	sType := reflect.TypeOf((*int)(nil))
+	sType := reflect.TypeFor[*int]()
 	builder, err := MakeBuilder(ctx, sType)
 	if err != nil {
 		t.Fatal(err)

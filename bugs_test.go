@@ -38,7 +38,7 @@ func TestBug_HandleMappingNilRows(t *testing.T) {
 // Passing a nil value in the params map causes a panic because
 // reflect.TypeOf(nil) returns nil, and subsequent .Kind() calls crash.
 func TestBug_SetupDynamicQueriesNilValue(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	b := NewBuilder(Postgres)
 
 	defer func() {
