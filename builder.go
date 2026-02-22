@@ -173,10 +173,10 @@ func doFinalize(ctx context.Context, queryString string, paramOrder []paramInfo,
 	}
 
 	//can evaluate the template now, with 1 for the length for each item
-	sliceMap := map[string]interface{}{}
+	sliceMap := map[string]any{}
 	for _, v := range paramOrder {
 		if v.isSlice {
-			var val interface{}
+			var val any
 			val, err = mapper.Extract(ctx, args[v.posInParams].Interface(), strings.Split(v.name, "."))
 			if err != nil {
 				break

@@ -29,9 +29,9 @@ type ProductDAO struct {
 	FindByID                      func(e proteus.Querier, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
 	Update                        func(e proteus.Executor, p Product) (int64, error)                                   `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
 	FindByNameAndCost             func(e proteus.Querier, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
-	FindByIDMap                   func(e proteus.Querier, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
-	UpdateMap                     func(e proteus.Executor, p map[string]interface{}) (int64, error)                    `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCostMap          func(e proteus.Querier, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindByIDMap                   func(e proteus.Querier, id int) (map[string]any, error)                              `proq:"select * from Product where id = :id:" prop:"id"`
+	UpdateMap                     func(e proteus.Executor, p map[string]any) (int64, error)                            `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCostMap          func(e proteus.Querier, name string, cost float64) ([]map[string]any, error)         `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
 	Insert                        func(e proteus.Executor, id int, name string, cost *float64) (int64, error)          `proq:"insert into product(id, name, cost) values(:id:, :name:, :cost:)" prop:"id,name,cost"`
 	FindByIDSlice                 func(e proteus.Querier, ids []int) ([]Product, error)                                `proq:"select * from Product where id in (:ids:)" prop:"ids"`
 	FindByIDSliceAndName          func(e proteus.Querier, ids []int, name string) ([]Product, error)                   `proq:"select * from Product where name = :name: and id in (:ids:)" prop:"ids,name"`
@@ -75,12 +75,12 @@ func run(setupDb setupDb, productDAO ProductDAO) {
 	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDAO.FindByNameAndCost(tx, "fred", 54.10)))
 	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDAO.FindByNameAndCost(tx, "Thingie", 56.23)))
 
-	//using a map of [string]interface{} works too!
+	//using a map of [string]any works too!
 	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByIDMap(tx, 10))))
 	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByNameAndCostMap(tx, "Thingie", 56.23))))
 
 	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByID(tx, 11))))
-	m := map[string]interface{}{
+	m := map[string]any{
 		"Id":   11,
 		"Name": "bobbo",
 		"Cost": 12.94,

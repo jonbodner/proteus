@@ -47,7 +47,7 @@ func ExtractType(ctx context.Context, curType reflect.Type, path []string) (refl
 	}
 }
 
-func Extract(ctx context.Context, s interface{}, path []string) (interface{}, error) {
+func Extract(ctx context.Context, s any, path []string) (any, error) {
 	// error case path length == 0
 	if len(path) == 0 {
 		return nil, stackerr.New("cannot extract value; no path remaining")
@@ -100,7 +100,7 @@ func Extract(ctx context.Context, s interface{}, path []string) (interface{}, er
 	}
 }
 
-func fromPtr(s interface{}) interface{} {
+func fromPtr(s any) any {
 	st := reflect.TypeOf(s)
 	if st != nil && st.Kind() == reflect.Pointer {
 		sp := reflect.ValueOf(s).Elem()

@@ -13,10 +13,10 @@ import (
 	"github.com/jonbodner/stackerr"
 )
 
-func buildQueryArgs(ctx context.Context, funcArgs []reflect.Value, paramOrder []paramInfo) ([]interface{}, error) {
+func buildQueryArgs(ctx context.Context, funcArgs []reflect.Value, paramOrder []paramInfo) ([]any, error) {
 
 	//walk through the rest of the input parameters and build a slice for args
-	var out []interface{}
+	var out []any
 	for _, v := range paramOrder {
 		value := funcArgs[v.posInParams]
 		var realValue any
@@ -311,16 +311,16 @@ func makeQuerierReturnVals(ctx context.Context, funcType reflect.Type, builder m
 	}
 }
 
-func handleMapping(ctx context.Context, sType reflect.Type, rows *sql.Rows, builder mapper.Builder) (interface{}, error) {
+func handleMapping(ctx context.Context, sType reflect.Type, rows *sql.Rows, builder mapper.Builder) (any, error) {
 	if rows == nil {
 		return nil, stackerr.New("rows must be non-nil")
 	}
 	defer rows.Close()
-	var val interface{}
+	var val any
 	var err error
 	if sType.Kind() == reflect.Slice {
 		s := reflect.MakeSlice(sType, 0, 0)
-		var result interface{}
+		var result any
 		for {
 			result, err = mapRows(ctx, rows, builder)
 			if err != nil {
@@ -347,7 +347,7 @@ func handleMapping(ctx context.Context, sType reflect.Type, rows *sql.Rows, buil
 // If next returns false, then nil is returned for both the interface and the error
 // If an error occurs while processing the current row, nil is returned for the interface and the error is non-nil
 // If a value is successfully extracted from the current row, the instance is returned and the error is nil
-func mapRows(ctx context.Context, rows *sql.Rows, builder mapper.Builder) (interface{}, error) {
+func mapRows(ctx context.Context, rows *sql.Rows, builder mapper.Builder) (any, error) {
 	//fmt.Println(sType)
 	if rows == nil {
 		return nil, stackerr.New("rows must be non-nil")
@@ -368,7 +368,7 @@ func mapRows(ctx context.Context, rows *sql.Rows, builder mapper.Builder) (inter
 		return nil, stackerr.New("No values returned from query")
 	}
 
-	vals := make([]interface{}, len(cols))
+	vals := make([]any, len(cols))
 	colTypes, err := rows.ColumnTypes()
 	if err != nil {
 		return nil, err

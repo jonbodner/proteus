@@ -11,7 +11,7 @@ import (
 	"github.com/jonbodner/stackerr"
 )
 
-func ptrConverter(ctx context.Context, isPtr bool, sType reflect.Type, out reflect.Value, err error) (interface{}, error) {
+func ptrConverter(ctx context.Context, isPtr bool, sType reflect.Type, out reflect.Value, err error) (any, error) {
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func MakeBuilder(ctx context.Context, sType reflect.Type) (Builder, error) {
 		if sType.Key().Kind() != reflect.String {
 			return nil, stackerr.New("only maps with string keys are supported")
 		}
-		return func(cols []string, vals []interface{}) (interface{}, error) {
+		return func(cols []string, vals []any) (any, error) {
 			out, err := buildMap(ctx, sType, cols, vals)
 			return ptrConverter(ctx, isPtr, sType, out, err)
 		}, nil
@@ -62,13 +62,13 @@ func MakeBuilder(ctx context.Context, sType reflect.Type) (Builder, error) {
 		//build map of col names to field names (makes this 2N instead of N^2)
 		colFieldMap := map[string]fieldInfo{}
 		buildColFieldMap(sType, fieldInfo{}, colFieldMap)
-		return func(cols []string, vals []interface{}) (interface{}, error) {
+		return func(cols []string, vals []any) (any, error) {
 			out, err := buildStruct(ctx, sType, cols, vals, colFieldMap)
 			return ptrConverter(ctx, isPtr, sType, out, err)
 		}, nil
 	default:
 		// assume primitive
-		return func(cols []string, vals []interface{}) (interface{}, error) {
+		return func(cols []string, vals []any) (any, error) {
 			out, err := buildPrimitive(ctx, sType, cols, vals)
 			return ptrConverter(ctx, isPtr, sType, out, err)
 		}, nil
@@ -117,7 +117,7 @@ func buildColFieldMap(sType reflect.Type, parentFieldInfo fieldInfo, colFieldMap
 	}
 }
 
-type Builder func(cols []string, vals []interface{}) (interface{}, error)
+type Builder func(cols []string, vals []any) (any, error)
 
 type fieldInfo struct {
 	name      []string
@@ -125,7 +125,7 @@ type fieldInfo struct {
 	pos       []int
 }
 
-func buildMap(ctx context.Context, sType reflect.Type, cols []string, vals []interface{}) (reflect.Value, error) {
+func buildMap(ctx context.Context, sType reflect.Type, cols []string, vals []any) (reflect.Value, error) {
 	out := reflect.MakeMap(sType)
 	for k, v := range cols {
 		curVal := vals[k]
@@ -146,7 +146,7 @@ var (
 	scannerType = reflect.TypeFor[sql.Scanner]()
 )
 
-func buildStruct(ctx context.Context, sType reflect.Type, cols []string, vals []interface{}, colFieldMap map[string]fieldInfo) (reflect.Value, error) {
+func buildStruct(ctx context.Context, sType reflect.Type, cols []string, vals []any, colFieldMap map[string]fieldInfo) (reflect.Value, error) {
 	slog.Log(ctx, slog.LevelDebug, fmt.Sprintf("sType: %s cols: %v vals: %+v colFieldMap: %+v", sType, cols, vals, colFieldMap))
 	out := reflect.New(sType).Elem()
 	for k, v := range cols {
@@ -162,7 +162,7 @@ func buildStruct(ctx context.Context, sType reflect.Type, cols []string, vals []
 	return out, nil
 }
 
-func buildStructInner(ctx context.Context, sType reflect.Type, out reflect.Value, sf fieldInfo, curVal interface{}, rv reflect.Value, depth int) error {
+func buildStructInner(ctx context.Context, sType reflect.Type, out reflect.Value, sf fieldInfo, curVal any, rv reflect.Value, depth int) error {
 	field := out.Field(sf.pos[depth])
 	curFieldType := sf.fieldType[depth]
 	if curFieldType.Kind() == reflect.Pointer {
@@ -212,9 +212,9 @@ func buildStructInner(ctx context.Context, sType reflect.Type, out reflect.Value
 	return nil
 }
 
-func buildPrimitive(ctx context.Context, sType reflect.Type, cols []string, vals []interface{}) (reflect.Value, error) {
+func buildPrimitive(ctx context.Context, sType reflect.Type, cols []string, vals []any) (reflect.Value, error) {
 	out := reflect.New(sType).Elem()
-	//vals[0] is of type *interface{}, because everything in vals is of type *interface{}
+	//vals[0] is of type *any, because everything in vals is of type *any
 	rv := reflect.ValueOf(vals[0])
 	if rv.Elem().IsNil() {
 		return rv.Elem(), nil

@@ -4,19 +4,9 @@ This document describes changes to bring the Proteus codebase up to modern, idio
 
 ---
 
-## 1. Replace `interface{}` with `any` (Go 1.18+)
+## ~~1. Replace `interface{}` with `any` (Go 1.18+)~~ (DONE)
 
-Go 1.18 introduced `any` as a built-in alias for `interface{}`. The entire codebase uses `interface{}` — every occurrence should be replaced with `any` for consistency with modern Go style and the standard library itself.
-
-**Scope:** Every `.go` file. Key locations include:
-
-- `api.go` — all interface method signatures (`args ...interface{}`)
-- `proteus.go` — `ShouldBuild`/`Build` parameters (`dao interface{}`)
-- `proteus_function.go` — `BuildFunction`, `Query`, `Exec` parameters
-- `runner.go` — `buildQueryArgs` return type, `handleMapping`, `mapRows`
-- `mapper/mapper.go` — `Builder` type, `buildMap`, `buildStruct`, `buildPrimitive`
-- `mapper/extract.go` — `Extract` signature
-- `builder.go` — `sliceMap`, `doFinalize`
+Replaced all occurrences of `interface{}` with `any` across every `.go` file in the repository, including core library files, the mapper package, test files, and sample commands.
 
 ---
 
@@ -429,7 +419,7 @@ If `Build` returns an error, `productDao` will have nil function fields. Subsequ
 - #24 — Missing `tx.Rollback()` in samples/tests
 
 **Medium priority (idiomatic modernization):**
-- #1 — `interface{}` to `any`
+- ~~#1 — `interface{}` to `any`~~ *(DONE)*
 - #2 — Replace `multierr` with `errors.Join`
 - #3 — Replace `stackerr` with stdlib error handling
 - #4 — Fix slog usage for proper structured logging

@@ -18,7 +18,7 @@ func TestBuilder_BuildFunctionErrors(t *testing.T) {
 
 	data := []struct {
 		name   string
-		f      interface{}
+		f      any
 		query  string
 		params []string
 		errMsg string
@@ -140,7 +140,7 @@ func TestBuilder_Execute(t *testing.T) {
 	data := []struct {
 		name      string
 		query     string
-		params    map[string]interface{}
+		params    map[string]any
 		rows      int64
 		errMsg    string
 		lineCount int
@@ -148,52 +148,52 @@ func TestBuilder_Execute(t *testing.T) {
 		{
 			name:   "insert",
 			query:  "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)",
-			params: map[string]interface{}{"name": "Fred", "age": 20},
+			params: map[string]any{"name": "Fred", "age": 20},
 			rows:   1,
 		},
 		{
 			name:   "insert struct",
 			query:  "INSERT INTO PERSON(name, age) VALUES(:p.Name:, :p.Age:)",
-			params: map[string]interface{}{"p": Person{Name: "Bob", Age: 50}},
+			params: map[string]any{"p": Person{Name: "Bob", Age: 50}},
 			rows:   1,
 		},
 		{
 			name:   "insert map",
 			query:  "INSERT INTO PERSON(name, age) VALUES(:p.name:, :p.age:)",
-			params: map[string]interface{}{"p": map[string]interface{}{"name": "Julia", "age": 32}},
+			params: map[string]any{"p": map[string]any{"name": "Julia", "age": 32}},
 			rows:   1,
 		},
 		{
 			name:   "insert unnamed",
 			query:  "INSERT INTO PERSON(name, age) VALUES(:$1:, :$2:)",
-			params: map[string]interface{}{"$1": "Pat", "$2": 37},
+			params: map[string]any{"$1": "Pat", "$2": 37},
 			rows:   1,
 		},
 		{
 			name:   "bad query",
 			query:  "INSERT INTO PERSON(name, age VALUES(:name:, :age:)",
-			params: map[string]interface{}{"name": "Fred", "age": 20},
+			params: map[string]any{"name": "Fred", "age": 20},
 			rows:   0,
 			errMsg: "pq: syntax error at or near \"VALUES\"",
 		},
 		{
 			name:   "bad args",
 			query:  "INSERT INTO PERSON(name, age) VALUES(:name stuff:, :age:)",
-			params: map[string]interface{}{"name": "Fred", "age": 20},
+			params: map[string]any{"name": "Fred", "age": 20},
 			rows:   0,
 			errMsg: ". missing between parts of an identifier: name stuff",
 		},
 		{
 			name:   "no such query",
 			query:  "q:nope",
-			params: map[string]interface{}{"id": 1},
+			params: map[string]any{"id": 1},
 			rows:   0,
 			errMsg: "no query found for name nope",
 		},
 		{
 			name:      "logging",
 			query:     "INSERT INTO PERSON(name, age) VALUES(:name:, :age:)",
-			params:    map[string]interface{}{"name": "Fred", "age": 20},
+			params:    map[string]any{"name": "Fred", "age": 20},
 			rows:      1,
 			lineCount: 7,
 		},
@@ -254,7 +254,7 @@ func TestBuilder_Query(t *testing.T) {
 	// set up some data
 	_, err := b.Exec(ctx, db,
 		"INSERT INTO PERSON(name, age) VALUES(:name1:, :age1:),(:name2:, :age2:),(:name3:, :age3:),(:name4:, :age4:)",
-		map[string]interface{}{
+		map[string]any{
 			"name1": "Fred", "age1": 20,
 			"name2": "Bob", "age2": 50,
 			"name3": "Julia", "age3": 32,
@@ -274,16 +274,16 @@ func TestBuilder_Query(t *testing.T) {
 	data := []struct {
 		name      string
 		query     string
-		params    map[string]interface{}
-		out       interface{}
-		expected  interface{}
+		params    map[string]any
+		out       any
+		expected  any
 		errMsg    string
 		lineCount int
 	}{
 		{
 			name:     "person by id",
 			query:    "SELECT * FROM PERSON WHERE id = :id:",
-			params:   map[string]interface{}{"id": 1},
+			params:   map[string]any{"id": 1},
 			out:      &Person{},
 			expected: &Person{Id: 1, Name: "Fred", Age: 20},
 		},
@@ -302,7 +302,7 @@ func TestBuilder_Query(t *testing.T) {
 		{
 			name:   "all people in ages",
 			query:  "SELECT * from PERSON WHERE name=:name: and age in (:ages:) and id = :id:",
-			params: map[string]interface{}{"id": 1, "ages": []int{20, 32}, "name": "Fred"},
+			params: map[string]any{"id": 1, "ages": []int{20, 32}, "name": "Fred"},
 			out:    &[]Person{},
 			expected: &[]Person{
 				{Id: 1, Name: "Fred", Age: 20},
@@ -311,7 +311,7 @@ func TestBuilder_Query(t *testing.T) {
 		{
 			name:   "all people in ages unnamed",
 			query:  "SELECT * from PERSON WHERE name=:$1: and age in (:$2:) and id = :$3:",
-			params: map[string]interface{}{"$1": "Fred", "$2": []int{20, 32}, "$3": 1},
+			params: map[string]any{"$1": "Fred", "$2": []int{20, 32}, "$3": 1},
 			out:    &[]Person{},
 			expected: &[]Person{
 				{Id: 1, Name: "Fred", Age: 20},
@@ -321,18 +321,18 @@ func TestBuilder_Query(t *testing.T) {
 		{
 			name:   "id untyped out",
 			query:  "SELECT * FROM PERSON WHERE id = :id:",
-			params: map[string]interface{}{"id": 1},
-			out:    &map[string]interface{}{},
-			expected: &map[string]interface{}{
+			params: map[string]any{"id": 1},
+			out:    &map[string]any{},
+			expected: &map[string]any{
 				"id": int64(1), "name": "Fred", "age": int64(20),
 			},
 		},
 		{
 			name:   "slice age untyped out",
 			query:  "SELECT * FROM PERSON where age > :$1: and age < :$2:",
-			params: map[string]interface{}{"$1": 20, "$2": 50},
-			out:    &[]map[string]interface{}{},
-			expected: &[]map[string]interface{}{
+			params: map[string]any{"$1": 20, "$2": 50},
+			out:    &[]map[string]any{},
+			expected: &[]map[string]any{
 				{"id": int64(3), "name": "Julia", "age": int64(32)},
 				{"id": int64(4), "name": "Pat", "age": int64(37)},
 			},
@@ -340,32 +340,32 @@ func TestBuilder_Query(t *testing.T) {
 		{
 			name:   "id from struct",
 			query:  "SELECT * FROM PERSON WHERE id = :p.Id:",
-			params: map[string]interface{}{"p": Person{Id: 1}},
-			out:    &map[string]interface{}{},
-			expected: &map[string]interface{}{
+			params: map[string]any{"p": Person{Id: 1}},
+			out:    &map[string]any{},
+			expected: &map[string]any{
 				"id": int64(1), "name": "Fred", "age": int64(20),
 			},
 		},
 		{
 			name:   "id from map",
 			query:  "SELECT * FROM PERSON WHERE id = :p.id:",
-			params: map[string]interface{}{"p": map[string]interface{}{"id": 1}},
-			out:    &map[string]interface{}{},
-			expected: &map[string]interface{}{
+			params: map[string]any{"p": map[string]any{"id": 1}},
+			out:    &map[string]any{},
+			expected: &map[string]any{
 				"id": int64(1), "name": "Fred", "age": int64(20),
 			},
 		},
 		{
 			name:     "nothing returned",
 			query:    "SELECT * FROM PERSON WHERE id = :id:",
-			params:   map[string]interface{}{"id": 100},
+			params:   map[string]any{"id": 100},
 			out:      &Person{},
 			expected: &Person{},
 		},
 		{
 			name:      "nothing returned logging context",
 			query:     "SELECT * FROM PERSON WHERE id = :id:",
-			params:    map[string]interface{}{"id": 100},
+			params:    map[string]any{"id": 100},
 			out:       &Person{},
 			expected:  &Person{},
 			lineCount: 4,
@@ -373,7 +373,7 @@ func TestBuilder_Query(t *testing.T) {
 		{
 			name:      "nothing returned logging default",
 			query:     "SELECT * FROM PERSON WHERE id = :id:",
-			params:    map[string]interface{}{"id": 100},
+			params:    map[string]any{"id": 100},
 			out:       &Person{},
 			expected:  &Person{},
 			lineCount: 4,
@@ -382,7 +382,7 @@ func TestBuilder_Query(t *testing.T) {
 		{
 			name:     "not a pointer",
 			query:    "SELECT * FROM PERSON WHERE id = :id:",
-			params:   map[string]interface{}{"id": 1},
+			params:   map[string]any{"id": 1},
 			out:      Person{},
 			expected: Person{},
 			errMsg:   "not a pointer",
@@ -390,7 +390,7 @@ func TestBuilder_Query(t *testing.T) {
 		{
 			name:     "no such query",
 			query:    "q:nope",
-			params:   map[string]interface{}{"id": 1},
+			params:   map[string]any{"id": 1},
 			out:      &Person{},
 			expected: &Person{},
 			errMsg:   "no query found for name nope",
@@ -398,7 +398,7 @@ func TestBuilder_Query(t *testing.T) {
 		{
 			name:     "bad query",
 			query:    "SELECT * FROM PER SON WHERE id = :id:",
-			params:   map[string]interface{}{"id": 1},
+			params:   map[string]any{"id": 1},
 			out:      &Person{},
 			expected: &Person{},
 			errMsg:   `pq: relation "per" does not exist`,
@@ -406,15 +406,15 @@ func TestBuilder_Query(t *testing.T) {
 		{
 			name:     "bad target",
 			query:    "SELECT * FROM PERSON WHERE id = :id:",
-			params:   map[string]interface{}{"id": 1},
-			out:      &map[int]interface{}{},
-			expected: &map[int]interface{}{},
+			params:   map[string]any{"id": 1},
+			out:      &map[int]any{},
+			expected: &map[int]any{},
 			errMsg:   `only maps with string keys are supported`,
 		},
 		{
 			name:     "bad mapping",
 			query:    "SELECT * FROM PERSON WHERE id = :id:",
-			params:   map[string]interface{}{"id": 1},
+			params:   map[string]any{"id": 1},
 			out:      &BadPerson{},
 			expected: &BadPerson{},
 			errMsg:   "unable to assign value Fred of type string to struct field Id of type int",
@@ -422,7 +422,7 @@ func TestBuilder_Query(t *testing.T) {
 		{
 			name:     "bad in clause",
 			query:    "SELECT * FROM PERSON WHERE id in (:p.id:)",
-			params:   map[string]interface{}{"p": map[string]interface{}{"foo": "bar"}},
+			params:   map[string]any{"p": map[string]any{"foo": "bar"}},
 			out:      &Person{},
 			expected: &Person{},
 			errMsg:   "cannot extract value; no such map key id",

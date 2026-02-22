@@ -327,7 +327,7 @@ func TestBuildMap(t *testing.T) {
 	}
 	defer rows.Close()
 
-	var m map[string]interface{}
+	var m map[string]any
 
 	mType := reflect.TypeOf(m)
 	ctx := context.Background()
@@ -337,7 +337,7 @@ func TestBuildMap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		m2, ok := prod.(map[string]interface{})
+		m2, ok := prod.(map[string]any)
 		if !ok {
 			t.Error("wrong type")
 		} else {

@@ -17,18 +17,18 @@ func (NoErrType) Error() string {
 type DummyDB struct {
 	pos     int
 	Queries []string
-	Args    [][]interface{}
+	Args    [][]any
 }
 
-func (dd *DummyDB) Query(query string, args ...interface{}) (*sql.Rows, error) {
+func (dd *DummyDB) Query(query string, args ...any) (*sql.Rows, error) {
 	return nil, dd.checkExpectedData(query, args...)
 }
 
-func (dd *DummyDB) Exec(query string, args ...interface{}) (sql.Result, error) {
+func (dd *DummyDB) Exec(query string, args ...any) (sql.Result, error) {
 	return nil, dd.checkExpectedData(query, args...)
 }
 
-func (dd *DummyDB) checkExpectedData(query string, args ...interface{}) error {
+func (dd *DummyDB) checkExpectedData(query string, args ...any) error {
 	if dd.pos >= len(dd.Queries) || dd.pos >= len(dd.Args) {
 		return stackerr.Errorf("Expected at least %d queries and args, only have %d queries and %d args", dd.pos, len(dd.Queries), len(dd.Args))
 	}
@@ -90,9 +90,9 @@ func runMapper(m QueryMapper, t *testing.T) {
 			"select * from foo where id = $1",
 			"update foo set x=$1 where id = $2",
 		},
-		Args: [][]interface{}{
-			[]interface{}{"1"},
-			[]interface{}{"Hello", "2"},
+		Args: [][]any{
+			[]any{"1"},
+			[]any{"Hello", "2"},
 		},
 	}
 

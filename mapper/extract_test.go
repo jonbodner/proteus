@@ -12,7 +12,7 @@ import (
 
 func TestExtractPointer(t *testing.T) {
 	ctx := context.Background()
-	f := func(in interface{}, path []string, expected *int) {
+	f := func(in any, path []string, expected *int) {
 		v, err := Extract(ctx, in, path)
 		if err != nil {
 			t.Errorf("Expected no error, got %s", err)
@@ -59,13 +59,13 @@ func TestExtractPointer(t *testing.T) {
 	}, []string{"foo", "B", "A"}, &a)
 
 	// map case
-	f(map[string]interface{}{
+	f(map[string]any{
 		"Bar": Bar{
 			A: nil,
 		},
 	}, []string{"m", "Bar", "A"}, nil)
 
-	f(map[string]interface{}{
+	f(map[string]any{
 		"Bar": Bar{
 			A: &a,
 		},
@@ -74,7 +74,7 @@ func TestExtractPointer(t *testing.T) {
 
 func TestExtract(t *testing.T) {
 	ctx := context.Background()
-	f := func(in interface{}, path []string, expected int) {
+	f := func(in any, path []string, expected int) {
 		v, err := Extract(ctx, in, path)
 		if err != nil {
 			t.Errorf("Expected no error, got %s", err)
@@ -109,7 +109,7 @@ func TestExtract(t *testing.T) {
 	}, []string{"foo", "B", "A"}, 100)
 
 	// map case
-	f(map[string]interface{}{
+	f(map[string]any{
 		"Bar": Bar{
 			A: 200,
 		},
@@ -118,7 +118,7 @@ func TestExtract(t *testing.T) {
 
 func TestExtractFail(t *testing.T) {
 	ctx := context.Background()
-	f := func(in interface{}, path []string, msg string) {
+	f := func(in any, path []string, msg string) {
 		_, err := Extract(ctx, in, path)
 		if err == nil {
 			t.Errorf("Expected an error %s, got none", msg)
@@ -135,7 +135,7 @@ func TestExtractFail(t *testing.T) {
 	f(10, []string{"A", "B"}, "cannot extract value; only maps and structs can have contained values")
 
 	//invalid map
-	f(map[int]interface{}{10: "Hello"}, []string{"m", "10"}, "cannot extract value; map does not have a string key")
+	f(map[int]any{10: "Hello"}, []string{"m", "10"}, "cannot extract value; map does not have a string key")
 
 	//no such field case
 	type Bar struct {

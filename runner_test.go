@@ -17,7 +17,7 @@ func Test_getQArgs(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    []interface{}
+		want    []any
 		wantErr bool
 	}{
 		// TODO: Add test cases.
@@ -94,7 +94,7 @@ func Test_handleMapping(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    interface{}
+		want    any
 		wantErr bool
 	}{
 		// TODO: Add test cases.

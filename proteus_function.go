@@ -24,7 +24,7 @@ func NewBuilder(adapter ParamAdapter, mappers ...QueryMapper) Builder {
 	}
 }
 
-func (fb Builder) BuildFunction(ctx context.Context, f interface{}, query string, names []string) error {
+func (fb Builder) BuildFunction(ctx context.Context, f any, query string, names []string) error {
 	// make sure that f is of the right type (pointer to function)
 	funcPointerType := reflect.TypeOf(f)
 	//must be a pointer to func
@@ -84,7 +84,7 @@ func (st sliceTypes) In(i int) reflect.Type {
 	return st[i]
 }
 
-func (fb Builder) Exec(ctx context.Context, e ContextExecutor, query string, params map[string]interface{}) (int64, error) {
+func (fb Builder) Exec(ctx context.Context, e ContextExecutor, query string, params map[string]any) (int64, error) {
 	result, err := fb.ExecResult(ctx, e, query, params)
 	if err != nil {
 		return 0, err
@@ -93,7 +93,7 @@ func (fb Builder) Exec(ctx context.Context, e ContextExecutor, query string, par
 	return count, err
 }
 
-func (fb Builder) ExecResult(ctx context.Context, e ContextExecutor, query string, params map[string]interface{}) (sql.Result, error) {
+func (fb Builder) ExecResult(ctx context.Context, e ContextExecutor, query string, params map[string]any) (sql.Result, error) {
 	finalQuery, queryArgs, err := fb.setupDynamicQueries(ctx, query, params)
 	if err != nil {
 		return nil, err
@@ -104,7 +104,7 @@ func (fb Builder) ExecResult(ctx context.Context, e ContextExecutor, query strin
 	return result, err
 }
 
-func (fb Builder) Query(ctx context.Context, q ContextQuerier, query string, params map[string]interface{}, output interface{}) error {
+func (fb Builder) Query(ctx context.Context, q ContextQuerier, query string, params map[string]any, output any) error {
 	// make sure that output is a pointer to something
 	outputPointerType := reflect.TypeOf(output)
 	if outputPointerType.Kind() != reflect.Pointer {
@@ -143,8 +143,8 @@ func (fb Builder) Query(ctx context.Context, q ContextQuerier, query string, par
 	return nil
 }
 
-func (fb Builder) setupDynamicQueries(ctx context.Context, query string, paramsAndNames map[string]interface{}) (string, []interface{}, error) {
-	params := make([]interface{}, 0, len(paramsAndNames))
+func (fb Builder) setupDynamicQueries(ctx context.Context, query string, paramsAndNames map[string]any) (string, []any, error) {
+	params := make([]any, 0, len(paramsAndNames))
 	names := make([]string, 0, len(paramsAndNames))
 	for k, v := range paramsAndNames {
 		params = append(params, v)
