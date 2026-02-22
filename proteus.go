@@ -72,7 +72,7 @@ func (pe Error) Unwrap() error {
 // 2. The context passed in to ShouldBuild can be used to specify the logging level used during ShouldBuild and
 // when the generated functions are invoked. This overrides any logging level specified using the SetLogLevel
 // function.
-func ShouldBuild(ctx context.Context, dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
+func ShouldBuild(ctx context.Context, dao any, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
 	if daoPointerType.Kind() != reflect.Pointer {
@@ -159,7 +159,7 @@ func ShouldBuild(ctx context.Context, dao interface{}, paramAdapter ParamAdapter
 //
 // As of version v0.12.0, all errors found during building will be reported back. Also, prefer using
 // proteus.ShouldBuild over proteus.Build.
-func Build(dao interface{}, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
+func Build(dao any, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 	ctx := context.Background()
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct

@@ -21,7 +21,7 @@ func TestTemplate(t *testing.T) {
 	}
 	var b bytes.Buffer
 
-	err = tmpl.Execute(&b, map[string]interface{}{"vals": 3})
+	err = tmpl.Execute(&b, map[string]any{"vals": 3})
 	if err != nil {
 		t.Error(err)
 	}

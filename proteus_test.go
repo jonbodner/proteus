@@ -209,14 +209,14 @@ func TestValidateFunction(t *testing.T) {
 	fOk(reflect.TypeOf(g2q), false)
 
 	//valid -- an Executor, a primitive, a map and a struct
-	var g3 func(Executor, int, map[string]interface{}, struct {
+	var g3 func(Executor, int, map[string]any, struct {
 		A int
 		B string
 	})
 	fOk(reflect.TypeOf(g3), true)
 
 	//invalid -- an Executor, a primitive, a map and a struct, returning a struct and error
-	var g4 func(Executor, int, map[string]interface{}, struct {
+	var g4 func(Executor, int, map[string]any, struct {
 		A int
 		B string
 	}) (struct {
@@ -227,7 +227,7 @@ func TestValidateFunction(t *testing.T) {
 	f(reflect.TypeOf(g4), "the 1st output parameter of an Executor must be int64 or sql.Result")
 
 	//valid for query
-	var g4q func(Querier, int, map[string]interface{}, struct {
+	var g4q func(Querier, int, map[string]any, struct {
 		A int
 		B string
 	}) (struct {
@@ -247,7 +247,7 @@ func TestValidateFunction(t *testing.T) {
 
 func TestBuild(t *testing.T) {
 	type args struct {
-		dao interface{}
+		dao any
 		pa  ParamAdapter
 	}
 	tests := []struct {
@@ -320,9 +320,9 @@ func TestNilScanner(t *testing.T) {
 	})
 }
 
-type setup func(ctx context.Context, dao interface{}) (*sql.DB, error)
+type setup func(ctx context.Context, dao any) (*sql.DB, error)
 
-func setupPostgres(ctx context.Context, dao interface{}) (*sql.DB, error) {
+func setupPostgres(ctx context.Context, dao any) (*sql.DB, error) {
 	err := ShouldBuild(ctx, dao, Postgres)
 	if err != nil {
 		return nil, err
@@ -335,7 +335,7 @@ func setupPostgres(ctx context.Context, dao interface{}) (*sql.DB, error) {
 	return db, err
 }
 
-func setupMySQL(ctx context.Context, dao interface{}) (*sql.DB, error) {
+func setupMySQL(ctx context.Context, dao any) (*sql.DB, error) {
 	err := ShouldBuild(ctx, dao, MySQL)
 	if err != nil {
 		return nil, err

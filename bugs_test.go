@@ -52,7 +52,7 @@ func TestBug_SetupDynamicQueriesNilValue(t *testing.T) {
 
 	_, err := b.Exec(ctx, db,
 		"INSERT INTO PERSON(name, age) VALUES(:name:, :age:)",
-		map[string]interface{}{"name": nil, "age": 20},
+		map[string]any{"name": nil, "age": 20},
 	)
 	// We expect an error, not a panic.
 	_ = err

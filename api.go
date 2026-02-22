@@ -9,14 +9,14 @@ import (
 type Executor interface {
 	// Exec executes a query without returning any rows.
 	// The args are for any placeholder parameters in the query.
-	Exec(query string, args ...interface{}) (sql.Result, error)
+	Exec(query string, args ...any) (sql.Result, error)
 }
 
 // Querier runs queries that return Rows from the data store
 type Querier interface {
 	// Query executes a query that returns rows, typically a SELECT.
 	// The args are for any placeholder parameters in the query.
-	Query(query string, args ...interface{}) (*sql.Rows, error)
+	Query(query string, args ...any) (*sql.Rows, error)
 }
 
 type Wrapper interface {
@@ -40,14 +40,14 @@ type QueryMapper interface {
 type ContextQuerier interface {
 	// QueryContext executes a query that returns rows, typically a SELECT.
 	// The args are for any placeholder parameters in the query.
-	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
 // ContextExecutor defines the interface of a type that runs a SQL exec with a context
 type ContextExecutor interface {
 	// ExecContext executes a query without returning any rows.
 	// The args are for any placeholder parameters in the query.
-	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
 // ContextWrapper is an interface that contains both ContextQuerier and ContextExecutor. It represents all

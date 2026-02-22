@@ -14,12 +14,12 @@ type Product struct {
 }
 
 type ProductDao struct {
-	FindById             func(ctx context.Context, e ContextExecutor, id int) (Product, error)                                     `proq:"select * from Product where id = :id:" prop:"id"`
-	Update               func(ctx context.Context, e ContextExecutor, p Product) (int64, error)                                    `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCost    func(ctx context.Context, e ContextExecutor, name string, cost float64) ([]Product, error)                `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
-	FindByIdMap          func(ctx context.Context, e ContextExecutor, id int) (map[string]interface{}, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
-	UpdateMap            func(ctx context.Context, e ContextExecutor, p map[string]interface{}) (int64, error)                     `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
-	FindByNameAndCostMap func(ctx context.Context, e ContextExecutor, name string, cost float64) ([]map[string]interface{}, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindById             func(ctx context.Context, e ContextExecutor, id int) (Product, error)                             `proq:"select * from Product where id = :id:" prop:"id"`
+	Update               func(ctx context.Context, e ContextExecutor, p Product) (int64, error)                            `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCost    func(ctx context.Context, e ContextExecutor, name string, cost float64) ([]Product, error)        `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
+	FindByIdMap          func(ctx context.Context, e ContextExecutor, id int) (map[string]any, error)                      `proq:"select * from Product where id = :id:" prop:"id"`
+	UpdateMap            func(ctx context.Context, e ContextExecutor, p map[string]any) (int64, error)                     `proq:"update Product set name = :p.Name:, cost = :p.Cost: where id = :p.Id:" prop:"p"`
+	FindByNameAndCostMap func(ctx context.Context, e ContextExecutor, name string, cost float64) ([]map[string]any, error) `proq:"select * from Product where name=:name: and cost=:cost:" prop:"name,cost"`
 }
 
 func Example_readUpdate() {
@@ -49,12 +49,12 @@ func Example_readUpdate() {
 	fmt.Println(productDao.FindByNameAndCost(ctx, tx, "fred", 54.10))
 	fmt.Println(productDao.FindByNameAndCost(ctx, tx, "Thingie", 56.23))
 
-	//using a map of [string]interface{} works too!
+	//using a map of [string]any works too!
 	fmt.Println(productDao.FindByIdMap(ctx, tx, 10))
 	fmt.Println(productDao.FindByNameAndCostMap(ctx, tx, "Thingie", 56.23))
 
 	fmt.Println(productDao.FindById(ctx, tx, 11))
-	m := map[string]interface{}{
+	m := map[string]any{
 		"Id":   11,
 		"Name": "bobbo",
 		"Cost": 12.94,

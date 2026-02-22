@@ -24,10 +24,10 @@ func TestBug_PtrConverterNilPointerTrap(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Simulate a NULL database value: vals contains a *interface{} pointing to nil.
-	var nilVal interface{} = nil
+	// Simulate a NULL database value: vals contains a *any pointing to nil.
+	var nilVal any = nil
 	cols := []string{"value"}
-	vals := []interface{}{&nilVal}
+	vals := []any{&nilVal}
 
 	result, err := builder(cols, vals)
 	if err != nil {
