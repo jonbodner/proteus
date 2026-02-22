@@ -10,24 +10,9 @@ Replaced all occurrences of `interface{}` with `any` across every `.go` file in 
 
 ---
 
-## 2. Replace `jonbodner/multierr` with `errors.Join` (Go 1.20+)
+## ~~2. Replace `jonbodner/multierr` with `errors.Join` (Go 1.20+)~~ (DONE)
 
-Go 1.20 added `errors.Join`, which collects multiple errors into a single error value. This is a direct replacement for the `multierr.Append` pattern used in `proteus.go`.
-
-**Files affected:** `proteus.go` (lines 100, 116, 135, 142, 187, 201, 222, 229)
-
-**Before:**
-```go
-import "github.com/jonbodner/multierr"
-out = multierr.Append(out, err)
-```
-
-**After:**
-```go
-out = errors.Join(out, err)
-```
-
-This removes the `jonbodner/multierr` dependency entirely.
+Replaced all 8 occurrences of `multierr.Append` with `errors.Join` in `proteus.go` and removed the `jonbodner/multierr` dependency from `go.mod`.
 
 ---
 
@@ -212,7 +197,7 @@ Several dependencies are significantly out of date:
 | `go-sql-driver/mysql` | v1.5.0 (2020) | v1.8+ | Major version behind |
 | `google/go-cmp` | v0.4.0 | v0.6+ | Test-only dep |
 | `jonbodner/dbtimer` | 2017 commit | - | Pinned to a 2017 commit hash |
-| `jonbodner/multierr` | v1.0.0 | - | Replace with `errors.Join` (see #2) |
+| ~~`jonbodner/multierr`~~ | ~~v1.0.0~~ | - | ~~Replaced with `errors.Join` (see #2)~~ *(DONE)* |
 | `jonbodner/stackerr` | v1.0.0 | - | Replace with stdlib (see #3) |
 | `pkg/profile` | v1.7.0 | - | Only used in `speed/speed.go`; consider removing or moving to a build-tagged file |
 
@@ -405,7 +390,7 @@ If `Build` returns an error, `productDao` will have nil function fields. Subsequ
 
 **Medium priority (idiomatic modernization):**
 - ~~#1 — `interface{}` to `any`~~ *(DONE)*
-- #2 — Replace `multierr` with `errors.Join`
+- ~~#2 — Replace `multierr` with `errors.Join`~~ *(DONE)*
 - #3 — Replace `stackerr` with stdlib error handling
 - #4 — Fix slog usage for proper structured logging
 - #11 — Update dependencies

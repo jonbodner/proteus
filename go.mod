@@ -6,7 +6,6 @@ require (
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/google/go-cmp v0.4.0
 	github.com/jonbodner/dbtimer v0.0.0-20170410163237-7002f3758ae1
-	github.com/jonbodner/multierr v1.0.0
 	github.com/jonbodner/stackerr v1.0.0
 	github.com/lib/pq v1.10.9
 	github.com/pkg/profile v1.7.0
