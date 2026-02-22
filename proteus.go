@@ -2,13 +2,12 @@ package proteus
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"reflect"
-
-	"fmt"
 	"strings"
 
-	"github.com/jonbodner/multierr"
 	"github.com/jonbodner/stackerr"
 )
 
@@ -97,7 +96,7 @@ func ShouldBuild(ctx context.Context, dao any, paramAdapter ParamAdapter, mapper
 			pv := reflect.New(curField.Type)
 			embeddedErrs := ShouldBuild(ctx, pv.Interface(), paramAdapter, mappers...)
 			if embeddedErrs != nil {
-				out = multierr.Append(out, embeddedErrs)
+				out = errors.Join(out, embeddedErrs)
 			} else {
 				funcs[i] = pv.Elem()
 			}
@@ -113,7 +112,7 @@ func ShouldBuild(ctx context.Context, dao any, paramAdapter ParamAdapter, mapper
 		//validate to make sure that the function matches what we expect
 		hasCtx, err := validateFunction(funcType)
 		if err != nil {
-			out = multierr.Append(out, Error{FuncName: curField.Name, FieldOrder: i, OriginalError: err})
+			out = errors.Join(out, Error{FuncName: curField.Name, FieldOrder: i, OriginalError: err})
 			continue
 		}
 
@@ -132,13 +131,13 @@ func ShouldBuild(ctx context.Context, dao any, paramAdapter ParamAdapter, mapper
 		//check to see if the query is in a QueryMapper
 		query, err = lookupQuery(query, mappers)
 		if err != nil {
-			out = multierr.Append(out, Error{FuncName: curField.Name, FieldOrder: i, OriginalError: err})
+			out = errors.Join(out, Error{FuncName: curField.Name, FieldOrder: i, OriginalError: err})
 			continue
 		}
 
 		implementation, err := makeImplementation(ctx, funcType, query, paramAdapter, nameOrderMap)
 		if err != nil {
-			out = multierr.Append(out, Error{FuncName: curField.Name, FieldOrder: i, OriginalError: err})
+			out = errors.Join(out, Error{FuncName: curField.Name, FieldOrder: i, OriginalError: err})
 			continue
 		}
 		funcs[i] = reflect.MakeFunc(funcType, implementation)
@@ -184,7 +183,7 @@ func Build(dao any, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 			pv := reflect.New(curField.Type)
 			err := Build(pv.Interface(), paramAdapter, mappers...)
 			if err != nil {
-				outErr = multierr.Append(outErr, err)
+				outErr = errors.Join(outErr, err)
 			} else {
 				daoValue.Field(i).Set(pv.Elem())
 			}
@@ -201,7 +200,7 @@ func Build(dao any, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 		hasCtx, err := validateFunction(funcType)
 		if err != nil {
 			slog.Log(ctx, slog.LevelWarn, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
-			outErr = multierr.Append(outErr, err)
+			outErr = errors.Join(outErr, err)
 			continue
 		}
 
@@ -221,14 +220,14 @@ func Build(dao any, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 		query, err = lookupQuery(query, mappers)
 		if err != nil {
 			slog.Log(ctx, slog.LevelWarn, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
-			outErr = multierr.Append(outErr, err)
+			outErr = errors.Join(outErr, err)
 			continue
 		}
 
 		implementation, err := makeImplementation(ctx, funcType, query, paramAdapter, nameOrderMap)
 		if err != nil {
 			slog.Log(ctx, slog.LevelWarn, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
-			outErr = multierr.Append(outErr, err)
+			outErr = errors.Join(outErr, err)
 			continue
 		}
 		fieldValue := daoValue.Field(i)
