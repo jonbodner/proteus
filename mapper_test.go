@@ -54,7 +54,7 @@ func setupDb(t *testing.T) *sql.DB {
 		slog.Error("err", "error", slog.AnyValue(err))
 		t.FailNow()
 	}
-	defer tx.Commit()
+	defer func() { _ = tx.Rollback() }()
 	stmt, err := tx.Prepare("insert into product(id, name, cost) values($1, $2, $3)")
 	if err != nil {
 		slog.Error("err", "error", slog.AnyValue(err))
@@ -72,6 +72,10 @@ func setupDb(t *testing.T) *sql.DB {
 			slog.Error("err", "error", slog.AnyValue(err))
 			t.FailNow()
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		slog.Error("err", "error", slog.AnyValue(err))
+		t.FailNow()
 	}
 	return db
 }
