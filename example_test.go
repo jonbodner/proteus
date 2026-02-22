@@ -40,7 +40,7 @@ func Example_readUpdate() {
 	if err != nil {
 		panic(err)
 	}
-	defer tx.Commit()
+	defer func() { _ = tx.Rollback() }()
 
 	fmt.Println(productDao.FindById(ctx, tx, 10))
 	p := Product{10, "Thingie", 56.23}
@@ -61,4 +61,6 @@ func Example_readUpdate() {
 	}
 	fmt.Println(productDao.UpdateMap(ctx, tx, m))
 	fmt.Println(productDao.FindById(ctx, tx, 11))
+
+	_ = tx.Commit()
 }
