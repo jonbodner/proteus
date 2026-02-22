@@ -288,7 +288,7 @@ func TestBuildPrimitivePtrNil(t *testing.T) {
 		slog.Error("err", "error", slog.AnyValue(err))
 		t.FailNow()
 	}
-	sType := reflect.TypeOf((*string)(nil))
+	sType := reflect.TypeFor[*string]()
 	ctx := context.Background()
 	b, _ := mapper.MakeBuilder(ctx, sType)
 	s, err := mapRows(ctx, rows, b)
@@ -297,10 +297,10 @@ func TestBuildPrimitivePtrNil(t *testing.T) {
 	}
 	s2, ok := s.(*string)
 	if !ok {
-		t.Error("Wrong type")
+		t.Errorf("Wrong type: %T", s)
 	} else {
 		if s2 != nil {
-			t.Errorf("Expected nil, got %v %v", reflect.TypeOf(s2), *s2)
+			t.Errorf("Expected nil, got %T %v", s2, *s2)
 		}
 	}
 
