@@ -64,7 +64,7 @@ func run(setupDb setupDb, productDAO ProductDAO) {
 	if err != nil {
 		panic(err)
 	}
-	defer tx.Commit()
+	defer func() { _ = tx.Rollback() }()
 
 	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDAO.FindByID(tx, 10)))
 	cost := new(float64)
@@ -96,6 +96,10 @@ func run(setupDb setupDb, productDAO ProductDAO) {
 
 	//using positional parameters instead of names
 	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByNameAndCostUnlabeled(tx, "Thingie", 56.23))))
+
+	if err := tx.Commit(); err != nil {
+		slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
+	}
 }
 
 func setupDbPostgres(ctx context.Context, productDAO ProductDAO) *sql.DB {
@@ -122,8 +126,9 @@ func populate(ctx context.Context, db *sql.DB, productDao ProductDAO) {
 	tx, err := db.Begin()
 	if err != nil {
 		slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
+		return
 	}
-	defer tx.Commit()
+	defer func() { _ = tx.Rollback() }()
 
 	for i := 0; i < 100; i++ {
 		var cost *float64
@@ -136,5 +141,9 @@ func populate(ctx context.Context, db *sql.DB, productDao ProductDAO) {
 			slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
 		}
 		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(rowCount))
+	}
+
+	if err := tx.Commit(); err != nil {
+		slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
 	}
 }

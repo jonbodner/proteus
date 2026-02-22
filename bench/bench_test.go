@@ -31,7 +31,7 @@ func populate(ctx context.Context, db *sql.DB) {
 	if err != nil {
 		panic(err)
 	}
-	defer tx.Commit()
+	defer func() { _ = tx.Rollback() }()
 
 	for i := 0; i < 10; i++ {
 		var cost *float64
@@ -43,6 +43,10 @@ func populate(ctx context.Context, db *sql.DB) {
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		panic(err)
 	}
 }
 
@@ -60,8 +64,8 @@ func setup() (*sql.Tx, closer) {
 		panic(err)
 	}
 	return tx, func() {
-		tx.Commit()
-		db.Close()
+		_ = tx.Commit()
+		_ = db.Close()
 	}
 }
 

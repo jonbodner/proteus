@@ -289,7 +289,7 @@ func TestNilScanner(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer tx.Commit()
+		defer func() { _ = tx.Rollback() }()
 
 		_, err = tx.Exec(create)
 		if err != nil {
@@ -375,7 +375,7 @@ func TestNoParams(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer tx.Commit()
+		defer func() { _ = tx.Rollback() }()
 
 		_, err = tx.Exec(create)
 		if err != nil {
@@ -460,7 +460,7 @@ func TestUnnamedStructs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer tx.Commit()
+		defer func() { _ = tx.Rollback() }()
 
 		_, err = tx.Exec(create)
 		if err != nil {
@@ -515,7 +515,7 @@ func TestEmbedded(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer tx.Commit()
+		defer func() { _ = tx.Rollback() }()
 
 		_, err = tx.Exec(create)
 		if err != nil {
@@ -584,7 +584,7 @@ func TestShouldBuildEmbeddedWithNullField(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer tx.Commit()
+		defer func() { _ = tx.Rollback() }()
 
 		_, err = tx.Exec(create)
 
@@ -685,7 +685,7 @@ func TestVariableMultipleUsage(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer tx.Commit()
+		defer func() { _ = tx.Rollback() }()
 
 		_, err = tx.Exec(create)
 		if err != nil {
@@ -787,7 +787,7 @@ func TestShouldBuildEmbedded(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer tx.Commit()
+		defer func() { _ = tx.Rollback() }()
 
 		_, err = tx.Exec(create)
 		if err != nil {
@@ -844,7 +844,7 @@ func TestShouldBinaryColumn(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer tx.Commit()
+		defer func() { _ = tx.Rollback() }()
 
 		_, err = tx.Exec(create)
 		if err != nil {
@@ -905,7 +905,7 @@ func TestShouldTimeColumn(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer tx.Commit()
+		defer func() { _ = tx.Rollback() }()
 
 		_, err = tx.Exec(create)
 		if err != nil {
@@ -972,7 +972,7 @@ func TestArray(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer tx.Commit()
+		defer func() { _ = tx.Rollback() }()
 
 		_, err = tx.Exec(create)
 		if err != nil {
@@ -1055,7 +1055,7 @@ func TestNested(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer tx.Commit()
+		defer func() { _ = tx.Rollback() }()
 
 		_, err = tx.Exec(create)
 		if err != nil {

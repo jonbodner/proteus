@@ -27,7 +27,7 @@ func Example_create() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer tx.Commit()
+	defer func() { _ = tx.Rollback() }()
 
 	ctx := context.Background()
 
@@ -36,5 +36,9 @@ func Example_create() {
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		log.Fatal(err)
 	}
 }

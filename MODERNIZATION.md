@@ -349,31 +349,16 @@ On closer analysis, this is actually correct. `buildRetVals` calls `handleMappin
 
 ---
 
-## 24. Missing `tx.Rollback()` on Error Paths
+## ~~24. Missing `tx.Rollback()` on Error Paths~~ (DONE)
 
-**Files:** `cmd/sample/main.go`, `cmd/sample-ctx/main.go`, various test files
+Fixed across all affected files. The `defer tx.Commit()` pattern has been replaced with:
 
-The pattern used throughout is:
-```go
-tx, err := db.Begin()
-if err != nil {
-    panic(err)
-}
-defer tx.Commit()
-```
+- `defer func() { _ = tx.Rollback() }()` as a safety-net cleanup at the top
+- An explicit `tx.Commit()` call (with error handling) at the end of the successful path
 
-`defer tx.Commit()` runs even when the function exits due to an error or panic, committing partial transactions. The correct pattern is:
-```go
-defer func() {
-    if err != nil {
-        tx.Rollback()
-    } else {
-        tx.Commit()
-    }
-}()
-```
+For test code in `proteus_test.go` where all reads occur on the same `tx` (no need to persist data beyond the test), the deferred rollback alone is sufficient — this also provides better test isolation.
 
-Note: `cmd/null/main.go` already uses the correct pattern.
+**Files fixed:** `cmd/sample/main.go`, `cmd/sample-ctx/main.go`, `bench/bench_test.go`, `speed/speed.go`, `example_test.go`, `example2_test.go`, `mapper_test.go`, `proteus_test.go` (11 instances)
 
 ---
 
@@ -416,7 +401,7 @@ If `Build` returns an error, `productDao` will have nil function fields. Subsequ
 - ~~#7 — `defer rows.Close()` (resource leak risk)~~ *(DONE)*
 - ~~#8 — Remove `unsafe`~~ *(DONE)*
 - ~~#15 — Makefile bug fix~~ *(DONE)*
-- #24 — Missing `tx.Rollback()` in samples/tests
+- ~~#24 — Missing `tx.Rollback()` in samples/tests~~ *(DONE)*
 
 **Medium priority (idiomatic modernization):**
 - ~~#1 — `interface{}` to `any`~~ *(DONE)*

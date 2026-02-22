@@ -147,7 +147,7 @@ func populate(ctx context.Context, db *sql.DB) {
 		slog.Error("error", "err", slog.AnyValue(err))
 		os.Exit(1)
 	}
-	defer tx.Commit()
+	defer func() { _ = tx.Rollback() }()
 
 	for i := 0; i < 100; i++ {
 		var cost *float64
@@ -161,5 +161,10 @@ func populate(ctx context.Context, db *sql.DB) {
 			os.Exit(1)
 		}
 		slog.Debug("rowCount", "rowCount", rowCount)
+	}
+
+	if err := tx.Commit(); err != nil {
+		slog.Error("error", "err", slog.AnyValue(err))
+		os.Exit(1)
 	}
 }
