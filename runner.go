@@ -307,7 +307,7 @@ func makeQuerierReturnVals(ctx context.Context, funcType reflect.Type, builder m
 
 	// impossible case since validation should happen first, but be safe
 	return func(*sql.Rows, error) []reflect.Value {
-		return []reflect.Value{qZero, reflect.ValueOf(errors.New("should never get here!"))}
+		return []reflect.Value{qZero, reflect.ValueOf(errors.New("should never get here"))}
 	}
 }
 
@@ -365,7 +365,7 @@ func mapRows(ctx context.Context, rows *sql.Rows, builder mapper.Builder) (any, 
 	}
 
 	if len(cols) == 0 {
-		return nil, errors.New("No values returned from query")
+		return nil, errors.New("no values returned from query")
 	}
 
 	vals := make([]any, len(cols))
