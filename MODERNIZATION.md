@@ -16,36 +16,9 @@ Replaced all 8 occurrences of `multierr.Append` with `errors.Join` in `proteus.g
 
 ---
 
-## 3. Replace `jonbodner/stackerr` with `fmt.Errorf` and `errors.New`
+## ~~3. Replace `jonbodner/stackerr` with `fmt.Errorf` and `errors.New`~~ (DONE)
 
-The `stackerr` package provides stack-trace-annotated errors — a pattern from before Go 1.13 added `%w` wrapping. Modern Go uses:
-
-- `errors.New("message")` for simple sentinel errors
-- `fmt.Errorf("context: %w", err)` for wrapping with context
-
-**Files affected:** `proteus.go`, `builder.go`, `runner.go`, `mapper/mapper.go`, `mapper/extract.go`
-
-**Before:**
-```go
-return stackerr.New("not a pointer")
-return stackerr.Errorf("no query found for name %s", name)
-```
-
-**After:**
-```go
-return errors.New("not a pointer")
-return fmt.Errorf("no query found for name %s", name)
-```
-
-For places where `stackerr` wraps an existing error, use `%w`:
-```go
-// Before
-return nil, stackerr.Errorf("invalid index: %s :%w", path[1], err)
-// After
-return nil, fmt.Errorf("invalid index: %s: %w", path[1], err)
-```
-
-This removes the `jonbodner/stackerr` dependency entirely.
+Replaced all `stackerr.New(...)` calls with `errors.New(...)` and all `stackerr.Errorf(...)` calls with `fmt.Errorf(...)` across 11 files (6 production, 5 test). Removed the `jonbodner/stackerr` dependency from `go.mod`.
 
 ---
 
@@ -198,10 +171,10 @@ Several dependencies are significantly out of date:
 | `google/go-cmp` | v0.4.0 | v0.6+ | Test-only dep |
 | `jonbodner/dbtimer` | 2017 commit | - | Pinned to a 2017 commit hash |
 | ~~`jonbodner/multierr`~~ | ~~v1.0.0~~ | - | ~~Replaced with `errors.Join` (see #2)~~ *(DONE)* |
-| `jonbodner/stackerr` | v1.0.0 | - | Replace with stdlib (see #3) |
+| ~~`jonbodner/stackerr`~~ | ~~v1.0.0~~ | - | ~~Replaced with stdlib (see #3)~~ *(DONE)* |
 | `pkg/profile` | v1.7.0 | - | Only used in `speed/speed.go`; consider removing or moving to a build-tagged file |
 
-After removing `multierr` and `stackerr`, the dependency list shrinks significantly.
+After removing `multierr` and `stackerr` (both done), the dependency list has shrunk significantly.
 
 ---
 
@@ -391,7 +364,7 @@ If `Build` returns an error, `productDao` will have nil function fields. Subsequ
 **Medium priority (idiomatic modernization):**
 - ~~#1 — `interface{}` to `any`~~ *(DONE)*
 - ~~#2 — Replace `multierr` with `errors.Join`~~ *(DONE)*
-- #3 — Replace `stackerr` with stdlib error handling
+- ~~#3 — Replace `stackerr` with stdlib error handling~~ *(DONE)*
 - ~~#4 — Fix slog usage for proper structured logging~~ *(DONE)*
 - #11 — Update dependencies
 

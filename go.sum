@@ -19,8 +19,6 @@ github.com/google/pprof v0.0.0-20230429030804-905365eefe3e/go.mod h1:79YE0hCXdHa
 github.com/ianlancetaylor/demangle v0.0.0-20210905161508-09a460cdf81d/go.mod h1:aYm2/VgdVmcIU8iMfdMvDMsRAQjcfZSKFby6HOFvi/w=
 github.com/jonbodner/dbtimer v0.0.0-20170410163237-7002f3758ae1 h1:mgFL7UFb88FOlSVgVoIRGJ4yKlkfp8KcXHqy7no+lEU=
 github.com/jonbodner/dbtimer v0.0.0-20170410163237-7002f3758ae1/go.mod h1:PjOlFbeJKs+4b2CvuN9FFF8Ed8cZ6FHWPb5tLK2QKOM=
-github.com/jonbodner/stackerr v1.0.0 h1:rAe+Fh13cfC9IGuKE4YWiVCzwt9zce9Saldpc8fYEIM=
-github.com/jonbodner/stackerr v1.0.0/go.mod h1:In1ShJr570PDuDHbYfymEQle+H7PgY9KpT+alyk0nEM=
 github.com/lib/pq v1.10.9 h1:YXG7RB+JIjhP29X+OtkiDnYaXQwpS4JEWq7dtCCRUEw=
 github.com/lib/pq v1.10.9/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 github.com/pkg/profile v1.7.0 h1:hnbDkaNWPCLMO9wGLdBFTIZvzDrDfBM2072E1S9gJkA=

@@ -13,7 +13,6 @@ import (
 	"database/sql/driver"
 
 	"github.com/jonbodner/proteus/mapper"
-	"github.com/jonbodner/stackerr"
 )
 
 func buildNameOrderMap(paramOrder string, startPos int) map[string]int {
@@ -87,7 +86,7 @@ func buildFixedQueryAndParamOrder(ctx context.Context, query string, nameOrderMa
 			if inVar {
 				if curVar.Len() == 0 {
 					//error! must have a something
-					return nil, nil, stackerr.Errorf("empty variable declaration at position %d", k)
+					return nil, nil, fmt.Errorf("empty variable declaration at position %d", k)
 				}
 				curVarS := curVar.String()
 				id, err := validIdentifier(ctx, curVarS)
@@ -110,13 +109,13 @@ func buildFixedQueryAndParamOrder(ctx context.Context, query string, nameOrderMa
 					paramType := funcType.In(paramPos)
 					if len(path) > 1 {
 						if paramType == nil {
-							return nil, nil, stackerr.Errorf("query Parameter %s has a path, but the incoming parameter is nil", paramName)
+							return nil, nil, fmt.Errorf("query Parameter %s has a path, but the incoming parameter is nil", paramName)
 						}
 						switch paramType.Kind() {
 						case reflect.Map, reflect.Struct:
 							//do nothing
 						default:
-							return nil, nil, stackerr.Errorf("query Parameter %s has a path, but the incoming parameter is not a map or a struct it is %s", paramName, paramType.Kind())
+							return nil, nil, fmt.Errorf("query Parameter %s has a path, but the incoming parameter is not a map or a struct it is %s", paramName, paramType.Kind())
 						}
 					}
 					pathType, err := mapper.ExtractType(ctx, paramType, path)
@@ -132,7 +131,7 @@ func buildFixedQueryAndParamOrder(ctx context.Context, query string, nameOrderMa
 					}
 					paramOrder = append(paramOrder, paramInfo{id, paramPos, isSlice})
 				} else {
-					return nil, nil, stackerr.Errorf("query Parameter %s cannot be found in the incoming parameters", paramName)
+					return nil, nil, fmt.Errorf("query Parameter %s cannot be found in the incoming parameters", paramName)
 				}
 
 				inVar = false
@@ -149,7 +148,7 @@ func buildFixedQueryAndParamOrder(ctx context.Context, query string, nameOrderMa
 		}
 	}
 	if inVar {
-		return nil, nil, stackerr.Errorf("missing a closing : somewhere: %s", query)
+		return nil, nil, fmt.Errorf("missing a closing : somewhere: %s", query)
 	}
 
 	queryString := out.String()
@@ -233,7 +232,7 @@ func addSlice(sliceName string) string {
 
 func validIdentifier(ctx context.Context, curVar string) (string, error) {
 	if strings.Contains(curVar, ";") {
-		return "", stackerr.Errorf("; is not allowed in an identifier: %s", curVar)
+		return "", fmt.Errorf("; is not allowed in an identifier: %s", curVar)
 	}
 	curVarB := []byte(curVar)
 
@@ -254,7 +253,7 @@ loop:
 		switch tok {
 		case token.EOF:
 			if first || lastPeriod {
-				return "", stackerr.Errorf("identifiers cannot be empty or end with a .: %s", curVar)
+				return "", fmt.Errorf("identifiers cannot be empty or end with a .: %s", curVar)
 			}
 			break loop
 		case token.SEMICOLON:
@@ -263,7 +262,7 @@ loop:
 			continue
 		case token.IDENT:
 			if !first && !lastPeriod && !lastFloat {
-				return "", stackerr.Errorf(". missing between parts of an identifier: %s", curVar)
+				return "", fmt.Errorf(". missing between parts of an identifier: %s", curVar)
 			}
 			first = false
 			lastPeriod = false
@@ -271,7 +270,7 @@ loop:
 			identifier += lit
 		case token.PERIOD:
 			if first || lastPeriod {
-				return "", stackerr.Errorf("identifier cannot start with . or have two . in a row: %s", curVar)
+				return "", fmt.Errorf("identifier cannot start with . or have two . in a row: %s", curVar)
 			}
 			lastPeriod = true
 			identifier += "."
@@ -283,10 +282,10 @@ loop:
 				first = false
 				continue
 			}
-			return "", stackerr.Errorf("invalid character found in identifier: %s", curVar)
+			return "", fmt.Errorf("invalid character found in identifier: %s", curVar)
 		case token.INT:
 			if !dollar || first {
-				return "", stackerr.Errorf("invalid character found in identifier: %s", curVar)
+				return "", fmt.Errorf("invalid character found in identifier: %s", curVar)
 			}
 			identifier += lit
 			if dollar {
@@ -300,7 +299,7 @@ loop:
 			// returns .0 as the lit value
 			//Only valid for $ notation and array/slice references.
 			if first {
-				return "", stackerr.Errorf("invalid character found in identifier: %s", curVar)
+				return "", fmt.Errorf("invalid character found in identifier: %s", curVar)
 			}
 			identifier += lit
 			if dollar {
@@ -311,7 +310,7 @@ loop:
 				lastPeriod = true
 			}
 		default:
-			return "", stackerr.Errorf("invalid character found in identifier: %s", curVar)
+			return "", fmt.Errorf("invalid character found in identifier: %s", curVar)
 		}
 	}
 	return identifier, nil
