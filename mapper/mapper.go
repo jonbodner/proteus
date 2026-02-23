@@ -3,6 +3,7 @@ package mapper
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"reflect"
 	"strings"
@@ -27,7 +28,7 @@ func ptrConverter(ctx context.Context, isPtr bool, sType reflect.Type, out refle
 	}
 	k := out.Type().Kind()
 	if (k == reflect.Pointer || k == reflect.Interface) && out.IsNil() {
-		return nil, stackerr.Errorf("attempting to return nil for non-pointer type %v", sType)
+		return nil, fmt.Errorf("attempting to return nil for non-pointer type %v", sType)
 	}
 	return out.Interface(), nil
 }
@@ -135,7 +136,7 @@ func buildMap(ctx context.Context, sType reflect.Type, cols []string, vals []any
 		if rv.Elem().Elem().Type().ConvertibleTo(sType.Elem()) {
 			out.SetMapIndex(reflect.ValueOf(v), rv.Elem().Elem().Convert(sType.Elem()))
 		} else {
-			return out, stackerr.Errorf("unable to assign value %v of type %v to map value of type %v with key %s", rv.Elem().Elem(), rv.Elem().Elem().Type(), sType.Elem(), v)
+			return out, fmt.Errorf("unable to assign value %v of type %v to map value of type %v with key %s", rv.Elem().Elem(), rv.Elem().Elem().Type(), sType.Elem(), v)
 		}
 	}
 	return out, nil
@@ -183,7 +184,7 @@ func buildStructInner(ctx context.Context, sType reflect.Type, out reflect.Value
 			field.Elem().Set(rv.Elem().Elem().Convert(curFieldType.Elem()))
 		} else {
 			slog.ErrorContext(ctx, "can't find the field")
-			return stackerr.Errorf("unable to assign pointer to value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name[depth], curFieldType)
+			return fmt.Errorf("unable to assign pointer to value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name[depth], curFieldType)
 		}
 	} else {
 		if reflect.PointerTo(curFieldType).Implements(scannerType) {
@@ -200,12 +201,12 @@ func buildStructInner(ctx context.Context, sType reflect.Type, out reflect.Value
 			}
 		} else if rv.Elem().IsNil() {
 			slog.ErrorContext(ctx, "attempting to assign nil to non-pointer field")
-			return stackerr.Errorf("unable to assign nil value to non-pointer struct field %s of type %v", sf.name[depth], curFieldType)
+			return fmt.Errorf("unable to assign nil value to non-pointer struct field %s of type %v", sf.name[depth], curFieldType)
 		} else if rv.Elem().Elem().Type().ConvertibleTo(curFieldType) {
 			field.Set(rv.Elem().Elem().Convert(curFieldType))
 		} else {
 			slog.ErrorContext(ctx, "can't find the field")
-			return stackerr.Errorf("unable to assign value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name[depth], curFieldType)
+			return fmt.Errorf("unable to assign value %v of type %v to struct field %s of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sf.name[depth], curFieldType)
 		}
 	}
 	return nil
@@ -221,7 +222,7 @@ func buildPrimitive(ctx context.Context, sType reflect.Type, cols []string, vals
 	if rv.Elem().Elem().Type().ConvertibleTo(sType) {
 		out.Set(rv.Elem().Elem().Convert(sType))
 	} else {
-		return out, stackerr.Errorf("unable to assign value %v of type %v to return type of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sType)
+		return out, fmt.Errorf("unable to assign value %v of type %v to return type of type %v", rv.Elem().Elem(), rv.Elem().Elem().Type(), sType)
 	}
 	return out, nil
 }

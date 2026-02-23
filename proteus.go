@@ -347,5 +347,5 @@ func lookupQuery(query string, mappers []QueryMapper) (string, error) {
 			return q, nil
 		}
 	}
-	return "", stackerr.Errorf("no query found for name %s", name)
+	return "", fmt.Errorf("no query found for name %s", name)
 }

@@ -10,7 +10,9 @@ import (
 
 	"time"
 
+	"fmt"
 	"github.com/google/go-cmp/cmp"
+
 	pcmp "github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/stackerr"
 
@@ -88,7 +90,7 @@ func TestConvertToPositionalParameters(t *testing.T) {
 			reflect.TypeOf(f3),
 			"",
 			nil,
-			stackerr.Errorf("missing a closing : somewhere: %s", `select * from Product where name=:name: and cost=:cost`),
+			fmt.Errorf("missing a closing : somewhere: %s", `select * from Product where name=:name: and cost=:cost`),
 		},
 		//empty ::
 		`select * from Product where name=:: and cost=:cost`: inner{
@@ -104,7 +106,7 @@ func TestConvertToPositionalParameters(t *testing.T) {
 			reflect.TypeOf(f3),
 			"",
 			nil,
-			stackerr.New("invalid character found in identifier: a,b,c"),
+			errors.New("invalid character found in identifier: a,b,c"),
 		},
 		//escaped character (invalid sql, but not the problem at hand)
 		`select * from Pr\:oduct where name=:name: and cost=:cost:`: inner{

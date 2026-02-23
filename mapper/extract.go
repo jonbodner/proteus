@@ -38,7 +38,7 @@ func ExtractType(ctx context.Context, curType reflect.Type, path []string) (refl
 		// handle slices and arrays
 		_, err := strconv.Atoi(path[1])
 		if err != nil {
-			return nil, stackerr.Errorf("invalid index: %s :%w", path[1], err)
+			return nil, fmt.Errorf("invalid index: %s :%w", path[1], err)
 		}
 		return ExtractType(ctx, ss.Elem(), path[1:])
 	default:
@@ -86,10 +86,10 @@ func Extract(ctx context.Context, s any, path []string) (any, error) {
 		// handle slices and arrays
 		pos, err := strconv.Atoi(path[1])
 		if err != nil {
-			return nil, stackerr.Errorf("invalid index: %s :%w", path[1], err)
+			return nil, fmt.Errorf("invalid index: %s :%w", path[1], err)
 		}
 		if pos < 0 || pos >= sv.Len() {
-			return nil, stackerr.Errorf("invalid index: %s", path[1])
+			return nil, fmt.Errorf("invalid index: %s", path[1])
 		}
 		v := sv.Index(pos)
 		return Extract(ctx, v.Interface(), path[1:])

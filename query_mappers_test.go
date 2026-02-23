@@ -30,7 +30,7 @@ func (dd *DummyDB) Exec(query string, args ...any) (sql.Result, error) {
 
 func (dd *DummyDB) checkExpectedData(query string, args ...any) error {
 	if dd.pos >= len(dd.Queries) || dd.pos >= len(dd.Args) {
-		return stackerr.Errorf("Expected at least %d queries and args, only have %d queries and %d args", dd.pos, len(dd.Queries), len(dd.Args))
+		return fmt.Errorf("Expected at least %d queries and args, only have %d queries and %d args", dd.pos, len(dd.Queries), len(dd.Args))
 	}
 	var msg string
 	if dd.Queries[dd.pos] != query {
