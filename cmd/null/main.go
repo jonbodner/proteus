@@ -59,16 +59,21 @@ func run(productDao Product2Dao) {
 
 	populate(ctx, tx, productDao)
 
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDao.FindByID(ctx, tx, 10)))
+	product, err := productDao.FindByID(ctx, tx, 10)
+	slog.DebugContext(ctx, "FindByID", "product", product, "err", err)
 	cost := sql.NullFloat64{
 		Float64: 56.23,
 		Valid:   true,
 	}
 	p := Product2{10, "Thingie", cost}
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDao.Update(ctx, tx, p)))
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDao.FindByID(ctx, tx, 10)))
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDao.FindByNameAndCost(ctx, tx, "fred", 54.10)))
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDao.FindByNameAndCost(ctx, tx, "Thingie", 56.23)))
+	rowsAffected, err := productDao.Update(ctx, tx, p)
+	slog.DebugContext(ctx, "Update", "rowsAffected", rowsAffected, "err", err)
+	product, err = productDao.FindByID(ctx, tx, 10)
+	slog.DebugContext(ctx, "FindByID after update", "product", product, "err", err)
+	products, err := productDao.FindByNameAndCost(ctx, tx, "fred", 54.10)
+	slog.DebugContext(ctx, "FindByNameAndCost fred", "products", products, "err", err)
+	products, err = productDao.FindByNameAndCost(ctx, tx, "Thingie", 56.23)
+	slog.DebugContext(ctx, "FindByNameAndCost Thingie", "products", products, "err", err)
 }
 
 func defineSchema(ctx context.Context, tx proteus.ContextWrapper) error {
@@ -78,7 +83,7 @@ func defineSchema(ctx context.Context, tx proteus.ContextWrapper) error {
 	`
 	_, err := tx.ExecContext(ctx, sqlStmt)
 	if err != nil {
-		slog.Log(ctx, slog.LevelError, fmt.Sprintf("%q: %s\n", err, sqlStmt))
+		slog.ErrorContext(ctx, "exec failed", "err", err, "statement", sqlStmt)
 		return err
 	}
 	return nil
@@ -88,13 +93,13 @@ func setupDBPostgres(ctx context.Context) (proteus.ContextWrapper, closer) {
 	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 
 	if err != nil {
-		slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
+		slog.ErrorContext(ctx, "db open failed", "err", err)
 		os.Exit(1)
 	}
 
 	tx, err := db.Begin()
 	if err != nil {
-		slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
+		slog.ErrorContext(ctx, "begin tx failed", "err", err)
 		os.Exit(1)
 	}
 
@@ -114,9 +119,9 @@ func populate(ctx context.Context, w proteus.ContextWrapper, productDao Product2
 		}
 		rowCount, err := productDao.Insert(ctx, w, i, fmt.Sprintf("person%d", i), cost)
 		if err != nil {
-			slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
+			slog.ErrorContext(ctx, "insert failed", "err", err)
 			os.Exit(1)
 		}
-		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(rowCount))
+		slog.DebugContext(ctx, "inserted row", "rowCount", rowCount)
 	}
 }

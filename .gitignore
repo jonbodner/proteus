@@ -4,3 +4,6 @@
 .vscode
 glide.lock
 vendor
+CLAUDE.md
+sample
+sample-ctx

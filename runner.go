@@ -2,7 +2,6 @@ package proteus
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"reflect"
 	"strings"
@@ -67,7 +66,7 @@ func makeContextExecutorImplementation(ctx context.Context, funcType reflect.Typ
 			return buildRetVals(result, err)
 		}
 
-		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		slog.DebugContext(ctx, "calling query", "query", finalQuery, "params", queryArgs)
 		result, err = executor.ExecContext(ctx, finalQuery, queryArgs...)
 
 		return buildRetVals(result, err)
@@ -93,7 +92,7 @@ func makeExecutorImplementation(ctx context.Context, funcType reflect.Type, quer
 			return buildRetVals(result, err)
 		}
 
-		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		slog.DebugContext(ctx, "calling query", "query", finalQuery, "params", queryArgs)
 		result, err = executor.Exec(finalQuery, queryArgs...)
 
 		return buildRetVals(result, err)
@@ -185,7 +184,7 @@ func makeContextQuerierImplementation(ctx context.Context, funcType reflect.Type
 			return buildRetVals(rows, err)
 		}
 
-		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		slog.DebugContext(ctx, "calling query", "query", finalQuery, "params", queryArgs)
 		// going to work around the defective Go MySQL driver, which refuses to convert the text protocol properly.
 		// It is used when doing a query without parameters.
 		if len(queryArgs) == 0 {
@@ -233,7 +232,7 @@ func makeQuerierImplementation(ctx context.Context, funcType reflect.Type, query
 			return buildRetVals(rows, err)
 		}
 
-		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+		slog.DebugContext(ctx, "calling query", "query", finalQuery, "params", queryArgs)
 		// going to work around the defective Go MySQL driver, which refuses to convert the text protocol properly.
 		// It is used when doing a query without parameters.
 		if len(queryArgs) == 0 {
@@ -380,7 +379,7 @@ func mapRows(ctx context.Context, rows *sql.Rows, builder mapper.Builder) (any, 
 
 	err = rows.Scan(vals...)
 	if err != nil {
-		slog.Log(ctx, slog.LevelWarn, "scan failed")
+		slog.WarnContext(ctx, "scan failed")
 		return nil, err
 	}
 

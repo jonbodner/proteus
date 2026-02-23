@@ -49,7 +49,7 @@ This removes the `jonbodner/stackerr` dependency entirely.
 
 ---
 
-## 4. Fix `slog` Usage — Structured Logging Done Right
+## ~~4. Fix `slog` Usage — Structured Logging Done Right~~ (DONE)
 
 The recent migration to `slog` (commit c52e1f8) left behind anti-patterns. The code uses `slog.Log` with `fmt.Sprintln`/`fmt.Sprintf` to pre-format messages, which defeats the entire purpose of structured logging.
 
@@ -392,7 +392,7 @@ If `Build` returns an error, `productDao` will have nil function fields. Subsequ
 - ~~#1 — `interface{}` to `any`~~ *(DONE)*
 - ~~#2 — Replace `multierr` with `errors.Join`~~ *(DONE)*
 - #3 — Replace `stackerr` with stdlib error handling
-- #4 — Fix slog usage for proper structured logging
+- ~~#4 — Fix slog usage for proper structured logging~~ *(DONE)*
 - #11 — Update dependencies
 
 **Lower priority (cleanup):**

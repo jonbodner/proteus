@@ -22,10 +22,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4.3.0
         with:
-          go-version: 1.25
-
-      - name: Install staticcheck
-        run: make install
+          go-version: 1.26
 
       - name: Run staticcheck
         run: make lint

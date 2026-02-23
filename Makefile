@@ -27,17 +27,13 @@ fmt:
 .PHONY:fmt
 
 lint: fmt
-	staticcheck ./...
+	go tool staticcheck ./...
 .PHONY:lint
 
 vet: fmt
 	go vet ./...
 .PHONY:vet
 
-build: vet
-	go build github.com/jonbodner/proteus/cmd/sample
+build: vet lint
+	go build github.com/jonbodner/proteus/cmd/sample-ctx
 .PHONY:build
-
-install:
-	go install honnef.co/go/tools/cmd/staticcheck@latest
-.PHONY:install
