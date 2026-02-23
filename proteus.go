@@ -73,12 +73,12 @@ func ShouldBuild(ctx context.Context, dao any, paramAdapter ParamAdapter, mapper
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
 	if daoPointerType.Kind() != reflect.Pointer {
-		return errors.New("not a pointer")
+		return ValidationError{Kind: NotPointer}
 	}
 	daoType := daoPointerType.Elem()
 	//if not a struct, error out
 	if daoType.Kind() != reflect.Struct {
-		return errors.New("not a pointer to struct")
+		return ValidationError{Kind: NotPointerToStruct}
 	}
 	var out error
 	funcs := make([]reflect.Value, daoType.NumField())
@@ -161,12 +161,12 @@ func Build(dao any, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 	daoPointerType := reflect.TypeOf(dao)
 	//must be a pointer to struct
 	if daoPointerType.Kind() != reflect.Pointer {
-		return errors.New("not a pointer")
+		return ValidationError{Kind: NotPointer}
 	}
 	daoType := daoPointerType.Elem()
 	//if not a struct, error out
 	if daoType.Kind() != reflect.Struct {
-		return errors.New("not a pointer to struct")
+		return ValidationError{Kind: NotPointerToStruct}
 	}
 	daoPointerValue := reflect.ValueOf(dao)
 	daoValue := reflect.Indirect(daoPointerValue)
@@ -249,7 +249,7 @@ var (
 func validateFunction(funcType reflect.Type) (bool, error) {
 	//the first parameter is Executor
 	if funcType.NumIn() == 0 {
-		return false, errors.New("need to supply an Executor or Querier parameter")
+		return false, ValidationError{Kind: NeedExecutorOrQuerier}
 	}
 	var isExec bool
 	var hasContext bool
@@ -261,7 +261,7 @@ func validateFunction(funcType reflect.Type) (bool, error) {
 	case fType.Implements(qType):
 		//do nothing isExec is false
 	default:
-		return false, errors.New("first parameter must be of type context.Context, Executor, or Querier")
+		return false, ValidationError{Kind: InvalidFirstParam}
 	}
 	start := 1
 	if hasContext {
@@ -272,41 +272,41 @@ func validateFunction(funcType reflect.Type) (bool, error) {
 		case fType.Implements(conQType):
 			//do nothing isExec is false
 		default:
-			return false, errors.New("first parameter must be of type context.Context, Executor, or Querier")
+			return false, ValidationError{Kind: InvalidFirstParam}
 		}
 	}
 	//no in parameter can be a channel
 	for i := start; i < funcType.NumIn(); i++ {
 		if funcType.In(i).Kind() == reflect.Chan {
-			return false, errors.New("no input parameter can be a channel")
+			return false, ValidationError{Kind: ChannelInputParam}
 		}
 	}
 
 	//has 0, 1, or 2 return values
 	if funcType.NumOut() > 2 {
-		return false, errors.New("must return 0, 1, or 2 values")
+		return false, ValidationError{Kind: TooManyReturnValues}
 	}
 
 	//if 2 return values, second is error
 	if funcType.NumOut() == 2 {
 		if !funcType.Out(1).Implements(errType) {
-			return false, errors.New("2nd output parameter must be of type error")
+			return false, ValidationError{Kind: SecondReturnNotError}
 		}
 	}
 
 	//if 1 or 2, the 1st param is not a channel (handle map, I guess)
 	if funcType.NumOut() > 0 {
 		if funcType.Out(0).Kind() == reflect.Chan {
-			return false, errors.New("1st output parameter cannot be a channel")
+			return false, ValidationError{Kind: FirstReturnIsChannel}
 		}
 		if isExec && funcType.Out(0).Kind() != reflect.Int64 &&
 			funcType.Out(0) != sqlResultType {
-			return false, errors.New("the 1st output parameter of an Executor must be int64 or sql.Result")
+			return false, ValidationError{Kind: ExecutorReturnType}
 		}
 
 		//sql.Result only useful with executor.
 		if !isExec && funcType.Out(0) == sqlResultType {
-			return false, errors.New("output parameters of type sql.Result must be combined with Executor")
+			return false, ValidationError{Kind: SQLResultWithQuerier}
 		}
 	}
 	return hasContext, nil
@@ -331,8 +331,8 @@ func makeImplementation(ctx context.Context, funcType reflect.Type, query string
 	case fType.Implements(qType):
 		return makeQuerierImplementation(ctx, funcType, fixedQuery, paramOrder)
 	}
-	//this should be impossible, since we already validated that the first parameter is either an executor or a querier
-	return nil, errors.New("first parameter must be of type Executor or Querier")
+	//this should be impossible, since we already validated that the first parameter is either an executor, a querier, or a context
+	return nil, ValidationError{Kind: InvalidFirstParam}
 }
 
 func lookupQuery(query string, mappers []QueryMapper) (string, error) {
@@ -345,5 +345,5 @@ func lookupQuery(query string, mappers []QueryMapper) (string, error) {
 			return q, nil
 		}
 	}
-	return "", fmt.Errorf("no query found for name %s", name)
+	return "", QueryError{Kind: QueryNotFound, Name: name}
 }

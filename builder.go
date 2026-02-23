@@ -86,7 +86,7 @@ func buildFixedQueryAndParamOrder(ctx context.Context, query string, nameOrderMa
 			if inVar {
 				if curVar.Len() == 0 {
 					//error! must have a something
-					return nil, nil, fmt.Errorf("empty variable declaration at position %d", k)
+					return nil, nil, QueryError{Kind: EmptyVariable, Position: k}
 				}
 				curVarS := curVar.String()
 				id, err := validIdentifier(ctx, curVarS)
@@ -109,13 +109,13 @@ func buildFixedQueryAndParamOrder(ctx context.Context, query string, nameOrderMa
 					paramType := funcType.In(paramPos)
 					if len(path) > 1 {
 						if paramType == nil {
-							return nil, nil, fmt.Errorf("query Parameter %s has a path, but the incoming parameter is nil", paramName)
+							return nil, nil, QueryError{Kind: NilParameterPath, Name: paramName}
 						}
 						switch paramType.Kind() {
 						case reflect.Map, reflect.Struct:
 							//do nothing
 						default:
-							return nil, nil, fmt.Errorf("query Parameter %s has a path, but the incoming parameter is not a map or a struct it is %s", paramName, paramType.Kind())
+							return nil, nil, QueryError{Kind: InvalidParameterType, Name: paramName, TypeKind: paramType.Kind().String()}
 						}
 					}
 					pathType, err := mapper.ExtractType(ctx, paramType, path)
@@ -131,7 +131,7 @@ func buildFixedQueryAndParamOrder(ctx context.Context, query string, nameOrderMa
 					}
 					paramOrder = append(paramOrder, paramInfo{id, paramPos, isSlice})
 				} else {
-					return nil, nil, fmt.Errorf("query Parameter %s cannot be found in the incoming parameters", paramName)
+					return nil, nil, QueryError{Kind: ParameterNotFound, Name: paramName}
 				}
 
 				inVar = false
@@ -148,7 +148,7 @@ func buildFixedQueryAndParamOrder(ctx context.Context, query string, nameOrderMa
 		}
 	}
 	if inVar {
-		return nil, nil, fmt.Errorf("missing a closing : somewhere: %s", query)
+		return nil, nil, QueryError{Kind: MissingClosingColon, Query: query}
 	}
 
 	queryString := out.String()
@@ -232,7 +232,7 @@ func addSlice(sliceName string) string {
 
 func validIdentifier(ctx context.Context, curVar string) (string, error) {
 	if strings.Contains(curVar, ";") {
-		return "", fmt.Errorf("; is not allowed in an identifier: %s", curVar)
+		return "", IdentifierError{Kind: SemicolonInIdentifier, Identifier: curVar}
 	}
 	curVarB := []byte(curVar)
 
@@ -253,7 +253,7 @@ loop:
 		switch tok {
 		case token.EOF:
 			if first || lastPeriod {
-				return "", fmt.Errorf("identifiers cannot be empty or end with a .: %s", curVar)
+				return "", IdentifierError{Kind: EmptyOrTrailingDotIdentifier, Identifier: curVar}
 			}
 			break loop
 		case token.SEMICOLON:
@@ -262,7 +262,7 @@ loop:
 			continue
 		case token.IDENT:
 			if !first && !lastPeriod && !lastFloat {
-				return "", fmt.Errorf(". missing between parts of an identifier: %s", curVar)
+				return "", IdentifierError{Kind: MissingDotInIdentifier, Identifier: curVar}
 			}
 			first = false
 			lastPeriod = false
@@ -270,7 +270,7 @@ loop:
 			identifier += lit
 		case token.PERIOD:
 			if first || lastPeriod {
-				return "", fmt.Errorf("identifier cannot start with . or have two . in a row: %s", curVar)
+				return "", IdentifierError{Kind: LeadingOrDoubleDotIdentifier, Identifier: curVar}
 			}
 			lastPeriod = true
 			identifier += "."
@@ -282,10 +282,10 @@ loop:
 				first = false
 				continue
 			}
-			return "", fmt.Errorf("invalid character found in identifier: %s", curVar)
+			return "", IdentifierError{Kind: InvalidCharacterInIdentifier, Identifier: curVar}
 		case token.INT:
 			if !dollar || first {
-				return "", fmt.Errorf("invalid character found in identifier: %s", curVar)
+				return "", IdentifierError{Kind: InvalidCharacterInIdentifier, Identifier: curVar}
 			}
 			identifier += lit
 			if dollar {
@@ -299,7 +299,7 @@ loop:
 			// returns .0 as the lit value
 			//Only valid for $ notation and array/slice references.
 			if first {
-				return "", fmt.Errorf("invalid character found in identifier: %s", curVar)
+				return "", IdentifierError{Kind: InvalidCharacterInIdentifier, Identifier: curVar}
 			}
 			identifier += lit
 			if dollar {
@@ -310,7 +310,7 @@ loop:
 				lastPeriod = true
 			}
 		default:
-			return "", fmt.Errorf("invalid character found in identifier: %s", curVar)
+			return "", IdentifierError{Kind: InvalidCharacterInIdentifier, Identifier: curVar}
 		}
 	}
 	return identifier, nil

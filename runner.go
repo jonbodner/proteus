@@ -8,8 +8,6 @@ import (
 
 	"database/sql"
 
-	"errors"
-
 	"github.com/jonbodner/proteus/mapper"
 )
 
@@ -42,8 +40,8 @@ func buildQueryArgs(ctx context.Context, funcArgs []reflect.Value, paramOrder []
 
 var (
 	errZero       = reflect.Zero(errType)
-	zeroInt64     = reflect.ValueOf(int64(0))
-	zeroSQLResult = reflect.ValueOf((sql.Result)(nil))
+	zeroInt64     = reflect.Zero(reflect.TypeFor[int64]())
+	zeroSQLResult = reflect.Zero(reflect.TypeFor[sql.Result]())
 	sqlResultType = reflect.TypeFor[sql.Result]()
 )
 
@@ -151,7 +149,7 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 
 	// impossible case since validation should happen first, but be safe
 	return func(result sql.Result, err error) []reflect.Value {
-		impossibleErr := reflect.ValueOf(errors.New("should never get here"))
+		impossibleErr := reflect.ValueOf(ValidationError{Kind: ShouldNeverGetHere})
 		if sType == sqlResultType {
 			return []reflect.Value{zeroSQLResult, impossibleErr}
 		}
@@ -307,13 +305,13 @@ func makeQuerierReturnVals(ctx context.Context, funcType reflect.Type, builder m
 
 	// impossible case since validation should happen first, but be safe
 	return func(*sql.Rows, error) []reflect.Value {
-		return []reflect.Value{qZero, reflect.ValueOf(errors.New("should never get here"))}
+		return []reflect.Value{qZero, reflect.ValueOf(ValidationError{Kind: ShouldNeverGetHere})}
 	}
 }
 
 func handleMapping(ctx context.Context, sType reflect.Type, rows *sql.Rows, builder mapper.Builder) (any, error) {
 	if rows == nil {
-		return nil, errors.New("rows must be non-nil")
+		return nil, ValidationError{Kind: RowsMustBeNonNil}
 	}
 	defer rows.Close()
 	var val any
@@ -350,7 +348,7 @@ func handleMapping(ctx context.Context, sType reflect.Type, rows *sql.Rows, buil
 func mapRows(ctx context.Context, rows *sql.Rows, builder mapper.Builder) (any, error) {
 	//fmt.Println(sType)
 	if rows == nil {
-		return nil, errors.New("rows must be non-nil")
+		return nil, ValidationError{Kind: RowsMustBeNonNil}
 	}
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
@@ -365,7 +363,7 @@ func mapRows(ctx context.Context, rows *sql.Rows, builder mapper.Builder) (any, 
 	}
 
 	if len(cols) == 0 {
-		return nil, errors.New("no values returned from query")
+		return nil, ValidationError{Kind: NoValuesFromQuery}
 	}
 
 	vals := make([]any, len(cols))

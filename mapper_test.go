@@ -11,7 +11,6 @@ import (
 
 	"errors"
 
-	"github.com/jonbodner/proteus/cmp"
 	"github.com/jonbodner/proteus/mapper"
 )
 
@@ -23,9 +22,8 @@ func TestMapRows(t *testing.T) {
 	if v != nil {
 		t.Error("Expected nil when passing in nil rows")
 	}
-	eExp := errors.New("rows must be non-nil")
-	if !cmp.Errors(err, eExp) {
-		t.Errorf("Expected error %s, got %s", eExp, err)
+	if !errors.Is(err, ValidationError{Kind: RowsMustBeNonNil}) {
+		t.Errorf("Expected RowsMustBeNonNil, got %s", err)
 	}
 }
 

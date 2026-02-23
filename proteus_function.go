@@ -7,8 +7,6 @@ import (
 	"reflect"
 	"strings"
 
-	"errors"
-
 	"github.com/jonbodner/proteus/mapper"
 )
 
@@ -29,12 +27,12 @@ func (fb Builder) BuildFunction(ctx context.Context, f any, query string, names 
 	funcPointerType := reflect.TypeOf(f)
 	//must be a pointer to func
 	if funcPointerType.Kind() != reflect.Pointer {
-		return errors.New("not a pointer")
+		return ValidationError{Kind: NotPointer}
 	}
 	funcType := funcPointerType.Elem()
 	//if not a func, error out
 	if funcType.Kind() != reflect.Func {
-		return errors.New("not a pointer to func")
+		return ValidationError{Kind: NotPointerToFunc}
 	}
 
 	//validate to make sure that the function matches what we expect
@@ -108,7 +106,7 @@ func (fb Builder) Query(ctx context.Context, q ContextQuerier, query string, par
 	// make sure that output is a pointer to something
 	outputPointerType := reflect.TypeOf(output)
 	if outputPointerType.Kind() != reflect.Pointer {
-		return errors.New("not a pointer")
+		return ValidationError{Kind: NotPointer}
 	}
 
 	finalQuery, queryArgs, err := fb.setupDynamicQueries(ctx, query, params)
