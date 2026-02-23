@@ -3,18 +3,15 @@ package mapper
 import (
 	"context"
 	"database/sql/driver"
-	"fmt"
 	"log/slog"
 	"reflect"
 	"strconv"
-
-	"errors"
 )
 
 func ExtractType(ctx context.Context, curType reflect.Type, path []string) (reflect.Type, error) {
 	// error case path length == 0
 	if len(path) == 0 {
-		return nil, errors.New("cannot extract type; no path remaining")
+		return nil, ExtractError{Kind: NoPathRemaining}
 	}
 	ss := fromPtrType(curType)
 	// base case path length == 1
@@ -23,7 +20,7 @@ func ExtractType(ctx context.Context, curType reflect.Type, path []string) (refl
 	}
 	// length > 1, find a match for path[1], and recurse
 	if ss == nil {
-		return nil, errors.New("cannot find the type for the subfield of a nil")
+		return nil, ExtractError{Kind: SubfieldOfNil}
 	}
 	switch ss.Kind() {
 	case reflect.Map:
@@ -34,23 +31,23 @@ func ExtractType(ctx context.Context, curType reflect.Type, path []string) (refl
 		if f, exists := ss.FieldByName(path[1]); exists {
 			return ExtractType(ctx, f.Type, path[1:])
 		}
-		return nil, errors.New("cannot find the type; no such field " + path[1])
+		return nil, ExtractError{Kind: NoSuchFieldType, Value: path[1]}
 	case reflect.Array, reflect.Slice:
 		// handle slices and arrays
 		_, err := strconv.Atoi(path[1])
 		if err != nil {
-			return nil, fmt.Errorf("invalid index: %s :%w", path[1], err)
+			return nil, ExtractError{Kind: InvalidIndex, Value: path[1], Err: err}
 		}
 		return ExtractType(ctx, ss.Elem(), path[1:])
 	default:
-		return nil, errors.New("cannot find the type for the subfield of anything other than a map, struct, slice, or array")
+		return nil, ExtractError{Kind: SubfieldUnsupportedKind}
 	}
 }
 
 func Extract(ctx context.Context, s any, path []string) (any, error) {
 	// error case path length == 0
 	if len(path) == 0 {
-		return nil, errors.New("cannot extract value; no path remaining")
+		return nil, ExtractError{Kind: ValueNoPathRemaining}
 	}
 	// base case path length == 1
 	if len(path) == 1 {
@@ -66,19 +63,19 @@ func Extract(ctx context.Context, s any, path []string) (any, error) {
 	switch sv.Kind() {
 	case reflect.Map:
 		if sv.Type().Key().Kind() != reflect.String {
-			return nil, errors.New("cannot extract value; map does not have a string key")
+			return nil, ExtractError{Kind: ValueMapNonStringKey}
 		}
 		slog.DebugContext(ctx, "map extract", "key", path[1], "availableKeys", sv.MapKeys())
 		v := sv.MapIndex(reflect.ValueOf(path[1]))
 		slog.DebugContext(ctx, "map extract result", "value", v)
 		if !v.IsValid() {
-			return nil, errors.New("cannot extract value; no such map key " + path[1])
+			return nil, ExtractError{Kind: NoSuchMapKey, Value: path[1]}
 		}
 		return Extract(ctx, v.Interface(), path[1:])
 	case reflect.Struct:
 		//make sure the field exists
 		if _, exists := sv.Type().FieldByName(path[1]); !exists {
-			return nil, errors.New("cannot extract value; no such field " + path[1])
+			return nil, ExtractError{Kind: NoSuchField, Value: path[1]}
 		}
 
 		v := sv.FieldByName(path[1])
@@ -87,15 +84,15 @@ func Extract(ctx context.Context, s any, path []string) (any, error) {
 		// handle slices and arrays
 		pos, err := strconv.Atoi(path[1])
 		if err != nil {
-			return nil, fmt.Errorf("invalid index: %s :%w", path[1], err)
+			return nil, ExtractError{Kind: InvalidIndex, Value: path[1], Err: err}
 		}
 		if pos < 0 || pos >= sv.Len() {
-			return nil, fmt.Errorf("invalid index: %s", path[1])
+			return nil, ExtractError{Kind: InvalidIndex, Value: path[1]}
 		}
 		v := sv.Index(pos)
 		return Extract(ctx, v.Interface(), path[1:])
 	default:
-		return nil, errors.New("cannot extract value; only maps and structs can have contained values")
+		return nil, ExtractError{Kind: ValueContainedNonMapStruct}
 	}
 }
 

@@ -10,10 +10,7 @@ import (
 
 	"time"
 
-	"fmt"
 	"github.com/google/go-cmp/cmp"
-
-	pcmp "github.com/jonbodner/proteus/cmp"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -89,7 +86,7 @@ func TestConvertToPositionalParameters(t *testing.T) {
 			reflect.TypeOf(f3),
 			"",
 			nil,
-			fmt.Errorf("missing a closing : somewhere: %s", `select * from Product where name=:name: and cost=:cost`),
+			QueryError{Kind: MissingClosingColon, Query: `select * from Product where name=:name: and cost=:cost`},
 		},
 		//empty ::
 		`select * from Product where name=:: and cost=:cost`: inner{
@@ -97,7 +94,7 @@ func TestConvertToPositionalParameters(t *testing.T) {
 			reflect.TypeOf(f3),
 			"",
 			nil,
-			errors.New("empty variable declaration at position 34"),
+			QueryError{Kind: EmptyVariable, Position: 34},
 		},
 		//invalid identifier
 		`select * from Product where name=:a,b,c: and cost=:cost`: inner{
@@ -105,7 +102,7 @@ func TestConvertToPositionalParameters(t *testing.T) {
 			reflect.TypeOf(f3),
 			"",
 			nil,
-			errors.New("invalid character found in identifier: a,b,c"),
+			IdentifierError{Kind: InvalidCharacterInIdentifier, Identifier: "a,b,c"},
 		},
 		//escaped character (invalid sql, but not the problem at hand)
 		`select * from Pr\:oduct where name=:name: and cost=:cost:`: inner{
@@ -124,7 +121,7 @@ func TestConvertToPositionalParameters(t *testing.T) {
 		if err == nil {
 			qSimple, _ = q.finalize(ctx, nil)
 		}
-		if qSimple != v.query || !reflect.DeepEqual(qps, v.qps) || !pcmp.Errors(err, v.err) {
+		if qSimple != v.query || !reflect.DeepEqual(qps, v.qps) || !errors.Is(err, v.err) {
 			t.Errorf("failed for %s -> %#v: %v", k, v, err)
 		}
 	}
@@ -159,14 +156,13 @@ func TestBuildParamMap(t *testing.T) {
 
 // This still needs tests for context...
 func TestValidateFunction(t *testing.T) {
-	f := func(fType reflect.Type, msg string) {
+	f := func(fType reflect.Type, expected error) {
 		hasCtx, err := validateFunction(fType)
 		if err == nil {
 			t.Fatalf("Expected err")
 		}
-		eExp := errors.New(msg)
-		if !pcmp.Errors(err, eExp) {
-			t.Errorf("Wrong error expected %s, got %s", eExp, err)
+		if !errors.Is(err, expected) {
+			t.Errorf("Wrong error: expected %v, got %v", expected, err)
 		}
 		if hasCtx {
 			t.Errorf("Expected no context, has one")
@@ -185,15 +181,15 @@ func TestValidateFunction(t *testing.T) {
 
 	//invalid -- no parameters
 	var f1 func()
-	f(reflect.TypeOf(f1), "need to supply an Executor or Querier parameter")
+	f(reflect.TypeOf(f1), ValidationError{Kind: NeedExecutorOrQuerier})
 
 	//invalid -- wrong first parameter type
 	var f2 func(int)
-	f(reflect.TypeOf(f2), "first parameter must be of type context.Context, Executor, or Querier")
+	f(reflect.TypeOf(f2), ValidationError{Kind: InvalidFirstParam})
 
 	//invalid -- has a channel input param
 	var f3 func(Executor, chan int)
-	f(reflect.TypeOf(f3), "no input parameter can be a channel")
+	f(reflect.TypeOf(f3), ValidationError{Kind: ChannelInputParam})
 
 	//valid -- only an Executor
 	var g1 func(Executor)
@@ -225,7 +221,7 @@ func TestValidateFunction(t *testing.T) {
 		D bool
 	}, error)
 	//invalid for Exec
-	f(reflect.TypeOf(g4), "the 1st output parameter of an Executor must be int64 or sql.Result")
+	f(reflect.TypeOf(g4), ValidationError{Kind: ExecutorReturnType})
 
 	//valid for query
 	var g4q func(Querier, int, map[string]any, struct {
@@ -243,7 +239,7 @@ func TestValidateFunction(t *testing.T) {
 
 	// invalid -- a querier, returning an sql.Result
 	var r2 func(Querier) sql.Result
-	f(reflect.TypeOf(r2), "output parameters of type sql.Result must be combined with Executor")
+	f(reflect.TypeOf(r2), ValidationError{Kind: SQLResultWithQuerier})
 }
 
 func TestBuild(t *testing.T) {
@@ -756,7 +752,7 @@ func TestShouldBuild(t *testing.T) {
 	if err2.Error() != `error in field #0 (Insert): missing a closing : somewhere: insert into Product(name) values(:p.Name)
 error in field #1 (Insert2): first parameter must be of type context.Context, Executor, or Querier
 error in field #3 (Insert3): no query found for name nope
-error in field #5 (InsertNoP): query Parameter p cannot be found in the incoming parameters` {
+error in field #5 (InsertNoP): query parameter p cannot be found in the incoming parameters` {
 		t.Error(err2)
 	}
 }

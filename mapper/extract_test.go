@@ -2,13 +2,10 @@ package mapper
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
-
-	"errors"
-
-	"github.com/jonbodner/proteus/cmp"
 )
 
 func TestExtractPointer(t *testing.T) {
@@ -119,30 +116,29 @@ func TestExtract(t *testing.T) {
 
 func TestExtractFail(t *testing.T) {
 	ctx := context.Background()
-	f := func(in any, path []string, msg string) {
+	f := func(in any, path []string, expected error) {
 		_, err := Extract(ctx, in, path)
 		if err == nil {
-			t.Errorf("Expected an error %s, got none", msg)
+			t.Errorf("Expected an error, got none")
 		}
-		eExp := errors.New(msg)
-		if !cmp.Errors(err, eExp) {
-			t.Errorf("Expected error %s, got %s", eExp, err)
+		if !errors.Is(err, expected) {
+			t.Errorf("Expected error %v, got %v", expected, err)
 		}
 	}
 	//base case no path
-	f(10, []string{}, "cannot extract value; no path remaining")
+	f(10, []string{}, ExtractError{Kind: ValueNoPathRemaining})
 
 	//path too long
-	f(10, []string{"A", "B"}, "cannot extract value; only maps and structs can have contained values")
+	f(10, []string{"A", "B"}, ExtractError{Kind: ValueContainedNonMapStruct})
 
 	//invalid map
-	f(map[int]any{10: "Hello"}, []string{"m", "10"}, "cannot extract value; map does not have a string key")
+	f(map[int]any{10: "Hello"}, []string{"m", "10"}, ExtractError{Kind: ValueMapNonStringKey})
 
 	//no such field case
 	type Bar struct {
 		A int
 	}
-	f(Bar{A: 20}, []string{"b", "B"}, "cannot extract value; no such field B")
+	f(Bar{A: 20}, []string{"b", "B"}, ExtractError{Kind: NoSuchField})
 }
 
 func TestExtractType(t *testing.T) {

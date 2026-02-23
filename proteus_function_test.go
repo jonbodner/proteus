@@ -56,7 +56,7 @@ func TestBuilder_BuildFunctionErrors(t *testing.T) {
 			f:      &f2,
 			query:  "SELECT * FROM PERSON WHERE id = :id:",
 			params: nil,
-			errMsg: "query Parameter id cannot be found in the incoming parameters",
+			errMsg: "query parameter id cannot be found in the incoming parameters",
 		},
 	}
 	for _, v := range data {
