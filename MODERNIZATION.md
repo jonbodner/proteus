@@ -78,7 +78,7 @@ Also fix the test files:
 
 ---
 
-## 5. Use `strings.ReplaceAll` instead of `strings.Replace(..., -1)` (Go 1.12+)
+## ~~5. Use `strings.ReplaceAll` instead of `strings.Replace(..., -1)` (Go 1.12+)~~ (DONE)
 
 `strings.ReplaceAll` is a clearer, more idiomatic function for replacing all occurrences.
 
@@ -104,7 +104,7 @@ Also applies to `bench_test.go` lines 229-230.
 
 ---
 
-## 6. Use `strings.Builder` instead of `bytes.Buffer` for String Building
+## ~~6. Use `strings.Builder` instead of `bytes.Buffer` for String Building~~ (DONE)
 
 `strings.Builder` (Go 1.10+) is purpose-built for building strings and avoids the `[]byte` to `string` copy that `bytes.Buffer.String()` performs.
 
@@ -396,8 +396,8 @@ If `Build` returns an error, `productDao` will have nil function fields. Subsequ
 - #11 — Update dependencies
 
 **Lower priority (cleanup):**
-- #5 — `strings.ReplaceAll`
-- #6 — `strings.Builder`
+- ~~#5 — `strings.ReplaceAll`~~ *(DONE)*
+- ~~#6 — `strings.Builder`~~ *(DONE)*
 - #9 — Delete `cmp/errors.go`
 - #10 — Deprecation annotations
 - #12 — Testing improvements

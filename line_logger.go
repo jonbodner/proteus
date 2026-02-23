@@ -1,7 +1,6 @@
 package proteus
 
 import (
-	"bytes"
 	"log/slog"
 	"strings"
 	"testing"
@@ -12,7 +11,7 @@ func RegisterLineLogger(t *testing.T) func() []string {
 	t.Cleanup(func() {
 		slog.SetDefault(defaultLogger)
 	})
-	var buf bytes.Buffer
+	var buf strings.Builder
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}))

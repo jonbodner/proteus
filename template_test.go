@@ -1,9 +1,9 @@
 package proteus
 
 import (
-	"bytes"
 	"fmt"
 	"html/template"
+	"strings"
 	"testing"
 )
 
@@ -19,7 +19,7 @@ func TestTemplate(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	var b bytes.Buffer
+	var b strings.Builder
 
 	err = tmpl.Execute(&b, map[string]any{"vals": 3})
 	if err != nil {

@@ -226,8 +226,8 @@ func (spd standardPersonDao) GetByAge(db *sql.DB, id int, ages []int, name strin
 
 	inClause := strings.Join(params, ",")
 
-	finalQuery := strings.Replace(startQuery, ":ages:", inClause, -1)
-	finalQuery = strings.Replace(finalQuery, ":id:", fmt.Sprintf("$%d", len(ages)+2), -1)
+	finalQuery := strings.ReplaceAll(startQuery, ":ages:", inClause)
+	finalQuery = strings.ReplaceAll(finalQuery, ":id:", fmt.Sprintf("$%d", len(ages)+2))
 
 	args := make([]any, 0, len(ages)+2)
 	args = append(args, name)

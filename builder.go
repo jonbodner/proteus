@@ -1,7 +1,6 @@
 package proteus
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"go/scanner"
@@ -64,7 +63,7 @@ type posType interface {
 }
 
 func buildFixedQueryAndParamOrder(ctx context.Context, query string, nameOrderMap map[string]int, funcType posType, pa ParamAdapter) (queryHolder, []paramInfo, error) {
-	var out bytes.Buffer
+	var out strings.Builder
 
 	var paramOrder []paramInfo
 
@@ -73,7 +72,7 @@ func buildFixedQueryAndParamOrder(ctx context.Context, query string, nameOrderMa
 	// ending on a single \ means the \ is ignored
 	inEscape := false
 	inVar := false
-	curVar := []rune{}
+	var curVar strings.Builder
 	hasSlice := false
 	for k, v := range query {
 		if inEscape {
@@ -86,11 +85,11 @@ func buildFixedQueryAndParamOrder(ctx context.Context, query string, nameOrderMa
 			inEscape = true
 		case ':':
 			if inVar {
-				if len(curVar) == 0 {
+				if curVar.Len() == 0 {
 					//error! must have a something
 					return nil, nil, stackerr.Errorf("empty variable declaration at position %d", k)
 				}
-				curVarS := string(curVar)
+				curVarS := curVar.String()
 				id, err := validIdentifier(ctx, curVarS)
 				if err != nil {
 					//error, identifier must be valid go identifier with . for path
@@ -137,13 +136,13 @@ func buildFixedQueryAndParamOrder(ctx context.Context, query string, nameOrderMa
 				}
 
 				inVar = false
-				curVar = []rune{}
+				curVar.Reset()
 			} else {
 				inVar = true
 			}
 		default:
 			if inVar {
-				curVar = append(curVar, v)
+				curVar.WriteRune(v)
 			} else {
 				out.WriteRune(v)
 			}
@@ -187,7 +186,7 @@ func doFinalize(ctx context.Context, queryString string, paramOrder []paramInfo,
 			sliceMap[fixNameForTemplate(v.name)] = 1
 		}
 	}
-	var b bytes.Buffer
+	var b strings.Builder
 	err = temp.Execute(&b, sliceMap)
 	if err != nil {
 		return "", err
@@ -207,7 +206,7 @@ const (
 
 func joinFactory(startPos int, paramAdapter ParamAdapter) func(int) string {
 	return func(total int) string {
-		var b bytes.Buffer
+		var b strings.Builder
 		for i := 0; i < total; i++ {
 			if i > 0 {
 				b.WriteString(", ")
@@ -221,10 +220,10 @@ func joinFactory(startPos int, paramAdapter ParamAdapter) func(int) string {
 
 func fixNameForTemplate(name string) string {
 	//need to make sure that foo.bar and fooDOTbar don't collide, however unlikely
-	name = strings.Replace(name, "DOT", "DOTDOT", -1)
-	name = strings.Replace(name, ".", "DOT", -1)
-	name = strings.Replace(name, "DOLLAR", "DOLLARDOLLAR", -1)
-	name = strings.Replace(name, "$", "DOLLAR", -1)
+	name = strings.ReplaceAll(name, "DOT", "DOTDOT")
+	name = strings.ReplaceAll(name, ".", "DOT")
+	name = strings.ReplaceAll(name, "DOLLAR", "DOLLARDOLLAR")
+	name = strings.ReplaceAll(name, "$", "DOLLAR")
 	return name
 }
 
