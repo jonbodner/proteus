@@ -3,7 +3,6 @@ package mapper
 import (
 	"context"
 	"database/sql/driver"
-	"fmt"
 	"log/slog"
 	"reflect"
 	"strconv"
@@ -68,10 +67,9 @@ func Extract(ctx context.Context, s any, path []string) (any, error) {
 		if sv.Type().Key().Kind() != reflect.String {
 			return nil, stackerr.New("cannot extract value; map does not have a string key")
 		}
-		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(path[1]))
-		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(sv.MapKeys()))
+		slog.DebugContext(ctx, "map extract", "key", path[1], "availableKeys", sv.MapKeys())
 		v := sv.MapIndex(reflect.ValueOf(path[1]))
-		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(v))
+		slog.DebugContext(ctx, "map extract result", "value", v)
 		if !v.IsValid() {
 			return nil, stackerr.New("cannot extract value; no such map key " + path[1])
 		}

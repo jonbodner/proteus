@@ -36,7 +36,7 @@ func setupDb(t *testing.T) *sql.DB {
 
 	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 	sqlStmt := `
@@ -45,19 +45,19 @@ func setupDb(t *testing.T) *sql.DB {
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		slog.Log(ctx, slog.LevelError, "err", "error", slog.AnyValue(err), "query", slog.StringValue(sqlStmt))
+		slog.ErrorContext(ctx, "error", "err", err, "query", sqlStmt)
 		t.FailNow()
 	}
 
 	tx, err := db.Begin()
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 	defer func() { _ = tx.Rollback() }()
 	stmt, err := tx.Prepare("insert into product(id, name, cost) values($1, $2, $3)")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 	defer stmt.Close()
@@ -69,12 +69,12 @@ func setupDb(t *testing.T) *sql.DB {
 		}
 		_, err = stmt.Exec(i, name, 1.1*float64(i))
 		if err != nil {
-			slog.Error("err", "error", slog.AnyValue(err))
+			slog.Error("err", "error", err)
 			t.FailNow()
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 	return db
@@ -93,7 +93,7 @@ func TestBuildStruct(t *testing.T) {
 
 	rows, err := db.Query("select id, name, cost from product")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 	defer rows.Close()
@@ -147,14 +147,14 @@ func TestBuildPrimitive(t *testing.T) {
 	//primitive
 	stmt, err := db.Prepare("select name from product where id = $1")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query("4")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 	sType := reflect.TypeOf("")
@@ -182,7 +182,7 @@ func TestBuildPrimitive(t *testing.T) {
 
 	_, err = db.Exec("delete from product")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 }
@@ -194,14 +194,14 @@ func TestBuildPrimitiveNilFail(t *testing.T) {
 	//primitive
 	stmt, err := db.Prepare("select name from product where id = $1")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query("3")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 	sType := reflect.TypeOf("")
@@ -222,7 +222,7 @@ func TestBuildPrimitiveNilFail(t *testing.T) {
 
 	_, err = db.Exec("delete from product")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 }
@@ -234,14 +234,14 @@ func TestBuildPrimitivePtr(t *testing.T) {
 	//primitive
 	stmt, err := db.Prepare("select name from product where id = $1")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query("4")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 	sType := reflect.TypeOf((*string)(nil))
@@ -270,7 +270,7 @@ func TestBuildPrimitivePtr(t *testing.T) {
 
 	_, err = db.Exec("delete from product")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 }
@@ -282,14 +282,14 @@ func TestBuildPrimitivePtrNil(t *testing.T) {
 	//primitive
 	stmt, err := db.Prepare("select name from product where id = $1")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query("3")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 	sType := reflect.TypeFor[*string]()
@@ -315,7 +315,7 @@ func TestBuildPrimitivePtrNil(t *testing.T) {
 
 	_, err = db.Exec("delete from product")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 }
@@ -326,7 +326,7 @@ func TestBuildMap(t *testing.T) {
 
 	rows, err := db.Query("select id, name, cost from product")
 	if err != nil {
-		slog.Error("err", "error", slog.AnyValue(err))
+		slog.Error("err", "error", err)
 		t.FailNow()
 	}
 	defer rows.Close()

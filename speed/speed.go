@@ -123,7 +123,7 @@ func setupDbPostgres(ctx context.Context) *sql.DB {
 	db, err := sql.Open("postgres", "postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 
 	if err != nil {
-		slog.Error("error", "err", slog.AnyValue(err))
+		slog.Error("error", "err", err)
 		os.Exit(1)
 	}
 	sqlStmt := `
@@ -132,7 +132,7 @@ func setupDbPostgres(ctx context.Context) *sql.DB {
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		slog.Error("error", "err", slog.AnyValue(err), "statement", slog.StringValue(sqlStmt))
+		slog.Error("error", "err", err, "statement", sqlStmt)
 		return nil
 	}
 	populate(ctx, db)
@@ -144,7 +144,7 @@ func populate(ctx context.Context, db *sql.DB) {
 	proteus.Build(&productDao, proteus.Postgres)
 	tx, err := db.Begin()
 	if err != nil {
-		slog.Error("error", "err", slog.AnyValue(err))
+		slog.Error("error", "err", err)
 		os.Exit(1)
 	}
 	defer func() { _ = tx.Rollback() }()
@@ -157,14 +157,14 @@ func populate(ctx context.Context, db *sql.DB) {
 		}
 		rowCount, err := productDao.Insert(ctx, tx, i, fmt.Sprintf("person%d", i), cost)
 		if err != nil {
-			slog.Error("error", "err", slog.AnyValue(err))
+			slog.Error("error", "err", err)
 			os.Exit(1)
 		}
 		slog.Debug("rowCount", "rowCount", rowCount)
 	}
 
 	if err := tx.Commit(); err != nil {
-		slog.Error("error", "err", slog.AnyValue(err))
+		slog.Error("error", "err", err)
 		os.Exit(1)
 	}
 }

@@ -3,7 +3,6 @@ package proteus
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log/slog"
 	"reflect"
 	"strings"
@@ -99,7 +98,7 @@ func (fb Builder) ExecResult(ctx context.Context, e ContextExecutor, query strin
 		return nil, err
 	}
 
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+	slog.DebugContext(ctx, "calling query", "query", finalQuery, "params", queryArgs)
 	result, err := e.ExecContext(ctx, finalQuery, queryArgs...)
 	return result, err
 }
@@ -116,7 +115,7 @@ func (fb Builder) Query(ctx context.Context, q ContextQuerier, query string, par
 		return err
 	}
 
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln("calling", finalQuery, "with params", queryArgs))
+	slog.DebugContext(ctx, "calling query", "query", finalQuery, "params", queryArgs)
 	rows, err := q.QueryContext(ctx, finalQuery, queryArgs...)
 	if err != nil {
 		return err

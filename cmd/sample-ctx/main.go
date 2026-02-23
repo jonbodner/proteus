@@ -67,39 +67,64 @@ func run(setupDb setupDb, productDAO ProductDAO) {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDAO.FindByID(ctx, tx, 10)))
+	product, err := productDAO.FindByID(ctx, tx, 10)
+	slog.DebugContext(ctx, "FindByID", "product", product, "err", err)
+
 	cost := new(float64)
 	*cost = 56.23
 	p := Product{10, "Thingie", cost}
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDAO.Update(ctx, tx, p)))
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDAO.FindByID(ctx, tx, 10)))
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDAO.FindByNameAndCost(ctx, tx, "fred", 54.10)))
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(productDAO.FindByNameAndCost(ctx, tx, "Thingie", 56.23)))
+	rowsAffected, err := productDAO.Update(ctx, tx, p)
+	slog.DebugContext(ctx, "Update", "rowsAffected", rowsAffected, "err", err)
+
+	product, err = productDAO.FindByID(ctx, tx, 10)
+	slog.DebugContext(ctx, "FindByID after update", "product", product, "err", err)
+
+	products, err := productDAO.FindByNameAndCost(ctx, tx, "fred", 54.10)
+	slog.DebugContext(ctx, "FindByNameAndCost fred", "products", products, "err", err)
+
+	products, err = productDAO.FindByNameAndCost(ctx, tx, "Thingie", 56.23)
+	slog.DebugContext(ctx, "FindByNameAndCost Thingie", "products", products, "err", err)
 
 	//using a map of [string]any works too!
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByIDMap(ctx, tx, 10))))
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByNameAndCostMap(ctx, tx, "Thingie", 56.23))))
+	m2, err := productDAO.FindByIDMap(ctx, tx, 10)
+	slog.DebugContext(ctx, "FindByIDMap", "result", m2, "err", err)
 
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByID(ctx, tx, 11))))
+	maps, err := productDAO.FindByNameAndCostMap(ctx, tx, "Thingie", 56.23)
+	slog.DebugContext(ctx, "FindByNameAndCostMap", "results", maps, "err", err)
+
+	product, err = productDAO.FindByID(ctx, tx, 11)
+	slog.DebugContext(ctx, "FindByID 11", "product", product, "err", err)
+
 	m := map[string]any{
 		"Id":   11,
 		"Name": "bobbo",
 		"Cost": 12.94,
 	}
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.UpdateMap(ctx, tx, m))))
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByID(ctx, tx, 11))))
+	rowsAffected, err = productDAO.UpdateMap(ctx, tx, m)
+	slog.DebugContext(ctx, "UpdateMap", "rowsAffected", rowsAffected, "err", err)
+
+	product, err = productDAO.FindByID(ctx, tx, 11)
+	slog.DebugContext(ctx, "FindByID after UpdateMap", "product", product, "err", err)
 
 	//searching using a slice
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByIDSlice(ctx, tx, []int{1, 3, 5}))))
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByIDSliceAndName(ctx, tx, []int{1, 3, 5}, "person1"))))
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByIDSliceNameAndCost(ctx, tx, []int{1, 3, 5}, "person3", nil))))
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByIDSliceCostAndNameSlice(ctx, tx, []int{1, 3, 5}, []string{"person3", "person5"}, nil))))
+	products, err = productDAO.FindByIDSlice(ctx, tx, []int{1, 3, 5})
+	slog.DebugContext(ctx, "FindByIDSlice", "products", products, "err", err)
+
+	products, err = productDAO.FindByIDSliceAndName(ctx, tx, []int{1, 3, 5}, "person1")
+	slog.DebugContext(ctx, "FindByIDSliceAndName", "products", products, "err", err)
+
+	products, err = productDAO.FindByIDSliceNameAndCost(ctx, tx, []int{1, 3, 5}, "person3", nil)
+	slog.DebugContext(ctx, "FindByIDSliceNameAndCost", "products", products, "err", err)
+
+	products, err = productDAO.FindByIDSliceCostAndNameSlice(ctx, tx, []int{1, 3, 5}, []string{"person3", "person5"}, nil)
+	slog.DebugContext(ctx, "FindByIDSliceCostAndNameSlice", "products", products, "err", err)
 
 	//using positional parameters instead of names
-	slog.Log(ctx, slog.LevelDebug, fmt.Sprintln((productDAO.FindByNameAndCostUnlabeled(ctx, tx, "Thingie", 56.23))))
+	products, err = productDAO.FindByNameAndCostUnlabeled(ctx, tx, "Thingie", 56.23)
+	slog.DebugContext(ctx, "FindByNameAndCostUnlabeled", "products", products, "err", err)
 
 	if err := tx.Commit(); err != nil {
-		slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
+		slog.ErrorContext(ctx, "commit failed", "err", err)
 	}
 }
 
@@ -108,7 +133,7 @@ func setupDbPostgres(ctx context.Context, productDAO ProductDAO) *sql.DB {
 	db, err := sql.Open("timer", "postgres postgres://pro_user:pro_pwd@localhost/proteus?sslmode=disable")
 
 	if err != nil {
-		slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
+		slog.ErrorContext(ctx, "db open failed", "err", err)
 	}
 	sqlStmt := `
 	drop table if exists product;
@@ -116,7 +141,7 @@ func setupDbPostgres(ctx context.Context, productDAO ProductDAO) *sql.DB {
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		slog.Log(ctx, slog.LevelError, fmt.Sprintf("%q: %s\n", err, sqlStmt))
+		slog.ErrorContext(ctx, "exec failed", "err", err, "statement", sqlStmt)
 		return nil
 	}
 	populate(ctx, db, productDAO)
@@ -126,7 +151,7 @@ func setupDbPostgres(ctx context.Context, productDAO ProductDAO) *sql.DB {
 func populate(ctx context.Context, db *sql.DB, productDao ProductDAO) {
 	tx, err := db.Begin()
 	if err != nil {
-		slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
+		slog.ErrorContext(ctx, "begin tx failed", "err", err)
 		return
 	}
 	defer func() { _ = tx.Rollback() }()
@@ -139,12 +164,12 @@ func populate(ctx context.Context, db *sql.DB, productDao ProductDAO) {
 		}
 		rowCount, err := productDao.Insert(ctx, tx, i, fmt.Sprintf("person%d", i), cost)
 		if err != nil {
-			slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
+			slog.ErrorContext(ctx, "insert failed", "err", err)
 		}
-		slog.Log(ctx, slog.LevelDebug, fmt.Sprintln(rowCount))
+		slog.DebugContext(ctx, "inserted row", "rowCount", rowCount)
 	}
 
 	if err := tx.Commit(); err != nil {
-		slog.Log(ctx, slog.LevelError, fmt.Sprintln(err))
+		slog.ErrorContext(ctx, "commit failed", "err", err)
 	}
 }

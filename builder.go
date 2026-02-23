@@ -251,7 +251,7 @@ func validIdentifier(ctx context.Context, curVar string) (string, error) {
 loop:
 	for {
 		pos, tok, lit := s.Scan()
-		slog.Log(ctx, slog.LevelDebug, fmt.Sprintf("%s\t%s\t%q\n", fset.Position(pos), tok, lit))
+		slog.DebugContext(ctx, "token scan", "position", fset.Position(pos), "token", tok, "literal", lit)
 		switch tok {
 		case token.EOF:
 			if first || lastPeriod {

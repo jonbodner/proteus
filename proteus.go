@@ -199,7 +199,7 @@ func Build(dao any, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 		//validate to make sure that the function matches what we expect
 		hasCtx, err := validateFunction(funcType)
 		if err != nil {
-			slog.Log(ctx, slog.LevelWarn, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
+			slog.WarnContext(ctx, "skipping function", "function", curField.Name, "error", err)
 			outErr = errors.Join(outErr, err)
 			continue
 		}
@@ -219,14 +219,14 @@ func Build(dao any, paramAdapter ParamAdapter, mappers ...QueryMapper) error {
 		//check to see if the query is in a QueryMapper
 		query, err = lookupQuery(query, mappers)
 		if err != nil {
-			slog.Log(ctx, slog.LevelWarn, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
+			slog.WarnContext(ctx, "skipping function", "function", curField.Name, "error", err)
 			outErr = errors.Join(outErr, err)
 			continue
 		}
 
 		implementation, err := makeImplementation(ctx, funcType, query, paramAdapter, nameOrderMap)
 		if err != nil {
-			slog.Log(ctx, slog.LevelWarn, fmt.Sprintln("skipping function", curField.Name, "due to error:", err.Error()))
+			slog.WarnContext(ctx, "skipping function", "function", curField.Name, "error", err)
 			outErr = errors.Join(outErr, err)
 			continue
 		}
