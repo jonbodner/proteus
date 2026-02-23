@@ -102,11 +102,17 @@ Replaced `reflect.NewAt(sType, unsafe.Pointer(nil))` with `reflect.Zero(reflect.
 
 ---
 
-## 9. Delete the `cmp/errors.go` Package
+## ~~9. Delete the `cmp/errors.go` Package and Add Structured Error Types~~ (DONE)
 
-**File:** `cmp/errors.go`
+Deleted `cmp/errors.go`, which compared errors by string — a fragile anti-pattern. Replaced all inline `errors.New`/`fmt.Errorf` calls with five typed error structs grouped by class:
 
-This package contains a single function that compares errors by their `.Error()` string — a fragile anti-pattern. With proper use of sentinel errors, `errors.Is`, and `errors.As`, this package becomes unnecessary. The tests that use it should be updated to compare errors structurally.
+- **`ValidationError{Kind ValidationErrorKind}`** — struct/function signature validation failures in `Build`/`ShouldBuild`/`BuildFunction`
+- **`QueryError{Kind QueryErrorKind, ...}`** — query lookup and parameter processing failures (with `Name`, `Query`, `Position`, `TypeKind` fields as applicable)
+- **`IdentifierError{Kind IdentifierErrorKind, Identifier string}`** — identifier syntax validation failures in query parameters
+- **`ExtractError{Kind ExtractErrorKind, Value string, Err error}`** — path-extraction failures in `mapper/extract.go`; implements `Unwrap()` to surface wrapped strconv errors for `InvalidIndex`
+- **`AssignError{Kind AssignErrorKind, ...}`** — value-assignment failures in `mapper/mapper.go`
+
+Each type's zero-value `Kind` (the `AnyXxx` constant) acts as a wildcard: `errors.Is(err, ValidationError{})` matches any `ValidationError`; `errors.Is(err, ValidationError{Kind: NotPointer})` matches exactly. All tests updated to use `errors.Is`/`errors.As` instead of string comparison.
 
 ---
 
@@ -371,7 +377,7 @@ If `Build` returns an error, `productDao` will have nil function fields. Subsequ
 **Lower priority (cleanup):**
 - ~~#5 — `strings.ReplaceAll`~~ *(DONE)*
 - ~~#6 — `strings.Builder`~~ *(DONE)*
-- #9 — Delete `cmp/errors.go`
+- ~~#9 — Delete `cmp/errors.go` and add structured error types~~ *(DONE)*
 - #10 — Deprecation annotations
 - #12 — Testing improvements
 - #13 — Reduce duplication
