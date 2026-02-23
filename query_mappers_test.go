@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/jonbodner/stackerr"
+	"errors"
 )
 
 type NoErrType string
@@ -49,7 +49,7 @@ func (dd *DummyDB) checkExpectedData(query string, args ...any) error {
 	if len(msg) == 0 {
 		return NoErrType("")
 	}
-	return stackerr.New(msg)
+	return errors.New(msg)
 }
 
 func TestMapMapper(t *testing.T) {

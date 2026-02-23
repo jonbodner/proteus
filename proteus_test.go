@@ -14,7 +14,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	pcmp "github.com/jonbodner/proteus/cmp"
-	"github.com/jonbodner/stackerr"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -98,7 +97,7 @@ func TestConvertToPositionalParameters(t *testing.T) {
 			reflect.TypeOf(f3),
 			"",
 			nil,
-			stackerr.New("empty variable declaration at position 34"),
+			errors.New("empty variable declaration at position 34"),
 		},
 		//invalid identifier
 		`select * from Product where name=:a,b,c: and cost=:cost`: inner{
@@ -165,7 +164,7 @@ func TestValidateFunction(t *testing.T) {
 		if err == nil {
 			t.Fatalf("Expected err")
 		}
-		eExp := stackerr.New(msg)
+		eExp := errors.New(msg)
 		if !pcmp.Errors(err, eExp) {
 			t.Errorf("Wrong error expected %s, got %s", eExp, err)
 		}

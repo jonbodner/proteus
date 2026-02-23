@@ -7,8 +7,9 @@ import (
 	"reflect"
 	"strings"
 
+	"errors"
+
 	"github.com/jonbodner/proteus/mapper"
-	"github.com/jonbodner/stackerr"
 )
 
 type Builder struct {
@@ -28,12 +29,12 @@ func (fb Builder) BuildFunction(ctx context.Context, f any, query string, names 
 	funcPointerType := reflect.TypeOf(f)
 	//must be a pointer to func
 	if funcPointerType.Kind() != reflect.Pointer {
-		return stackerr.New("not a pointer")
+		return errors.New("not a pointer")
 	}
 	funcType := funcPointerType.Elem()
 	//if not a func, error out
 	if funcType.Kind() != reflect.Func {
-		return stackerr.New("not a pointer to func")
+		return errors.New("not a pointer to func")
 	}
 
 	//validate to make sure that the function matches what we expect
@@ -107,7 +108,7 @@ func (fb Builder) Query(ctx context.Context, q ContextQuerier, query string, par
 	// make sure that output is a pointer to something
 	outputPointerType := reflect.TypeOf(output)
 	if outputPointerType.Kind() != reflect.Pointer {
-		return stackerr.New("not a pointer")
+		return errors.New("not a pointer")
 	}
 
 	finalQuery, queryArgs, err := fb.setupDynamicQueries(ctx, query, params)

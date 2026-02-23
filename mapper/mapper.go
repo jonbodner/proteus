@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/jonbodner/stackerr"
+	"errors"
 )
 
 func ptrConverter(ctx context.Context, isPtr bool, sType reflect.Type, out reflect.Value, err error) (any, error) {
@@ -35,7 +35,7 @@ func ptrConverter(ctx context.Context, isPtr bool, sType reflect.Type, out refle
 
 func MakeBuilder(ctx context.Context, sType reflect.Type) (Builder, error) {
 	if sType == nil {
-		return nil, stackerr.New("sType cannot be nil")
+		return nil, errors.New("sType cannot be nil")
 	}
 
 	isPtr := false
@@ -52,7 +52,7 @@ func MakeBuilder(ctx context.Context, sType reflect.Type) (Builder, error) {
 	switch sType.Kind() {
 	case reflect.Map:
 		if sType.Key().Kind() != reflect.String {
-			return nil, stackerr.New("only maps with string keys are supported")
+			return nil, errors.New("only maps with string keys are supported")
 		}
 		return func(cols []string, vals []any) (any, error) {
 			out, err := buildMap(ctx, sType, cols, vals)

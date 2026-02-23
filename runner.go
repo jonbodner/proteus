@@ -8,8 +8,9 @@ import (
 
 	"database/sql"
 
+	"errors"
+
 	"github.com/jonbodner/proteus/mapper"
-	"github.com/jonbodner/stackerr"
 )
 
 func buildQueryArgs(ctx context.Context, funcArgs []reflect.Value, paramOrder []paramInfo) ([]any, error) {
@@ -150,7 +151,7 @@ func makeExecutorReturnVals(funcType reflect.Type) func(sql.Result, error) []ref
 
 	// impossible case since validation should happen first, but be safe
 	return func(result sql.Result, err error) []reflect.Value {
-		impossibleErr := reflect.ValueOf(stackerr.New("should never get here"))
+		impossibleErr := reflect.ValueOf(errors.New("should never get here"))
 		if sType == sqlResultType {
 			return []reflect.Value{zeroSQLResult, impossibleErr}
 		}
@@ -306,13 +307,13 @@ func makeQuerierReturnVals(ctx context.Context, funcType reflect.Type, builder m
 
 	// impossible case since validation should happen first, but be safe
 	return func(*sql.Rows, error) []reflect.Value {
-		return []reflect.Value{qZero, reflect.ValueOf(stackerr.New("should never get here!"))}
+		return []reflect.Value{qZero, reflect.ValueOf(errors.New("should never get here!"))}
 	}
 }
 
 func handleMapping(ctx context.Context, sType reflect.Type, rows *sql.Rows, builder mapper.Builder) (any, error) {
 	if rows == nil {
-		return nil, stackerr.New("rows must be non-nil")
+		return nil, errors.New("rows must be non-nil")
 	}
 	defer rows.Close()
 	var val any
@@ -349,7 +350,7 @@ func handleMapping(ctx context.Context, sType reflect.Type, rows *sql.Rows, buil
 func mapRows(ctx context.Context, rows *sql.Rows, builder mapper.Builder) (any, error) {
 	//fmt.Println(sType)
 	if rows == nil {
-		return nil, stackerr.New("rows must be non-nil")
+		return nil, errors.New("rows must be non-nil")
 	}
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
@@ -364,7 +365,7 @@ func mapRows(ctx context.Context, rows *sql.Rows, builder mapper.Builder) (any, 
 	}
 
 	if len(cols) == 0 {
-		return nil, stackerr.New("No values returned from query")
+		return nil, errors.New("No values returned from query")
 	}
 
 	vals := make([]any, len(cols))
