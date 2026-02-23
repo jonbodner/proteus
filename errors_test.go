@@ -121,20 +121,20 @@ func TestValidationErrorPropagation(t *testing.T) {
 
 func TestErrorsAsExtraction(t *testing.T) {
 	err := QueryError{Kind: QueryNotFound, Name: "myquery"}
-	var qe QueryError
-	if !errors.As(err, &qe) {
-		t.Fatal("errors.As should succeed for QueryError")
-	}
-	if qe.Name != "myquery" {
-		t.Errorf("expected Name=myquery, got %s", qe.Name)
+	if qe, ok := errors.AsType[QueryError](err); ok {
+		if qe.Name != "myquery" {
+			t.Errorf("expected Name=myquery, got %s", qe.Name)
+		}
+	} else {
+		t.Fatal("errors.AsType should succeed for QueryError")
 	}
 
 	err2 := IdentifierError{Kind: SemicolonInIdentifier, Identifier: "a;b"}
-	var ie IdentifierError
-	if !errors.As(err2, &ie) {
+	if ie, ok := errors.AsType[IdentifierError](err2); ok {
+		if ie.Identifier != "a;b" {
+			t.Errorf("expected Identifier=a;b, got %s", ie.Identifier)
+		}
+	} else {
 		t.Fatal("errors.As should succeed for IdentifierError")
-	}
-	if ie.Identifier != "a;b" {
-		t.Errorf("expected Identifier=a;b, got %s", ie.Identifier)
 	}
 }

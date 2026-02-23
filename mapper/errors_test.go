@@ -45,12 +45,12 @@ func TestAssignErrorMessages(t *testing.T) {
 func TestAssignErrorsAsExtraction(t *testing.T) {
 	stringType := reflect.TypeOf("")
 	err := AssignError{Kind: NilReturnForNonPointer, ToType: stringType}
-	var ae AssignError
-	if !errors.As(err, &ae) {
+	if ae, ok := errors.AsType[AssignError](err); ok {
+		if ae.ToType != stringType {
+			t.Errorf("expected ToType=string, got %v", ae.ToType)
+		}
+	} else {
 		t.Fatal("errors.As should succeed for AssignError")
-	}
-	if ae.ToType != stringType {
-		t.Errorf("expected ToType=string, got %v", ae.ToType)
 	}
 }
 
@@ -104,11 +104,11 @@ func TestExtractErrorInvalidIndexUnwrap(t *testing.T) {
 
 func TestExtractErrorsAsExtraction(t *testing.T) {
 	err := ExtractError{Kind: NoSuchField, Value: "MyField"}
-	var ee ExtractError
-	if !errors.As(err, &ee) {
+	if ee, ok := errors.AsType[ExtractError](err); ok {
+		if ee.Value != "MyField" {
+			t.Errorf("expected Field=MyField, got %s", ee.Value)
+		}
+	} else {
 		t.Fatal("errors.As should succeed for ExtractError")
-	}
-	if ee.Value != "MyField" {
-		t.Errorf("expected Field=MyField, got %s", ee.Value)
 	}
 }
